@@ -5,11 +5,11 @@ Virtual Display driver for Windows 95/98/Me. Supported devices are:
 - VBox SVGA (VirtulBox: VBoxSVGA)
 
 Supported and tested virtualization software are:
-~~- VirtualBox 6.0 (2D, software 3D)~~
+- ~~VirtualBox 6.0 (2D, software 3D)~~
 - VirtualBox 6.1 (2D, hardware OpenGL 2.1 through DX9 or OpenGL)
 - VirtualBox 7.0 (2D, hardware OpenGL 2.1 through DX9 or OpenGL)
 - VMWare Player 16 (2D, software 3D)
-~~- VMWare Player 17 (2D, software 3D)~~
+- ~~VMWare Player 17 (2D, software 3D)~~
 
 2D driver is very generic and probably works with other Virtualization software as well, 3D part required my Mesa port = https://github.com/JHRobotics/mesa9x. See its documentation for more info.
 
@@ -60,5 +60,7 @@ Edit `makefile` to enable addition logging and you can read original [readdev.tx
 
 ## External links
 http://www.os2museum.com/wp/windows-9x-video-minidriver-hd/
+
 https://wiki.osdev.org/Bochs_VBE_Extensions
+
 https://wiki.osdev.org/VMWare_SVGA-II
