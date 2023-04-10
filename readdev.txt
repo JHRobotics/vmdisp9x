@@ -1,0 +1,89 @@
+ Development Notes
+ =================
+
+ This Windows 9x display minidriver is almost entirely written in C. It is
+a 16-bit DLL running with SS != DS. The compiler switches were carefully
+chosen.
+
+ The driver is compiled as small model code and although it uses some C
+library functions (e.g. _fmemcpy(), _fmemset()), it does not use the C runtime
+startup code at all.
+
+ An interrupt 2Fh handler is written in assembler, and so are forwarders and
+thunks directing exported functions to the DIB Engine. The latter could be
+written in C, but assembly is significantly more efficient and not at all
+complex.
+
+ The driver is by necessity similar to Windows 95/98 DDK sample code, except
+it's written almost completely in C whereas the DDK sample drivers are written
+100% in assembly, in the tradition of Windows 3.x and 2.x display drivers.
+
+ Although the driver is a 16-bit DLL, it can freely use 386 instructions,
+since it requires a 386 or later CPU by virtue of running on Windows 95 or
+later. The driver also can and does use 32-bit registers in some situations.
+
+ The ddk subdirectory contains files which are directly derived from the
+Win9x DDK. The DDK is not used or required to build this driver, although DDK
+documentation is very useful in understanding the code. Note that the Windows
+9x DDK documentation may not cover topics documented in the Windows 3.x DDKs.
+
+ The original DDK drivers are split into two code segments, _TEXT and _INIT.
+This driver also uses those segments, but they are combined into a single
+physical segment by the linker. This simplifies the code (e.g. no problem with
+near calls into the C runtime) and given the small size of the driver, likely
+is not at all disadvantageous overall.
+
+ Note that the driver written in C is actually smaller (about 7KB vs. 8KB)
+than the assembler-only DDK sample. The C code is smarter and does not waste
+space on tables full of zeros and such, enabling it to be overall smaller even
+with the overhead of a higher level language.
+
+
+ Debug Logging
+ -------------
+
+ When built with DBGPRINT (e.g. wmake clean && wmake DBGPRINT=1), the driver
+includes debug logging implemented as dbg_printf() function. This is a small
+printf() subset with output directed to the VirtualBox debug port, such that
+the output appears in the VBox.log file.
+
+ It would be much nicer to use the C runtime printf(), but that is not at all
+possible because the small model library printf() cannot operate with SS != DS
+and is thus unusable, even if all other, less showstopping problems were
+overcome.
+
+ See driver code for dbg_printf() usage examples.
+
+
+ Building with Open Watcom 1.9
+ -----------------------------
+
+ The driver source was slightly adapted so that it builds with the released
+Open Watcom C/C++ 1.9 compiler.
+
+ The only real issue is that the ms2wlink utility shipped with Open Watcom
+version 1.9 cannot correctly process boxv9x.def, and therefore a working
+boxv9x.lnk file is supplied.
+
+ The build process was only tested on Windows 10 hosts. It should work,
+possibly with minor adaptations, on other platforms as well. That includes
+Windows 9x hosts.
+
+ The step of building a floppy image is optional and requires the mkimage
+utility (part of the OS/2 Museum's fdimg project) which is not included.
+
+
+ Replacing Active Driver
+ -----------------------
+
+ Once the boxvmini.drv driver is installed, it cannot be replaced while
+Windows 9x is running because the file is locked. It can be replaced in safe
+mode or command line boot (F8 key early in Win9x startup).
+
+ It can also be replaced by shutting down Windows 9x (not Windows Me) to
+MS-DOS compatibility mode, copying over boxvmini.drv to the WINDOWS\SYSTEM
+directory, and exiting back to Windows.
+
+ It is always possible to use the driver update dialog to install a rebuilt
+driver, but that requires more clicking and Windows must be restarted
+anyway.

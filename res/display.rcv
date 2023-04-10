@@ -1,0 +1,82 @@
+#include <ver.h>
+#include "version.h"
+
+/* Macros for use in the version resource. */
+
+#define VER_FILETYPE               VFT_DRV
+#define VER_FILESUBTYPE            VFT2_DRV_DISPLAY
+#define VER_FILEDESCRIPTION_STR    "Windows 9x Display Minidriver"
+#define VER_INTERNALNAME_STR       "DISPLAY"
+#define VER_LEGALCOPYRIGHT_YEARS   "2012-2023"
+
+#define VER_LEGALCOPYRIGHT_STR     "Copyright \251 The OS/2 Museum " VER_LEGALCOPYRIGHT_YEARS
+#define VER_COMPANYNAME_STR        "OS/2 Museum\0"
+
+#define VER_PRODUCTNAME_STR         "Windows 9x Display Driver\0"
+#define VER_PRODUCTVERSION          DRV_VER_NUM
+#define VER_PRODUCTVERSION_STR      DRV_VER_STR "\0"
+
+#define VER_FILEFLAGSMASK           VS_FFI_FILEFLAGSMASK
+
+#ifdef DEBUG
+#define VER_FILEFLAGS               VS_FF_DEBUG
+#else
+#define VER_FILEFLAGS               0
+#endif
+
+#define VER_FILEOS                  VOS_DOS_WINDOWS16
+
+#ifndef VER_FILEVERSION
+#define VER_FILEVERSION VER_PRODUCTVERSION
+#endif
+
+#ifndef VER_FILEVERSION_STR
+#define VER_FILEVERSION_STR VER_PRODUCTVERSION_STR
+#endif
+
+/* Actual version resource structure. */
+
+VS_VERSION_INFO    VERSIONINFO
+FILEVERSION        VER_FILEVERSION
+PRODUCTVERSION     VER_PRODUCTVERSION
+FILEFLAGSMASK      VER_FILEFLAGSMASK
+FILEFLAGS          VER_FILEFLAGS
+FILEOS             VER_FILEOS
+FILETYPE           VER_FILETYPE
+FILESUBTYPE        VER_FILESUBTYPE
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904E4"
+        BEGIN
+            VALUE "CompanyName"     , VER_COMPANYNAME_STR
+            VALUE "FileDescription" , VER_FILEDESCRIPTION_STR
+            VALUE "FileVersion"     , VER_FILEVERSION_STR
+            VALUE "InternalName"    , VER_INTERNALNAME_STR
+            VALUE "LegalCopyright"  , VER_LEGALCOPYRIGHT_STR
+            VALUE "OriginalFilename", VER_ORIGINALFILENAME_STR
+            VALUE "ProductName"     , VER_PRODUCTNAME_STR
+            VALUE "ProductVersion"  , VER_PRODUCTVERSION_STR
+        END
+
+#ifdef INTL
+        BLOCK "040904E4"
+        BEGIN
+            VALUE "CompanyName"     , VER_COMPANYNAME_STR
+            VALUE "FileDescription" , VER_FILEDESCRIPTION_STR
+            VALUE "FileVersion"     , VER_FILEVERSION_STR
+            VALUE "InternalName"    , VER_INTERNALNAME_STR
+            VALUE "LegalCopyright"  , VER_LEGALCOPYRIGHT_STR
+            VALUE "OriginalFilename", VER_ORIGINALFILENAME_STR
+            VALUE "ProductName"     , VER_PRODUCTNAME_STR
+            VALUE "ProductVersion"  , VER_PRODUCTVERSION_STR
+        END
+#endif
+    END
+
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x0409, 0x04E4    /* Needs updating. */
+    END
+END
+

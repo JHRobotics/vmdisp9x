@@ -1,0 +1,19 @@
+/*
+ * Windows 9x minidriver resource file.
+ * Most of the contents is defined by backward compatibility
+ * requirements. Much of the detail is explained in the Windows 3.x
+ * and 2.x DDKs.
+ */
+
+#include "windows.h"
+
+#define VER_ORIGINALFILENAME_STR "boxvmini.drv"
+
+#include "display.rcv"
+
+1          oembin  PRELOAD         config.bin
+2          oembin                  colortab.bin
+3          oembin  PRELOAD         fonts.bin
+fonts      oembin                  fonts.bin
+
+2003       oembin  PRELOAD         fonts120.bin

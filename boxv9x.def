@@ -1,0 +1,67 @@
+;
+; Standard display driver .DEF file
+;
+LIBRARY DISPLAY
+
+;
+; The magic numbers are: Aspect ratio, Horizontal DPI, Vertical DPI
+;
+DESCRIPTION 'DISPLAY : 100, 96, 96 : DIB Engine based Mini display driver.'
+EXETYPE WINDOWS
+
+DATA PRELOAD FIXED SINGLE
+
+SEGMENTS
+    _TEXT       PRELOAD  SHARED
+    _INIT       PRELOAD  MOVEABLE 
+
+EXPORTS
+    BitBlt                 @1
+    ColorInfo              @2
+    Control                @3
+    Disable                @4
+    Enable                 @5
+    EnumDFonts             @6
+    EnumObj                @7
+    Output                 @8
+    Pixel                  @9
+    RealizeObject          @10
+    StrBlt                 @11
+    ScanLR                 @12
+    DeviceMode             @13     NODATA
+
+    ExtTextOut             @14
+    GetCharWidth           @15     NODATA
+    DeviceBitmap           @16     NODATA
+    FastBorder             @17
+    SetAttribute           @18     NODATA
+
+    DibBlt                 @19             ; Device Independent Bitmap group
+    CreateDIBitmap         @20
+    DibToDevice            @21
+
+    SetPalette             @22             ; Windows 3.0 palette group
+    GetPalette             @23
+
+    SetPaletteTranslate    @24
+    GetPaletteTranslate    @25
+    UpdateColors           @26
+    StretchBlt             @27
+    StretchDIBits          @28
+
+    SelectBitmap           @29
+    BitmapBits             @30
+    ReEnable               @31
+
+    Inquire                @101            ; Mouse cursor function group
+    SetCursor              @102
+    MoveCursor             @103
+    CheckCursor            @104
+
+    GetDriverResourceID    @450            ; Undocumented USER callback
+    UserRepaintDisable     @500            ; Undocumented USER callback
+
+    ValidateMode	        @700
+
+IMPORTS
+    GlobalSmartPageLock = KERNEL.230       ; Undocumented function
