@@ -252,10 +252,9 @@ static DWORD AllocLinearSelector(DWORD dwPhysAddr, DWORD dwSize, DWORD __far * l
 #ifdef SVGA
 /*
  * Define the screen for accelerated rendering.
- * Keep on mind, that this works only in 32bit mode
- * For other use is required using legacy registers.
+ * Color depth can by select by set: screen.backingStore.pitch
  */
-static void SVGA_defineScreen(unsigned wXRes, unsigned wYRes)
+static void SVGA_defineScreen(unsigned wXRes, unsigned wYRes, unsigned wBpp)
 {
   SVGAFifoCmdDefineScreen __far *screen;
    
@@ -273,6 +272,9 @@ static void SVGA_defineScreen(unsigned wXRes, unsigned wYRes)
 	  screen->screen.root.x = 0;
 	  screen->screen.root.y = 0;
 	  screen->screen.cloneCount = 0;
+	  
+	  screen->screen.backingStore.pitch = CalcPitch(wXRes, wBpp);
+	  
 	  SVGA_FIFOCommitAll();
 	}
 }
@@ -280,11 +282,9 @@ static void SVGA_defineScreen(unsigned wXRes, unsigned wYRes)
 /* Check if screen acceleration is available */
 static BOOL SVGA_hasAccelScreen()
 {
-  if(wBpp == 32){
-    if(SVGA_HasFIFOCap(SVGA_FIFO_CAP_SCREEN_OBJECT | SVGA_FIFO_CAP_SCREEN_OBJECT_2))
-    {
-      return TRUE;
-    }
+  if(SVGA_HasFIFOCap(SVGA_FIFO_CAP_SCREEN_OBJECT | SVGA_FIFO_CAP_SCREEN_OBJECT_2))
+  {
+    return TRUE;
   }
   
   return FALSE;
@@ -351,21 +351,24 @@ static int SetDisplayMode( WORD wXRes, WORD wYRes, int bFullSet )
     /* Make sure, that we drain full FIFO */
     SVGA_Flush(); 
     
-    SVGA_SetMode(wXRes, wYRes, wBpp);
+    SVGA_SetMode(wXRes, wYRes, wBpp); /* setup by legacy registry */
     wMesa3DEnabled = 0;
     if(SVGA3D_Init())
     {
     	wMesa3DEnabled = SVGA_3DSupport();
     }
     
-    if(wMesa3DEnabled && SVGA_hasAccelScreen())
+    /* setting screen by fifo, this method is required in VB 6.1 */
+    if(SVGA_hasAccelScreen())
     {
-      SVGA_defineScreen(wXRes, wYRes);
+      SVGA_defineScreen(wXRes, wYRes, wBpp);
     }
 
     SVGA_WriteReg(SVGA_REG_TRACES, TRUE);
     SVGA_WriteReg(SVGA_REG_ENABLE, TRUE);
     SVGA_Flush();
+    
+    dbg_printf("Pitch: %lu\n", SVGA_ReadReg(SVGA_REG_BYTES_PER_LINE));
     
     SVGAHDA_update(wScrX, wScrY, wBpp, SVGA_ReadReg(SVGA_REG_BYTES_PER_LINE));
 #else

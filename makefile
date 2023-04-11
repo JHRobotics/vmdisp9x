@@ -6,7 +6,7 @@ OBJS = dibthunk.obj dibcall.obj enable.obj init.obj palette.obj &
 
 INCS = -I$(%WATCOM)\h\win -Iddk -Ivmware
 
-VER_BUILD = 1
+VER_BUILD = 3
 
 FLAGS = -DDRV_VER_BUILD=$(VER_BUILD)
 
