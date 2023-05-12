@@ -172,6 +172,13 @@ uint32_t FixDevCap(uint32_t cap_id, uint32_t cap_val)
 	switch(cap_id)
 	{
 		case SVGA3D_DEVCAP_SURFACEFMT_R5G6B5:
+#ifdef CAP_R5G6B5_ALWAYS_WRONG
+		{
+			uint32_t xrgb8888 = GetDevCap(SVGA3D_DEVCAP_SURFACEFMT_X8R8G8B8);
+			xrgb8888 &= ~SVGA3DFORMAT_OP_SRGBWRITE; /* nvidia */
+			return xrgb8888;
+		}
+#else
 			if(cap_val & SVGA3DFORMAT_OP_SAME_FORMAT_UP_TO_ALPHA_RENDERTARGET) /* VirtualBox BUG */
 			{
 				uint32_t xrgb8888 = GetDevCap(SVGA3D_DEVCAP_SURFACEFMT_X8R8G8B8);
@@ -188,6 +195,7 @@ uint32_t FixDevCap(uint32_t cap_id, uint32_t cap_val)
 					return xrgb8888;
 				}
 			}
+#endif
 			
 			break;
 	}

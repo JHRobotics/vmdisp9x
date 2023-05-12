@@ -6,9 +6,9 @@ OBJS = dibthunk.obj dibcall.obj enable.obj init.obj palette.obj &
 
 INCS = -I$(%WATCOM)\h\win -Iddk -Ivmware
 
-VER_BUILD = 3
+VER_BUILD = 4
 
-FLAGS = -DDRV_VER_BUILD=$(VER_BUILD)
+FLAGS = -DDRV_VER_BUILD=$(VER_BUILD) -DCAP_R5G6B5_ALWAYS_WRONG
 
 # Define HWBLT if BitBlt can be accelerated.
 #FLAGS += -DHWBLT
