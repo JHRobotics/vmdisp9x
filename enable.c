@@ -260,6 +260,8 @@ UINT WINAPI __loadds Enable( LPVOID lpDevice, UINT style, LPSTR lpDeviceType,
         if( !bReEnabling ) {
             HookInt2Fh();
         }
+        DDCreateDriverObject(1);
+        
         wEnabled = 1;
         
         return( 1 );

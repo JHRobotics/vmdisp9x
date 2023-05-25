@@ -39,7 +39,7 @@ There no DDI support in this driver, but here is Wine project (and with set call
 Of course, there is alternative for DX8 and DX9 called Swiftshader 2.0
 
 ## Technical
-`*.drv` = 16bit driver runs in 16-bit protected mode in RING 3 (!) bud with access to I/O instructions 
+`*.drv` = 16bit driver runs in 16-bit protected mode in RING 3 (!) but with access to I/O instructions 
 `*.vxd` = 32bit driver runs in 32-bit protected mode in RING 0
 `*.dll` = 32bit user library runs in 32-bit protected mode in RING 3
 
@@ -53,7 +53,7 @@ wmake
 ```
 Edit `makefile` to enable addition logging and you can read original [readdev.txt](readdev.txt).
 
-## Toto
+## Todo
 - Complete recomended mini-VDD function in [minivdd.c](minivdd.c), stubs here and cites from original MSDN are in comments.
 - Complete GPU10 functions (with synchronization with Mesa)
 - DDI?

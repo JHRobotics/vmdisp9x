@@ -29,6 +29,7 @@ THE SOFTWARE.
 #include <dibeng.h>
 #include "minidrv.h"
 #include "drvlib.h"
+#include "ddrawi.h"
 #include <wchar.h> /* wchar_t */
 #include <string.h> /* _fmemset */
 
@@ -48,6 +49,19 @@ THE SOFTWARE.
 /* list of neighbor 'known' functions */
 #define OPENGL_CMD     0x1100
 #define WNDOBJ_SETUP   0x1102
+
+#ifndef DCICOMMAND
+#define DCICOMMAND     0x0C03 // 3075
+// ^ defined in gfidefs.h
+#endif
+
+/* DCICOMMAND */
+#define DDCREATEDRIVEROBJECT    10 // create an object
+#define DDGET32BITDRIVERNAME    11 // get a 32-bit driver name
+#define DDNEWCALLBACKFNS        12 // new callback fns coming
+#define DDVERSIONINFO           13 // tells driver the ddraw version
+
+#define MOUSETRAILS             39
 
 /*
  * new escape codes
@@ -373,8 +387,7 @@ LONG WINAPI __loadds Control(LPVOID lpDevice, UINT function,
   		case OPENGL_GETINFO:
   		case FBHDA_REQ:
 #ifdef SVGA
-  		case SVGA_API:
-  			
+  		case SVGA_API:	
   		/*
   		 * allow read HW registry/fifo registry and caps even if 3D is 
   	   * disabled for diagnostic tool to check why is disabled
@@ -398,8 +411,17 @@ LONG WINAPI __loadds Control(LPVOID lpDevice, UINT function,
   			}
   			break;
 #endif
+  		case DCICOMMAND:
+  			rc = DD_HAL_VERSION;
+  			break;
+  		case QUERYESCSUPPORT:
+  			rc = 1;
+  			break;
+  		default:
+  			dbg_printf("Control: function check for unknown: %x\n", function_code);
+  			break;
   	}
-  	//dbg_printf("Control: function check for: %x\n", function_code);
+  	
   }
   else if(function == OPENGL_GETINFO) /* input: NULL, output: opengl_icd_t */
   {
@@ -416,6 +438,86 @@ LONG WINAPI __loadds Control(LPVOID lpDevice, UINT function,
     _fmemcpy(lpOutput, &software_icd, OPENGL_ICD_SIZE);
 #endif
   	
+  	rc = 1;
+  }
+  else if(function == DCICOMMAND) /* input ptr DCICMD */
+  {
+  	DCICMD_t __far *lpDCICMD  = lpInput;
+  	if(lpDCICMD != NULL)
+  	{
+  		if(lpDCICMD->dwVersion == DD_VERSION)
+  		{
+  			switch(lpDCICMD->dwCommand)
+  			{
+  				case DDCREATEDRIVEROBJECT:
+  					dbg_printf("DDCREATEDRIVEROBJECT: ");
+  					if(DDCreateDriverObject(0))
+  					{
+  						uint32_t __far *lpOut = lpOutput;
+  						DWORD hInst = DDHinstance();
+  						*lpOut = hInst;
+  						
+  						dbg_printf("success\n");
+  						rc = 1;
+  					}
+  					else
+  					{
+  						dbg_printf("failure\n");
+  						rc = 0;
+  					}
+  					break;
+  				case DDGET32BITDRIVERNAME:
+  					dbg_printf("DDGET32BITDRIVERNAME: ");
+  					if(DDGet32BitDriverName(lpOutput))
+  					{
+  						dbg_printf("success\n");
+  						rc = 1;
+  					}
+  					else
+  					{
+  						dbg_printf("failure\n");
+  						rc = 0;
+  					}
+  					break;
+  				case DDNEWCALLBACKFNS:
+  					dbg_printf("DDNEWCALLBACKFNS: ");
+  					if(DDNewCallbackFns(lpInput))
+  					{
+  						dbg_printf("success\n");
+  						rc = 1;
+  					}
+  					else
+  					{
+  						dbg_printf("failure\n");
+  						rc = 0;
+  					}
+  					break;
+  				case DDVERSIONINFO:
+  					dbg_printf("DDGetVersion\n");
+  					DDGetVersion(lpOutput);
+  					rc = 1;
+  					break;
+  				default:
+  					dbg_printf("UNK DD code: %lX\n", lpDCICMD->dwCommand);
+  					break;
+  			}
+  		}
+  		else if(lpDCICMD->dwVersion == DCI_VERSION)
+  		{
+  			dbg_printf("DCI(%d) -> failed!\n", lpDCICMD->dwCommand);
+  		}
+  		else
+  		{
+  			dbg_printf("hal required: %lX\n", lpDCICMD->dwVersion);
+  		}
+  	}
+  }
+  else if(function == MOUSETRAILS)
+  {
+  	if(lpOutput)
+  	{
+  		//...
+  	}
   	rc = 1;
   }
   else if(function == FBHDA_REQ) /* input: NULL, output: uint32  */

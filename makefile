@@ -2,11 +2,11 @@ OBJS = dibthunk.obj dibcall.obj enable.obj init.obj palette.obj &
        scrsw.obj sswhook.obj modes.obj boxv.obj control.obj &
        drvlib.obj control_vxd.obj minivdd_svga.obj vmwsvxd.obj &
        scrsw_svga.obj control_svga.obj modes_svga.obj palette_svga.obj &
-       pci.obj svga.obj svga3d.obj svga32.obj pci32.obj &
+       pci.obj svga.obj svga3d.obj svga32.obj pci32.obj dddrv.obj &
 
 INCS = -I$(%WATCOM)\h\win -Iddk -Ivmware
 
-VER_BUILD = 4
+VER_BUILD = 5
 
 FLAGS = -DDRV_VER_BUILD=$(VER_BUILD) -DCAP_R5G6B5_ALWAYS_WRONG
 
@@ -14,7 +14,7 @@ FLAGS = -DDRV_VER_BUILD=$(VER_BUILD) -DCAP_R5G6B5_ALWAYS_WRONG
 #FLAGS += -DHWBLT
 
 # Set DBGPRINT to add debug printf logging.
-#DBGPRINT = 1
+DBGPRINT = 1
 
 !ifdef DBGPRINT
 FLAGS += -DDBGPRINT
@@ -114,6 +114,9 @@ vmwsvxd.obj : vmwsvxd.c .autodepend
 minivdd_svga.obj : minivdd_svga.c .autodepend
 	$(CC32) $(CFLAGS32) $(INCS) $(FLAGS) $<
 
+dddrv.obj : dddrv.c .autodepend
+	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
+
 # Resources
 boxvmini.res : res/boxvmini.rc res/colortab.bin res/config.bin res/fonts.bin res/fonts120.bin .autodepend
 	wrc -q -r -ad -bt=windows -fo=$@ -Ires -I$(%WATCOM)/h/win $(FLAGS) res/boxvmini.rc
@@ -158,6 +161,7 @@ file sswhook.obj
 file modes.obj
 file boxv.obj
 file control.obj
+file dddrv.obj
 name boxvmini.drv
 option map=boxvmini.map
 library dibeng.lib
@@ -227,6 +231,7 @@ file svga3d.obj
 file pci.obj
 file control_svga.obj
 file control_vxd.obj
+file dddrv.obj
 name vmwsmini.drv
 option map=vmwsmini.map
 library dibeng.lib

@@ -63,7 +63,7 @@ FBHDA __far * FBHDA_ptr = NULL;
 DWORD FBHDA_linear = 0;
 
        DWORD    dwScreenFlatAddr = 0;   /* 32-bit flat address of VRAM. */
-static DWORD    dwVideoMemorySize = 0;  /* Installed VRAM in bytes. */
+       DWORD    dwVideoMemorySize = 0;  /* Installed VRAM in bytes. */
 static WORD     wScreenPitchBytes = 0;  /* Current scanline pitch. */
 static DWORD    dwPhysVRAM = 0;         /* Physical LFB base address. */
 
@@ -399,7 +399,7 @@ static int SetDisplayMode( WORD wXRes, WORD wYRes, int bFullSet )
 
         BitBltDevProc     = NULL;       /* No acceleration implemented. */
 
-        wPDeviceFlags     = MINIDRIVER | VRAM /* | OFFSCREEN */;
+        wPDeviceFlags     = MINIDRIVER | VRAM | OFFSCREEN;
         if( wBpp == 16 ) {
             wPDeviceFlags |= FIVE6FIVE; /* Needed for 16bpp modes. */
         }

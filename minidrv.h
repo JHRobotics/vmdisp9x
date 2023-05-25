@@ -77,13 +77,14 @@ extern WORD wEnabled;               /* PDevice enabled flag. */
 extern RGBQUAD FAR *lpColorTable;   /* Current color table. */
 
 extern DWORD    dwScreenFlatAddr;   /* Linear address of frame buffer */
+extern DWORD    dwVideoMemorySize;  /* Installed VRAM in bytes. */
 
 extern DWORD    VDDEntryPoint;
 extern WORD     OurVMHandle;
 
 extern WORD wMesa3DEnabled;         /* Is possible to accelerate though Mesa3D SVGA */
 
-extern DWORD dwLock32cnt;           /* Acceleration is posible only in 32 mode, so locking it's enumaration if active */
+WORD CalcPitch(WORD x, WORD bpp);
 
 typedef void (__far * FastBitBlt_t) (unsigned dx, unsigned dy, unsigned sx, unsigned sy, unsigned w, unsigned h);
 extern FastBitBlt_t FastBitBlt;
@@ -128,5 +129,6 @@ extern void CallVDD( unsigned Function );
     "pop    eax"                    \
     parm [ax];
 
-
+/* DirectDraw support */
+BOOL DDCreateDriverObject(int bReset);
 
