@@ -84,12 +84,20 @@ DDB VMWS_DDB = {
 };
 
 /* string tables */
+#ifdef DBGPRINT
 char dbg_hello[] = "Hello world!\n";
 char dbg_version[] = "VMM version: ";
 char dbg_region_err[] = "region create error\n";
 
 char dbg_Device_Init_proc[] = "Device_Init_proc\n";
 char dbg_Device_Init_proc_succ[] = "Device_Init_proc success\n";
+char dbg_dic_ring[] = "DeviceIOControl: Ring\n";
+char dbg_dic_sync[] = "DeviceIOControl: Sync\n";
+char dbg_dic_unknown[] = "DeviceIOControl: Unknown: %d\n";
+char dbg_dic_system[] = "DeviceIOControl: System code: %d\n";
+char dbg_get_ppa[] = "%lx -> %lx\n";
+char dbg_get_ppa_beg[] = "Virtual: %lx\n";
+#endif
 
 DWORD *DispatchTable = 0;
 DWORD DispatchTableLength = 0;
@@ -124,6 +132,21 @@ ULONG __declspec(naked) __cdecl _PageFree(PVOID hMem, DWORD flags)
 	VMMJmp(_PageFree);
 }
 
+ULONG __declspec(naked) __cdecl _CopyPageTable(ULONG LinPgNum, ULONG nPages, DWORD *PageBuf, ULONG flags)
+{
+	VMMJmp(_CopyPageTable);
+}
+
+ULONG __declspec(naked) __cdecl _LinPageLock(ULONG page, ULONG npages, ULONG flags)
+{
+	VMMJmp(_LinPageLock);
+}
+
+ULONG __declspec(naked) __cdecl _LinPageUnLock(ULONG page, ULONG npages, ULONG flags)
+{
+	VMMJmp(_LinPageUnLock);
+}
+
 /**
  * VDD calls wrapers
  **/
@@ -142,6 +165,46 @@ void Sys_Critical_Init_proc()
 	// nop
 }
 
+/*
+ * 32-bit DeviceIoControl ends here
+ *
+ */
+
+#define SVGA_SYNC            0x1116
+#define SVGA_RING            0x1117
+
+DWORD __stdcall Device_IO_Control_entry(struct DIOCParams *params)
+{
+	switch(params->dwIoControlCode)
+	{
+		case DIOC_OPEN:
+		case DIOC_CLOSEHANDLE:
+			dbg_printf(dbg_dic_system, params->dwIoControlCode);
+			return 0;
+		case SVGA_SYNC:
+			//dbg_printf(dbg_dic_sync);
+			SVGA_Flush();
+			return 0;
+		case SVGA_RING:
+			//dbg_printf(dbg_dic_ring);
+			SVGA_WriteReg(SVGA_REG_SYNC, 1);
+			return 0;
+	}
+		
+	dbg_printf(dbg_dic_unknown, params->dwIoControlCode);
+	
+	return 1;
+}
+
+void __declspec(naked) Device_IO_Control_proc()
+{
+	_asm {
+		push esi /* struct DIOCParams */
+		call Device_IO_Control_entry
+		retn
+	}
+}
+
 void Device_Init_proc();
 
 /*
@@ -157,61 +220,226 @@ void __declspec(naked) VMWS_Control()
 	// eax = 0x23 - device IO control
 	
 	_asm {
-		pushad
 		cmp eax,Sys_Critical_Init
 		jnz control_1
-		  call Sys_Critical_Init_proc
+			pushad
+			call Sys_Critical_Init_proc
+			popad
+			clc
+			ret
 		control_1: 
 		cmp eax,Device_Init
 		jnz control_2
+			pushad
 		  call Device_Init_proc
+			popad
+			clc
+			ret
 		control_2:
 		cmp eax,0x1B
 		jnz control_3
+			pushad
 		  call Device_Init_proc
+		  popad
+			clc
+			ret
 		control_3:
-	  popad
+		cmp eax,W32_DEVICEIOCONTROL
+		jnz control_4
+			jmp Device_IO_Control_proc
+		control_4:
 		clc
 	  ret
 	};
 }
 
 /**
- * PM16 driver RING0 calls
+ * Return PPN (physical page number) from virtual address
+ * 
  **/
-BOOL CreateRegion(unsigned int nPages, ULONG *lpLAddr, ULONG *lpPPN)
+static DWORD getPPN(DWORD virtualaddr)
+{
+	DWORD phy = 0;
+	_CopyPageTable(virtualaddr/P_SIZE, 1, &phy, 0);
+	return phy/P_SIZE;
+}
+
+/**
+ * Allocate guest memory region (GMR) - HW needs know memory physical
+ * addressed of pages in (virtual) memory block.
+ * Technically this allocate 2 memory block, 1st for data and 2nd as its
+ * physical description.
+ *
+ * @param nPages: number of pages to allocate
+ * @param outDataAddr: linear address (system space) of data block
+ * @param outGMRAddr: linear address of GMR block
+ * @param outPPN: physical page number of outGMRAddr (first page)
+ *
+ * @return: TRUE on success
+ *
+ **/
+static BOOL GMRAlloc(ULONG nPages, ULONG *outDataAddr, ULONG *outGMRAddr, ULONG *outPPN)
 {
 	ULONG phy;
+	ULONG pgblk_phy;
 	ULONG laddr;
+	ULONG pgblk;
 	SVGAGuestMemDescriptor *desc;
-	laddr = _PageAllocate(nPages + 1, PG_SYS, 0, 0x00000000, 0, 0x100000, &phy, PAGECONTIG | PAGEUSEALIGN | PAGEFIXED);
+	laddr = _PageAllocate(nPages, PG_SYS, 0, 0, 0x0, 0x100000, &phy, PAGECONTIG | PAGEUSEALIGN | PAGEFIXED);
 	
 	if(laddr)
 	{
-		desc = (SVGAGuestMemDescriptor*)laddr;
-		desc->ppn = (phy/P_SIZE) + 1;
-		desc->numPages = nPages;
-		desc++;
-		desc->ppn = 0;
-		desc->numPages = 0;
+		pgblk = _PageAllocate(1, PG_SYS, 0, 0, 0x0, 0x100000, &pgblk_phy, PAGECONTIG | PAGEUSEALIGN | PAGEFIXED);
+		if(pgblk)
+		{
+			desc = (SVGAGuestMemDescriptor*)pgblk;
+			desc->ppn = (phy/P_SIZE);
+			desc->numPages = nPages;
+			desc++;
+			desc->ppn = 0;
+			desc->numPages = 0;
 		
-		*lpLAddr = laddr;
-		*lpPPN = (phy/P_SIZE);
+			*outDataAddr = laddr;
+			*outGMRAddr = pgblk;
+			*outPPN = (pgblk_phy/P_SIZE);
 		
-		return TRUE;
+			return TRUE;
+		}
+		else
+		{
+			_PageFree((PVOID)laddr, 0);
+			return FALSE;
+		}
+	}
+	else
+	{
+		ULONG taddr;
+		ULONG tppn;
+		ULONG pgi;
+		ULONG base_ppn;
+		ULONG base_cnt;
+		ULONG blocks = 1;
+		ULONG blk_pages = 0;
+		
+		laddr = _PageAllocate(nPages, PG_SYS, 0, 0, 0x0, 0x100000, NULL, PAGEFIXED);
+		
+		if(laddr)
+		{
+			/* determine how many physical continuous blocks we have */
+			base_ppn = getPPN(laddr);
+			base_cnt = 1;
+			for(pgi = 1; pgi < nPages; pgi++)
+			{
+				taddr = laddr + pgi*P_SIZE;
+				tppn = getPPN(taddr);
+				
+				if(tppn != base_ppn + base_cnt)
+				{
+					base_ppn = tppn;
+					base_cnt = 1;
+					blocks++;
+				}
+				else
+				{
+					base_cnt++;
+				}
+			}
+			
+			// number of pages to store regions information
+			blk_pages = ((blocks+1)/(P_SIZE/sizeof(SVGAGuestMemDescriptor))) + 1;
+			
+			// add extra descriptors for pages edge
+			blk_pages = ((blocks+blk_pages+1)/(P_SIZE/sizeof(SVGAGuestMemDescriptor))) + 1;
+			
+			pgblk = _PageAllocate(blk_pages, PG_SYS, 0, 0, 0x0, 0x100000, &pgblk_phy, PAGECONTIG | PAGEUSEALIGN | PAGEFIXED);
+			if(pgblk)
+			{
+				desc = (SVGAGuestMemDescriptor*)pgblk;
+				desc->ppn = getPPN(laddr);
+				desc->numPages = 1;
+				blocks = 1;
+				
+				for(pgi = 1; pgi < nPages; pgi++)
+				{
+					taddr = laddr + pgi*P_SIZE;
+					tppn = getPPN(taddr);
+					
+					if(tppn == desc->ppn + desc->numPages)
+					{
+						desc->numPages++;
+					}
+					else
+					{
+						/* next descriptor is on page edge */
+						if((blocks+1) % (P_SIZE/sizeof(SVGAGuestMemDescriptor)) == 0)
+						{
+							desc++;
+							desc->numPages = 0;
+							desc->ppn = getPPN((DWORD)(desc+1));
+							//dbg_printf(old_new_ppn, blocks, getPPN((DWORD)(desc)), getPPN((DWORD)(desc+1)), getPPN((DWORD)(desc+2)));
+							blocks++;
+						}
+						
+						desc++;
+						desc->ppn = tppn;
+						desc->numPages = 1;
+						blocks++;
+					}
+				}
+				
+				desc++;
+				desc->ppn = 0;
+				desc->numPages = 0;
+				
+				*outDataAddr = laddr;
+				*outGMRAddr = pgblk;
+				*outPPN = (pgblk_phy/P_SIZE);
+				
+				return TRUE;
+			}
+			else
+			{
+				_PageFree((PVOID)laddr, 0);
+				return FALSE;
+			}
+		}
 	}
 	
 	return FALSE;
 }
 
-BOOL FreeRegion(ULONG LAddr)
+/**
+ * Free data allocated by GMRAlloc
+ *
+ **/
+static BOOL GMRFree(ULONG DataAddr, ULONG GMRAddr)
 {
-	if(_PageFree((PVOID)LAddr, 0) != 0)
+	BOOL ret = FALSE;
+
+	if(_PageFree((PVOID)DataAddr, 0) != 0)
 	{
-		return TRUE;
+		ret = TRUE;
 	}
 	
-	return FALSE;
+	if(_PageFree((PVOID)GMRAddr, 0) != 0)
+	{
+		ret = TRUE;
+	}
+	
+	return ret;
+}
+
+/**
+ * PM16 driver RING0 calls
+ **/
+BOOL CreateRegion(unsigned int nPages, ULONG *lpLAddr, ULONG *lpPPN, ULONG *lpPGBLK)
+{	
+	return GMRAlloc(nPages, lpLAddr, lpPGBLK, lpPPN);
+}
+
+BOOL FreeRegion(ULONG LAddr, ULONG PGBLK)
+{
+	return GMRFree(LAddr, PGBLK);
 }
 
 #define MOB_PER_PAGE_CNT (P_SIZE/sizeof(ULONG))
@@ -222,7 +450,7 @@ BOOL CreateMOB(unsigned int nPages, ULONG *lpLAddr, ULONG *lpPPN)
 	ULONG phy;
 	ULONG laddr;
 	
-	laddr = _PageAllocate(nPages + mobBasePages, PG_SYS, 0, 0x00000000, 0, 0x100000, &phy, PAGECONTIG | PAGEUSEALIGN | PAGEFIXED);
+	laddr = _PageAllocate(nPages + mobBasePages, PG_SYS, 0, 0x0, 0, 0x0fffff, &phy, PAGECONTIG | PAGEUSEALIGN | PAGEFIXED);
 	if(laddr)
 	{
 		unsigned int i;
@@ -270,17 +498,20 @@ WORD __stdcall VMWS_API_Proc(PCRS_32 state)
 		{
 			ULONG lAddr;
 			ULONG PPN;
+			ULONG PGBLK;
 				
-			if(CreateRegion(state->Client_ECX, &lAddr, &PPN))
+			if(CreateRegion(state->Client_ECX, &lAddr, &PPN, &PGBLK))
 			{
 				state->Client_ECX = PPN;
 				state->Client_EDX = lAddr;
+				state->Client_EBX = PGBLK;
 				rc = 1;
 			}
 			else
 			{
 				state->Client_ECX = 0;
 				state->Client_EDX = 0;
+				state->Client_EBX = 0;
 				
 				dbg_printf(dbg_region_err);
 				
@@ -291,7 +522,7 @@ WORD __stdcall VMWS_API_Proc(PCRS_32 state)
 		/* free region = input: ECX: lin. address */
 		case VMWSVXD_PM16_DESTROY_REGION: 
 		{
-			if(FreeRegion(state->Client_ECX))
+			if(FreeRegion(state->Client_ECX, state->Client_EBX))
 			{
 				rc = 1;
 			}

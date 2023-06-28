@@ -306,7 +306,7 @@ void SVGAHDA_init()
   SVGAHDA.ul_fence_index = SVGAHDA.ul_flags_index + 5;
   SVGAHDA.ul_gmr_start   = SVGAHDA.ul_fence_index + 1;
   SVGAHDA.ul_gmr_count   = SVGA_ReadReg(SVGA_REG_GMR_MAX_IDS);
-  SVGAHDA.ul_ctx_start   = SVGAHDA.ul_gmr_start + SVGAHDA.ul_gmr_count*3;
+  SVGAHDA.ul_ctx_start   = SVGAHDA.ul_gmr_start + SVGAHDA.ul_gmr_count*4;
   SVGAHDA.ul_ctx_count   = GetDevCap(SVGA3D_DEVCAP_MAX_CONTEXT_IDS);
   SVGAHDA.ul_surf_start  = SVGAHDA.ul_ctx_start + SVGAHDA.ul_ctx_count;
   SVGAHDA.ul_surf_count  = GetDevCap(SVGA3D_DEVCAP_MAX_SURFACE_IDS);
@@ -372,11 +372,16 @@ void SVGAHDA_update(DWORD width, DWORD height, DWORD bpp, DWORD pitch)
         FBHDA_REQ
  *   2) access VMWare SVGA II registers and memory to real GPU acceleration
  *
+ * 2023-II:
+ * Added DCICOMMAND to query DirectDraw/DirectX interface
+ *
  **/
 LONG WINAPI __loadds Control(LPVOID lpDevice, UINT function,
   LPVOID lpInput, LPVOID lpOutput)
 {
 	LONG rc = -1;
+	
+	dbg_printf("Control (16bit): %d (0x%x)\n", function, function);
 	
   if(function == QUERYESCSUPPORT)
   {
@@ -442,7 +447,7 @@ LONG WINAPI __loadds Control(LPVOID lpDevice, UINT function,
   }
   else if(function == DCICOMMAND) /* input ptr DCICMD */
   {
-  	DCICMD_t __far *lpDCICMD  = lpInput;
+  	DCICMD_t __far *lpDCICMD = lpInput;
   	if(lpDCICMD != NULL)
   	{
   		if(lpDCICMD->dwVersion == DD_VERSION)
@@ -563,18 +568,19 @@ LONG WINAPI __loadds Control(LPVOID lpDevice, UINT function,
   	uint32_t __far *lpOut = lpOutput;
   	uint32_t rid = lpIn[0];
   	
-  	dbg_printf("Region id = %ld\n", rid);	
+  	dbg_printf("Region id = %ld, max desc = %ld\n", rid, SVGA_ReadReg(SVGA_REG_GMR_MAX_DESCRIPTOR_LENGTH));	
   	
 	  if(rid)
 	  {
 	  	uint32_t lAddr;
 	  	uint32_t ppn;
+	  	uint32_t pgblk;
 	  	
 	  	VXD_load();
 	  	
-	  	if(VXD_CreateRegion(lpIn[1], &lAddr, &ppn)) /* allocate physical memory */
+	  	if(VXD_CreateRegion(lpIn[1], &lAddr, &ppn, &pgblk)) /* allocate physical memory */
 	  	{
-	  		dbg_printf("Region address = %lX, PPN = %lX\n", lAddr, ppn);
+	  		dbg_printf("Region address = %lX, PPN = %lX, GMRBLK = %lX\n", lAddr, ppn, pgblk);
 	  		
 		    SVGA_WriteReg(SVGA_REG_GMR_ID, rid);
 		    SVGA_WriteReg(SVGA_REG_GMR_DESCRIPTOR, ppn);
@@ -583,12 +589,14 @@ LONG WINAPI __loadds Control(LPVOID lpDevice, UINT function,
 		    SVGA_Flush();
 		    
 		    lpOut[0] = rid;
-		    lpOut[1] = lAddr + 4096;
+		    lpOut[1] = lAddr;
+		    lpOut[2] = pgblk;
 	  	}
 	  	else
 	  	{
 	  		lpOut[0] = 0;
 	  		lpOut[1] = 0;
+	  		lpOut[2] = 0;
 	  	}
 	  }
 	  
@@ -598,7 +606,8 @@ LONG WINAPI __loadds Control(LPVOID lpDevice, UINT function,
   {
   	uint32_t __far *lpin = lpInput;
     uint32_t id     = lpin[0];
-    uint32_t linear = lpin[1] - 4096;
+    uint32_t linear = lpin[1];
+    uint32_t pgblk  = lpin[2];
     
     /* flush all register inc. fifo so make sure, that all commands are processed */
     SVGA_Flush();
@@ -611,7 +620,7 @@ LONG WINAPI __loadds Control(LPVOID lpDevice, UINT function,
     
     /* region physical delete */
     VXD_load();
-    VXD_FreeRegion(linear);
+    VXD_FreeRegion(linear, pgblk);
     
     rc = 1;
   }

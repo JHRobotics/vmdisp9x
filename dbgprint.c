@@ -231,6 +231,11 @@ void dbg_printf( const char *s, ... )
 
             if( conv ) {
                 /* Time to start grabbing stuff off the stack. */
+#ifdef VXD32
+                /* in 32-bit are all args 32bit... */
+                dword = va_arg( args, uint32_t );
+                word  = (dword & 0xFFFF);
+#else
                 word = va_arg( args, uint16_t );
                 /* If argument is double wide, build a doubleword. */
                 if( type_len == 'l' || type_len == 'W' ) {
@@ -238,6 +243,7 @@ void dbg_printf( const char *s, ... )
                     dword <<= 16;
                     dword |= word;
                 }
+#endif
                 if( conv == 'c' ) {
                     prt_ch( word );
                 } else if( conv == 'd' ) {

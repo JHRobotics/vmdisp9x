@@ -73,11 +73,12 @@ BOOL VXD_load()
 	return VXD_srv != 0;
 }
 
-BOOL VXD_CreateRegion(uint32_t nPages, uint32_t __far *lpLAddr, uint32_t __far *lpPPN)
+BOOL VXD_CreateRegion(uint32_t nPages, uint32_t __far *lpLAddr, uint32_t __far *lpPPN, uint32_t __far *lpPGBLKAddr)
 {
 	static uint32_t snPages;
 	static uint32_t sLAddr;
 	static uint32_t sPPN;
+	static uint32_t sPGBLKAddr;
 	static uint16_t state = 0;
 	
 	snPages = nPages;
@@ -90,6 +91,7 @@ BOOL VXD_CreateRegion(uint32_t nPages, uint32_t __far *lpLAddr, uint32_t __far *
 			push eax
 			push edx
 			push ecx
+			push ebx
 			
 			mov  edx,      VMWSVXD_PM16_CREATE_REGION
 			mov  ecx,      [snPages]
@@ -97,7 +99,9 @@ BOOL VXD_CreateRegion(uint32_t nPages, uint32_t __far *lpLAddr, uint32_t __far *
 			mov  [state],  ax
 			mov  [sLAddr], edx
 			mov  [sPPN],   ecx
+			mov  [sPGBLKAddr], ebx
 			
+			pop ebx
 			pop ecx
 			pop edx
 			pop eax
@@ -107,6 +111,7 @@ BOOL VXD_CreateRegion(uint32_t nPages, uint32_t __far *lpLAddr, uint32_t __far *
 		{
 			*lpLAddr = sLAddr;
 			*lpPPN   = sPPN;
+			*lpPGBLKAddr = sPGBLKAddr;
 			
 			return TRUE;
 		}
@@ -119,12 +124,14 @@ BOOL VXD_CreateRegion(uint32_t nPages, uint32_t __far *lpLAddr, uint32_t __far *
 	return FALSE;
 }
 
-BOOL VXD_FreeRegion(uint32_t LAddr)
+BOOL VXD_FreeRegion(uint32_t LAddr, uint32_t PGBLKAddr)
 {
 	static uint32_t sLAddr;
 	static uint16_t state;
+	static uint32_t sPGBLKAddr;
 	
 	sLAddr = LAddr;
+	sPGBLKAddr = PGBLKAddr;
 	
 	if(VXD_srv != 0)
 	{
@@ -134,12 +141,15 @@ BOOL VXD_FreeRegion(uint32_t LAddr)
 			push eax
 			push edx
 			push ecx
+			push ebx
 			
 			mov  edx,      VMWSVXD_PM16_DESTROY_REGION
-			mov  ecx,      [LAddr]
+			mov  ecx,      [sLAddr]
+			mov  ebx,      [sPGBLKAddr]
 			call dword ptr [VXD_srv]
 			mov  [state],  ax
 			
+			pop ebx
 			pop ecx
 			pop edx
 			pop eax

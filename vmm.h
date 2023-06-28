@@ -701,4 +701,29 @@ typedef struct tagCRS_32
 #define D_ACCESSED  1           /* segment accessed bit */
 
 
+/* contains information that an aplication passed to VXD by calling DeviceIoControl function */
+struct DIOCParams
+{
+	DWORD Intrenal1;
+	DWORD VMHandle;
+	DWORD Internal2;
+	DWORD dwIoControlCode;
+	DWORD lpInBuffer;
+	DWORD cbInBuffer;
+	DWORD lpOutBuffer;
+	DWORD cbOutBuffer;
+	DWORD lpcbBytesReturned;
+	DWORD lpOverlapped;
+	DWORD hDevice;
+	DWORD tagProcess;
+};
+
+/* vWin32 communicates with Vxds on behalf of Win32 apps thru this mechanism. */
+#define W32_DEVICEIOCONTROL 0x0023
+
+/* sub-functions */
+#define DIOC_GETVERSION     0x0
+#define DIOC_OPEN       DIOC_GETVERSION
+#define DIOC_CLOSEHANDLE    -1
+
 #endif /* __VMM_H__INCLUDED__ */
