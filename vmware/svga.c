@@ -259,6 +259,22 @@ SVGA_Init(Bool enableFIFO)
    gSVGA.fifoSel    = 0;
    gSVGA.fifoAct    = 0;
    
+   /* set if SVGA supporting different BPP then 32 */
+   SVGA_WriteReg(SVGA_REG_ENABLE, TRUE);
+   SVGA_WriteReg(SVGA_REG_CONFIG_DONE, TRUE);
+   
+   SVGA_WriteReg(SVGA_REG_BITS_PER_PIXEL, 8);
+   if(SVGA_ReadReg(SVGA_REG_CONFIG_DONE) == 0)
+   {
+      gSVGA.only32bit = 1;
+   }
+   else
+   {
+      gSVGA.only32bit = 0;
+   }
+   SVGA_WriteReg(SVGA_REG_ENABLE, FALSE);
+   SVGA_WriteReg(SVGA_REG_CONFIG_DONE, FALSE);
+   
    if(enableFIFO)
    {
    	 SVGA_Enable();
@@ -320,7 +336,7 @@ SVGA_Enable(void)
 
    SVGA_WriteReg(SVGA_REG_ENABLE, TRUE);
    SVGA_WriteReg(SVGA_REG_CONFIG_DONE, TRUE);
-
+   
    /*
     * Now that the FIFO is initialized, we can do an IRQ sanity check.
     * This makes sure that the VM's chipset and our own IRQ code

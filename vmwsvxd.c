@@ -97,6 +97,9 @@ char dbg_dic_unknown[] = "DeviceIOControl: Unknown: %d\n";
 char dbg_dic_system[] = "DeviceIOControl: System code: %d\n";
 char dbg_get_ppa[] = "%lx -> %lx\n";
 char dbg_get_ppa_beg[] = "Virtual: %lx\n";
+
+char dbg_str[] = "%s\n";
+
 #endif
 
 DWORD *DispatchTable = 0;
@@ -169,7 +172,7 @@ void Sys_Critical_Init_proc()
  * 32-bit DeviceIoControl ends here
  *
  */
-
+#define SVGA_DBG             0x110B
 #define SVGA_SYNC            0x1116
 #define SVGA_RING            0x1117
 
@@ -188,6 +191,11 @@ DWORD __stdcall Device_IO_Control_entry(struct DIOCParams *params)
 		case SVGA_RING:
 			//dbg_printf(dbg_dic_ring);
 			SVGA_WriteReg(SVGA_REG_SYNC, 1);
+			return 0;
+		case SVGA_DBG:
+#ifdef DBGPRINT
+			dbg_printf(dbg_str, params->lpInBuffer);
+#endif			
 			return 0;
 	}
 		

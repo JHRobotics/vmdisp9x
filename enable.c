@@ -32,6 +32,10 @@ THE SOFTWARE.
 
 #include <string.h>
 
+#ifdef SVGA
+# include "svga_all.h"
+#endif
+
 /* Pretend we have a 208 by 156 mm screen. */
 #define DISPLAY_HORZ_MM     208
 #define DISPLAY_VERT_MM     156
@@ -139,7 +143,36 @@ DWORD PASCAL CreateDIBPDeviceX( LPBITMAPINFO lpInfo, LPPDEVICE lpDevice, LPVOID 
     "shr    eax, 16"            \
     "xchg   ax, dx"
 
+#ifdef SVGA
+static uint32 updateX = 0;
+static uint32 updateY = 0;
+static uint32 updateW = 0;
+static uint32 updateH = 0;
+#endif
+
 #pragma code_seg( _INIT )
+
+#ifdef SVGA
+VOID WINAPI __loadds SVGA_DIB_BeginAccess( LPPDEVICE lpDevice, WORD wLeft, WORD wTop, WORD wRight, WORD wBottom, WORD wFlags )
+{
+	updateX = wLeft;
+	updateY = wTop;
+	updateW = wRight - wLeft;
+	updateH = wBottom - wTop;
+	
+	DIB_BeginAccess(lpDevice, wLeft, wTop, wRight, wBottom, wFlags);
+}
+
+VOID WINAPI __loadds SVGA_DIB_EndAccess( LPPDEVICE lpDevice, WORD wFlags )
+{
+	DIB_EndAccess(lpDevice, wFlags);
+	if(wBpp == 32)
+	{
+		SVGA_Update(updateX, updateY, updateW, updateH);
+	}
+}
+#endif
+
 
 /* GDI calls Enable twice at startup, first to query the GDIINFO structure
  * and then to initialize the video hardware.
@@ -237,8 +270,13 @@ UINT WINAPI __loadds Enable( LPVOID lpDevice, UINT style, LPSTR lpDeviceType,
         dbg_printf( "Enable: CreateDIBPDevice returned %lX\n", dwRet );
 
         /* Now fill out the begin/end access callbacks. */
+#ifdef SVGA
+        lpEng->deBeginAccess = SVGA_DIB_BeginAccess;
+        lpEng->deEndAccess   = SVGA_DIB_EndAccess;
+#else
         lpEng->deBeginAccess = DIB_BeginAccess;
         lpEng->deEndAccess   = DIB_EndAccess;
+#endif
 
         /* Program the DAC in non-direct color modes. */
         if( wBpp <= 8 ) {

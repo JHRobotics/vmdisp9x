@@ -77,8 +77,15 @@ DIBTHK	GetPalette,		_lpDriverPDevice
 DIBTHK	SetPaletteTranslate,	_lpDriverPDevice
 DIBTHK	GetPaletteTranslate,	_lpDriverPDevice
 DIBTHK	UpdateColors,		_lpDriverPDevice
-DIBTHK	SetCursor,		_lpDriverPDevice
-DIBTHK	MoveCursor,		_lpDriverPDevice
+;DIBTHK	SetCursor,		_lpDriverPDevice
+;DIBTHK	MoveCursor,		_lpDriverPDevice
+
+;; There is collision with driver's SetCursor ans WINAPI function of same name
+;; and this is hack to resolve it without modify of headers
+extrn	SetCursor_driver : far
+public	SetCursor
+SetCursor:
+	jmp SetCursor_driver
 
 ;; Forwarders that simply jump to the DIB Engine.
 ;; Sorted by ordinal number.

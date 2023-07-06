@@ -50,8 +50,15 @@ vmwsmini.vxd=1
 %VBoxVideoVGA.DeviceDesc%=VBox, PCI\VEN_80EE&DEV_BEEF&SUBSYS_00000000
 %VBoxVideoSVGA.DeviceDesc%=VBoxSvga, PCI\VEN_80EE&DEV_BEEF&SUBSYS_040515AD
 %VBoxVideoVM.DeviceDesc%=VMSvga, PCI\VEN_15AD&DEV_0405&SUBSYS_040515AD
+;Line for QEMU STD, but driver not working now
+;%QemuStd.DeviceDesc%=QemuSTD, PCI\VEN_1234&DEV_1111
 
 [VBox]
+CopyFiles=VBox.Copy,Dx.Copy,DX.CopyBackup,Voodoo.Copy
+DelReg=VM.DelReg
+AddReg=VBox.AddReg,VM.AddReg,DX.addReg
+
+[QemuStd]
 CopyFiles=VBox.Copy,Dx.Copy,DX.CopyBackup,Voodoo.Copy
 DelReg=VM.DelReg
 AddReg=VBox.AddReg,VM.AddReg,DX.addReg
@@ -102,10 +109,12 @@ vmwsmini.vxd,,,0x00000004
 [VBox.AddReg]
 HKR,DEFAULT,drv,,boxvmini.drv
 ;HKR,DEFAULT,minivdd,,boxvmini.vxd
+HKR,DEFAULT,Mode,,"8,640,480"
 
 [VMSvga.AddReg]
 HKR,DEFAULT,drv,,vmwsmini.drv
 HKR,DEFAULT,minivdd,,vmwsmini.vxd
+HKR,DEFAULT,Mode,,"32,640,480"
 
 [VM.DelReg]
 HKR,,Ver
@@ -119,7 +128,6 @@ HKLM,Software\Microsoft\Windows\CurrentVersion\OpenGLdrivers,VMWSVGA
 [VM.AddReg]
 HKR,,Ver,,4.0
 HKR,,DevLoader,,*vdd
-HKR,DEFAULT,Mode,,"8,640,480"
 HKR,DEFAULT,vdd,,"*vdd,*vflatd"
 ;HKR,DEFAULT,carddvdd,,cardsamp.vxd
 HKR,DEFAULT,RefreshRate,,-1
@@ -197,3 +205,4 @@ Mfg="VirtualBox"
 VBoxVideoVGA.DeviceDesc="VBox VGA PCI Adapter"
 VBoxVideoSVGA.DeviceDesc="VBox SVGA PCI Adapter"
 VBoxVideoVM.DeviceDesc="VMWare SVGA-II PCI Adapter"
+QemuStd.DeviceDesc="QEMU STD VGA PCI Adapter"

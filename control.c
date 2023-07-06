@@ -70,6 +70,12 @@ THE SOFTWARE.
 /* all frame buffer devices */
 #define FBHDA_REQ            0x110A
 
+/* debug output from ring-3 application */
+#define SVGA_DBG             0x110B
+
+/* update buffer if 'need_call_update' is set */
+#define FBHDA_UPDATE         0x110C
+
 /* check for drv <-> vxd <-> dll match */
 #define SVGA_API             0x110F
 
@@ -84,6 +90,13 @@ THE SOFTWARE.
 #define SVGA_HWINFO_REGS   0x1121
 #define SVGA_HWINFO_FIFO   0x1122
 #define SVGA_HWINFO_CAPS   0x1123
+
+typedef struct _longRECT {
+  LONG left;
+  LONG top;
+  LONG right;
+  LONG bottom;
+} longRECT;
 
 /**
  * OpenGL ICD driver name (0x1101):
@@ -391,6 +404,7 @@ LONG WINAPI __loadds Control(LPVOID lpDevice, UINT function,
   	{
   		case OPENGL_GETINFO:
   		case FBHDA_REQ:
+  		case FBHDA_UPDATE:
 #ifdef SVGA
   		case SVGA_API:	
   		/*
@@ -532,6 +546,13 @@ LONG WINAPI __loadds Control(LPVOID lpDevice, UINT function,
   	dbg_printf("FBHDA request: %lX\n", FBHDA_linear);
   	
   	rc = 1;
+  }
+  else if(function == FBHDA_UPDATE) /* input RECT, output: NULL */
+  {
+#ifdef SVGA
+		longRECT __far *lpRECT = lpInput;
+		SVGA_Update(lpRECT->left, lpRECT->top, lpRECT->right - lpRECT->left, lpRECT->bottom - lpRECT->top);
+#endif
   }
 #ifdef SVGA
   else if(function == SVGA_READ_REG) /* input: uint32_t, output: uint32_t */

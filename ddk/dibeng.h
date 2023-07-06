@@ -129,9 +129,11 @@ extern VOID     WINAPI  DIB_SetPaletteTranslate( LPWORD lpIndexes );
 extern VOID     WINAPI  DIB_SetPaletteTranslateExt( LPWORD lpIndexes, LPPDEVICE lpDIBEngine );
 extern VOID     WINAPI  DIB_UpdateColorsExt( WORD wStartX, WORD wStart, WORD wExtX, WORD wExtY,
                                              LPWORD lpTranslate, LPPDEVICE lpDIBEngine );
-extern VOID     WINAPI  DIB_SetCursorExt( LPPDEVICE lpDevice, LPVOID lpCursorShape );
+//extern VOID     WINAPI  DIB_SetCursorExt( LPPDEVICE lpDevice, LPVOID lpCursorShape );
+extern VOID     WINAPI  DIB_SetCursorExt( LPVOID lpCursor, LPPDEVICE lpDevice );
 extern VOID     WINAPI  DIB_CheckCursorExt( LPPDEVICE lpDevice );
-extern VOID     WINAPI  DIB_MoveCursorExt( LPPDEVICE lpDevice, WORD absX, WORD absY );
+//extern VOID     WINAPI  DIB_MoveCursorExt( LPPDEVICE lpDevice, WORD absX, WORD absY );
+extern VOID     WINAPI  DIB_MoveCursorExt( WORD absX, WORD absY, LPPDEVICE lpDevice );
 extern VOID     WINAPI  DIB_Inquire( LPVOID lpCursorInfo );
 extern VOID     WINAPI  DIB_BeginAccess( LPPDEVICE lpDevice, WORD wLeft, WORD wTop, WORD wRight, WORD wBottom, WORD wFlags );
 extern VOID     WINAPI  DIB_EndAccess( LPPDEVICE lpDevice, WORD wFlags );

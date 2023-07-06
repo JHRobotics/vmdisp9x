@@ -85,6 +85,8 @@ typedef struct SVGADevice {
    /* VMWare SVGAII and VBox SVGA is same device with different PCI ID */
    uint16 vendorId;
    uint16 deviceId;
+   /* adaper in QEMU works only on 32bit */
+   uint32 only32bit;
 
 #ifndef REALLY_TINY
    volatile struct {

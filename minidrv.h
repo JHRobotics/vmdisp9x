@@ -103,8 +103,11 @@ typedef struct _FBHDA
 	DWORD pitch;
 	DWORD        fb_pm32; /* eq. linear address, mapped to shared or kernel space*/
 	void __far * fb_pm16; /* usable in this driver */
+	DWORD flags;
 } FBHDA;
 #pragma pack(pop)
+
+#define FBHDA_NEED_UPDATE 1
 
 extern FBHDA __far * FBHDA_ptr;
 extern DWORD FBHDA_linear;

@@ -266,10 +266,14 @@ void dbg_printf( const char *s, ... )
                         prt_hex32( word, 4, hexa );
                     }
                 } else if( conv == 's' ) {
+#ifdef VXD32
+                    prt_str((const char *)dword);
+#else
                     if( type_len == 'W' )
                         prt_str( (const char __far *)dword );
                     else
                         prt_str( (const char *)word );
+#endif
                 } else if( conv == 'x' || conv == 'X' ) {
                     hexa = conv - 'X' + 'A';
                     if( type_len == 'l' ) {

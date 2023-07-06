@@ -3,6 +3,7 @@ OBJS = dibthunk.obj dibcall.obj enable.obj init.obj palette.obj &
        drvlib.obj control_vxd.obj minivdd_svga.obj vmwsvxd.obj &
        scrsw_svga.obj control_svga.obj modes_svga.obj palette_svga.obj &
        pci.obj svga.obj svga3d.obj svga32.obj pci32.obj dddrv.obj &
+       enable_svga.obj dibcall_svga.obj
 
 INCS = -I$(%WATCOM)\h\win -Iddk -Ivmware
 
@@ -12,6 +13,8 @@ FLAGS = -DDRV_VER_BUILD=$(VER_BUILD) -DCAP_R5G6B5_ALWAYS_WRONG
 
 # Define HWBLT if BitBlt can be accelerated.
 #FLAGS += -DHWBLT
+# Define HWCURSOR if you want accelerate cursor (SVGA only)
+#FLAGS += -DHWCURSOR
 
 # Set DBGPRINT to add debug printf logging.
 #DBGPRINT = 1
@@ -68,11 +71,17 @@ dbgprint32.obj : dbgprint32.c .autodepend
 
 dibcall.obj : dibcall.c .autodepend
 	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
+	
+dibcall_svga.obj : dibcall_svga.c .autodepend
+	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
 
 dibthunk.obj : dibthunk.asm
 	wasm -q $(FLAGS) $<
 
 enable.obj : enable.c .autodepend
+	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
+
+enable_svga.obj : enable_svga.c .autodepend
 	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
 
 init.obj : init.c .autodepend
@@ -218,9 +227,9 @@ vmwsmini.drv : $(OBJS) vmwsmini.res dibeng.lib
 	wlink op quiet, start=DriverInit_ disable 2055 $(DBGFILE) @<<vmwsmini.lnk
 system windows dll initglobal
 file dibthunk.obj
-file dibcall.obj
+file dibcall_svga.obj
 file drvlib.obj
-file enable.obj
+file enable_svga.obj
 file init.obj
 file palette_svga.obj
 file scrsw_svga.obj
