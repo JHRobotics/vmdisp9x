@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2012-2022  Michal Necasek
+                   2023  Philip Kelley
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -83,7 +84,11 @@ int BOXV_ext_mode_set( void *cx, int xres, int yres, int bpp, int v_xres, int v_
     vid_outw( cx, VBE_DISPI_IOPORT_DATA, 0 );
     /* Enable the extended display registers. */
     vid_outw( cx, VBE_DISPI_IOPORT_INDEX, VBE_DISPI_INDEX_ENABLE );
+#ifdef QEMU
+    vid_outw( cx, VBE_DISPI_IOPORT_DATA, VBE_DISPI_ENABLED | VBE_DISPI_8BIT_DAC | VBE_DISPI_LFB_ENABLED );
+#else
     vid_outw( cx, VBE_DISPI_IOPORT_DATA, VBE_DISPI_ENABLED | VBE_DISPI_8BIT_DAC );
+#endif
 
     /* Re-enable the sequencer. */
     vid_wridx( cx, VGA_SEQUENCER, VGA_SR_RESET, VGA_SR0_NORESET );
@@ -127,14 +132,28 @@ int BOXV_detect( void *cx, unsigned long *vram_size )
     v_word      boxv_id;
 
     vid_outw( cx, VBE_DISPI_IOPORT_INDEX, VBE_DISPI_INDEX_ID );
+
     boxv_id = vid_inw( cx, VBE_DISPI_IOPORT_DATA );
+#ifdef QEMU
+    if( boxv_id < VBE_DISPI_ID0 || boxv_id > VBE_DISPI_ID6 )
+        return( 0 );
+
+    if( vram_size ) {
+        vid_outw( cx, VBE_DISPI_IOPORT_INDEX, VBE_DISPI_INDEX_VIDEO_MEMORY_64K );
+        *vram_size = (unsigned long)vid_inw( cx, VBE_DISPI_IOPORT_DATA ) << 16;
+    }
+
+    return( boxv_id );
+#else
     if( vram_size ) {
         *vram_size = vid_ind( cx, VBE_DISPI_IOPORT_DATA );
     }
+
     if( boxv_id >= VBE_DISPI_ID0 && boxv_id <= VBE_DISPI_ID4 )
         return( boxv_id );
     else
         return( 0 );
+#endif
 }
 
 /* Disable extended mode and place the hardware into a VGA compatible state.

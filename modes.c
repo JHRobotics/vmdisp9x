@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2022  Michal Necasek
+              2023  Philip Kelley
               2023  Jaroslav Hensl
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -467,7 +468,11 @@ int PhysicalEnable( void )
         if( !iChipID ) {
             return( 0 );
         }
+# ifdef QEMU
+        dwPhysVRAM = LfbBase;
+# else
         dwPhysVRAM = BOXV_get_lfb_base( 0 );
+# endif
 #endif
         dbg_printf( "PhysicalEnable: Hardware detected, dwVideoMemorySize=%lX dwPhysVRAM=%lX\n", dwVideoMemorySize, dwPhysVRAM );
     }
@@ -584,7 +589,11 @@ UINT WINAPI __loadds ValidateMode( DISPVALMODE FAR *lpValMode )
                 rc = VALMODE_NO_WRONGDRV;
                 break;
             }
+# ifdef QEMU
+            dwPhysVRAM = LfbBase;
+# else
             dwPhysVRAM = BOXV_get_lfb_base( 0 );
+# endif
 #endif
             dbg_printf( "ValidateMode: Hardware detected, dwVideoMemorySize=%lX dwPhysVRAM=%lX\n", dwVideoMemorySize, dwPhysVRAM );
         }

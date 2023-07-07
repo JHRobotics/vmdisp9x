@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2012-2022  Michal Necasek
+                   2023  Philip Kelley
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -104,7 +105,7 @@ THE SOFTWARE.
 #define VBE_DISPI_INDEX_VIRT_HEIGHT     0x7
 #define VBE_DISPI_INDEX_X_OFFSET        0x8
 #define VBE_DISPI_INDEX_Y_OFFSET        0x9
-#define VBE_DISPI_INDEX_VBOX_VIDEO      0xa
+#define VBE_DISPI_INDEX_VIDEO_MEMORY_64K  0xa
 #define VBE_DISPI_INDEX_FB_BASE_HI      0xb
 
 #define VBE_DISPI_ID0                   0xB0C0
@@ -112,6 +113,8 @@ THE SOFTWARE.
 #define VBE_DISPI_ID2                   0xB0C2
 #define VBE_DISPI_ID3                   0xB0C3
 #define VBE_DISPI_ID4                   0xB0C4
+#define VBE_DISPI_ID5                   0xB0C5
+#define VBE_DISPI_ID6                   0xB0C6
 
 #define VBE_DISPI_DISABLED              0x00
 #define VBE_DISPI_ENABLED               0x01

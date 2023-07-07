@@ -50,18 +50,17 @@ vmwsmini.vxd=1
 %VBoxVideoVGA.DeviceDesc%=VBox, PCI\VEN_80EE&DEV_BEEF&SUBSYS_00000000
 %VBoxVideoSVGA.DeviceDesc%=VBoxSvga, PCI\VEN_80EE&DEV_BEEF&SUBSYS_040515AD
 %VBoxVideoVM.DeviceDesc%=VMSvga, PCI\VEN_15AD&DEV_0405&SUBSYS_040515AD
-;Line for QEMU STD, but driver not working now
-;%QemuStd.DeviceDesc%=QemuSTD, PCI\VEN_1234&DEV_1111
+%QemuStd.DeviceDesc%=Qemu, PCI\VEN_1234&DEV_1111
 
 [VBox]
 CopyFiles=VBox.Copy,Dx.Copy,DX.CopyBackup,Voodoo.Copy
 DelReg=VM.DelReg
 AddReg=VBox.AddReg,VM.AddReg,DX.addReg
 
-[QemuStd]
-CopyFiles=VBox.Copy,Dx.Copy,DX.CopyBackup,Voodoo.Copy
+[Qemu]
+CopyFiles=Qemu.Copy,Dx.Copy,DX.CopyBackup,Voodoo.Copy
 DelReg=VM.DelReg
-AddReg=VBox.AddReg,VM.AddReg,DX.addReg
+AddReg=Qemu.AddReg,VM.AddReg,DX.addReg
 
 [VBoxSvga]
 CopyFiles=VMSvga.Copy,Dx.Copy,DX.CopyBackup,Voodoo.Copy
@@ -75,6 +74,11 @@ AddReg=VMSvga.AddReg,VM.AddReg,DX.addReg
 
 [VBox.Copy]
 boxvmini.drv,,,0x00000004
+;mesa:mesa3d.dll,,,0x00000004
+;bridge:bridge99.dll,,,0x00000004
+
+[Qemu.Copy]
+qemumini.drv,,,0x00000004
 ;mesa:mesa3d.dll,,,0x00000004
 ;bridge:bridge99.dll,,,0x00000004
 
@@ -105,6 +109,11 @@ vmwsmini.vxd,,,0x00000004
 ;wined3d:ddraw.dll,,,0x00000004
 ;wined3d:d3d8.dll,,,0x00000004
 ;wined3d:d3d9.dll,,,0x00000004
+
+[Qemu.AddReg]
+HKR,DEFAULT,drv,,qemumini.drv
+;HKR,DEFAULT,minivdd,,qemumini.vxd
+HKR,DEFAULT,Mode,,"8,640,480"
 
 [VBox.AddReg]
 HKR,DEFAULT,drv,,boxvmini.drv

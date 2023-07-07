@@ -74,10 +74,12 @@ static unsigned vid_inw( void *cx, unsigned port )
     return( inpw( port ) );
 }
 
+#ifndef QEMU
 static unsigned long vid_ind( void *cx, unsigned port )
 {
     return( inpd_asm( port ) );
 }
+#endif
 
 #else
 

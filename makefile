@@ -3,7 +3,8 @@ OBJS = dibthunk.obj dibcall.obj enable.obj init.obj palette.obj &
        drvlib.obj control_vxd.obj minivdd_svga.obj vmwsvxd.obj &
        scrsw_svga.obj control_svga.obj modes_svga.obj palette_svga.obj &
        pci.obj svga.obj svga3d.obj svga32.obj pci32.obj dddrv.obj &
-       enable_svga.obj dibcall_svga.obj
+       enable_svga.obj dibcall_svga.obj boxv_qemu.obj modes_qemu.obj &
+       init_qemu.obj
 
 INCS = -I$(%WATCOM)\h\win -Iddk -Ivmware
 
@@ -39,13 +40,16 @@ CC32 = wcc386
 CFLAGS32 += -DCOM2
 !endif
 
-all : boxvmini.drv vmwsmini.drv vmwsmini.vxd
+all : boxvmini.drv vmwsmini.drv qemumini.drv vmwsmini.vxd
 
 # Object files
 drvlib.obj : drvlib.c .autodepend
 	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
 
 boxv.obj : boxv.c .autodepend
+	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
+	
+boxv_qemu.obj : boxv_qemu.c .autodepend
 	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
 
 pci.obj : vmware/pci.c .autodepend
@@ -86,6 +90,9 @@ enable_svga.obj : enable_svga.c .autodepend
 
 init.obj : init.c .autodepend
 	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
+	
+init_qemu.obj : init_qemu.c .autodepend
+	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
 
 control.obj : control.c .autodepend
 	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
@@ -111,6 +118,9 @@ modes.obj : modes.c .autodepend
 modes_svga.obj : modes_svga.c .autodepend
 	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
 
+modes_qemu.obj : modes_qemu.c .autodepend
+	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
+
 scrsw.obj : scrsw.c .autodepend
 	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
 
@@ -132,6 +142,9 @@ boxvmini.res : res/boxvmini.rc res/colortab.bin res/config.bin res/fonts.bin res
 	
 vmwsmini.res : res/vmwsmini.rc res/colortab.bin res/config.bin res/fonts.bin res/fonts120.bin .autodepend
 	wrc -q -r -ad -bt=windows -fo=$@ -Ires -I$(%WATCOM)/h/win $(FLAGS) res/vmwsmini.rc
+
+qemumini.res : res/qemumini.rc res/colortab.bin res/config.bin res/fonts.bin res/fonts120.bin .autodepend
+	wrc -q -r -ad -bt=windows -fo=$@ -Ires -I$(%WATCOM)/h/win $(FLAGS) res/qemumini.rc
 
 vmws_vxd.res : res/vmws_vxd.rc .autodepend
 	wrc -q -r -ad -bt=nt -fo=$@ -Ires -I$(%WATCOM)/h/win $(FLAGS) res/vmws_vxd.rc
@@ -292,6 +305,73 @@ export ValidateMode.700
 import GlobalSmartPageLock  KERNEL.230
 <<
 	wrc -q vmwsmini.res $@
+
+qemumini.drv : $(OBJS) qemumini.res dibeng.lib
+	wlink op quiet, start=DriverInit_ disable 2055 $(DBGFILE) @<<boxvmini.lnk
+system windows dll initglobal
+file dibthunk.obj
+file dibcall.obj
+file drvlib.obj
+file enable.obj
+file init_qemu.obj
+file palette.obj
+file scrsw.obj
+file sswhook.obj
+file modes_qemu.obj
+file boxv_qemu.obj
+file control.obj
+file dddrv.obj
+name qemumini.drv
+option map=qemumini.map
+library dibeng.lib
+library clibs.lib
+option modname=DISPLAY
+option description 'DISPLAY : 100, 96, 96 : DIB Engine based Mini display driver.'
+option oneautodata
+segment type data preload fixed
+segment '_TEXT'  preload shared
+segment '_INIT'  preload moveable
+export BitBlt.1
+export ColorInfo.2
+export Control.3
+export Disable.4
+export Enable.5
+export EnumDFonts.6
+export EnumObj.7
+export Output.8
+export Pixel.9
+export RealizeObject.10
+export StrBlt.11
+export ScanLR.12
+export DeviceMode.13
+export ExtTextOut.14
+export GetCharWidth.15
+export DeviceBitmap.16
+export FastBorder.17
+export SetAttribute.18
+export DibBlt.19
+export CreateDIBitmap.20
+export DibToDevice.21
+export SetPalette.22
+export GetPalette.23
+export SetPaletteTranslate.24
+export GetPaletteTranslate.25
+export UpdateColors.26
+export StretchBlt.27
+export StretchDIBits.28
+export SelectBitmap.29
+export BitmapBits.30
+export ReEnable.31
+export Inquire.101
+export SetCursor.102
+export MoveCursor.103
+export CheckCursor.104
+export GetDriverResourceID.450
+export UserRepaintDisable.500
+export ValidateMode.700
+import GlobalSmartPageLock  KERNEL.230
+<<
+	wrc -q qemumini.res $@
 
 vmwsmini.vxd : $(OBJS) vmws_vxd.res
 	wlink op quiet $(DBGFILE32) @<<vmwsmini.lnk

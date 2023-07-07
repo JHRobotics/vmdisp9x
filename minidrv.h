@@ -48,7 +48,11 @@ extern WORD FixModeInfo( LPMODEDESC lpMode );
 extern int PhysicalEnable( void );
 extern void PhysicalDisable( void );
 extern void FAR SetRAMDAC_far( UINT bStart, UINT bCount, RGBQUAD FAR *lpPal );
+#ifdef QEMU
+extern DWORD ReadDisplayConfig( void );
+#else
 extern void ReadDisplayConfig( void );
+#endif
 extern void FAR RestoreDesktopMode( void );
 extern FARPROC RepaintFunc;
 extern void HookInt2Fh( void );
@@ -81,6 +85,9 @@ extern DWORD    dwVideoMemorySize;  /* Installed VRAM in bytes. */
 
 extern DWORD    VDDEntryPoint;
 extern WORD     OurVMHandle;
+#ifdef QEMU
+extern DWORD    LfbBase;
+#endif
 
 extern WORD wMesa3DEnabled;         /* Is possible to accelerate though Mesa3D SVGA */
 
