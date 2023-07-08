@@ -142,3 +142,10 @@ extern void CallVDD( unsigned Function );
 /* DirectDraw support */
 BOOL DDCreateDriverObject(int bReset);
 
+/* 9x VRAM limit */
+#define MAX_VRAM 0x8000000UL /* 128 MB */
+
+#ifdef SVGA
+#define SVGA_PARTIAL_UPDATE_MAX 16
+extern void SVGA_UpdateRect(LONG x, LONG y, LONG w, LONG h);
+#endif

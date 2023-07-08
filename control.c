@@ -551,7 +551,7 @@ LONG WINAPI __loadds Control(LPVOID lpDevice, UINT function,
   {
 #ifdef SVGA
 		longRECT __far *lpRECT = lpInput;
-		SVGA_Update(lpRECT->left, lpRECT->top, lpRECT->right - lpRECT->left, lpRECT->bottom - lpRECT->top);
+		SVGA_UpdateRect(lpRECT->left, lpRECT->top, lpRECT->right - lpRECT->left, lpRECT->bottom - lpRECT->top);
 #endif
   }
 #ifdef SVGA

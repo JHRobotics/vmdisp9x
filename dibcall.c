@@ -82,15 +82,7 @@ void update_cursor()
 		LONG w = cursorW;
 		LONG h = cursorH;
 		
-		if(x < 0) x = 0;
-		if(y < 0) y = 0;
-		if(x+w > wScreenX) w = wScreenX - x;
-		if(y+h > wScreenY) y = wScreenY - h;
-		
-		if(w > 0 && h > 0)
-		{
-			SVGA_Update(x, y, w, h);
-		}
+		SVGA_UpdateRect(x, y, w, h);
 	}
 }
 # endif

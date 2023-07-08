@@ -166,10 +166,7 @@ VOID WINAPI __loadds SVGA_DIB_BeginAccess( LPPDEVICE lpDevice, WORD wLeft, WORD 
 VOID WINAPI __loadds SVGA_DIB_EndAccess( LPPDEVICE lpDevice, WORD wFlags )
 {
 	DIB_EndAccess(lpDevice, wFlags);
-	if(wBpp == 32)
-	{
-		SVGA_Update(updateX, updateY, updateW, updateH);
-	}
+	SVGA_UpdateRect(updateX, updateY, updateW, updateH);
 }
 #endif
 

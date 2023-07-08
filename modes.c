@@ -46,8 +46,11 @@ THE SOFTWARE.
 #include <stdlib.h> /* abs */
 
 /* Somewhat arbitrary max resolution. */
-#define RES_MAX_X   (5 * 1024)
-#define RES_MAX_Y   (5 * 768)
+//#define RES_MAX_X   (5 * 1024)
+//#define RES_MAX_Y   (5 * 768)
+#define RES_MAX_X 5120
+#define RES_MAX_Y 4096
+/* ^ JH: 5K in 5:4 */
 
 WORD wScreenX       = 0;
 WORD wScreenY       = 0;
@@ -193,6 +196,7 @@ static int IsModeOK( WORD wXRes, WORD wYRes, WORD wBpp )
       return 0;
     }
     
+    /* some implementations not support 8 and 16 bpp */
     if(gSVGA.only32bit && wBpp != 32)
     {
     	return 0;
@@ -203,6 +207,16 @@ static int IsModeOK( WORD wXRes, WORD wYRes, WORD wBpp )
     dwModeMem = (DWORD)CalcPitch( wXRes, wBpp ) * wYRes;
     if( dwModeMem > dwVideoMemorySize )
         return( 0 );
+
+#ifdef SVGA
+    /* even if SVGA support other bpp, they are not usable
+       if they're larger than traceable size */
+    if(wBpp != 32)
+    {
+        if(dwModeMem > SVGA_FB_MAX_TRACEABLE_SIZE)
+            return 0;
+    }
+#endif
 
     return( 1 );
 }
@@ -294,6 +308,41 @@ static BOOL SVGA_hasAccelScreen()
   }
   
   return FALSE;
+}
+
+static DWORD SVGA_partial_update_cnt = 0;
+
+/* Update screen rect if its relevant */
+extern void __loadds SVGA_UpdateRect(LONG x, LONG y, LONG w, LONG h)
+{
+	/* SVGA commands works only for 32 bpp surfaces */
+	if(wBpp != 32)
+	{
+		return;
+	}
+	
+	if(SVGA_partial_update_cnt++ > SVGA_PARTIAL_UPDATE_MAX)
+	{
+		SVGA_Update(0, 0, wScreenX, wScreenY);
+		SVGA_partial_update_cnt = 0;
+		return;
+	}
+	
+	if(x < 0) x = 0;
+	if(y < 0) y = 0;
+	if(x+w > wScreenX) w = wScreenX - x;
+	if(y+h > wScreenY) y = wScreenY - h;
+		
+	if(w > 0 && h > 0)
+	{
+		SVGA_Update(x, y, w, h);
+	}
+	
+	/* test if it's full update */
+	if(x == 0 && y == 0 && w == wScreenX && h == wScreenY)
+	{
+		SVGA_partial_update_cnt = 0;
+	}
 }
 
 /* Initialize SVGA structure and map FIFO to memory */
@@ -458,7 +507,7 @@ int PhysicalEnable( void )
           return 0;
         }
         
-        dwVideoMemorySize = SVGA_ReadReg(SVGA_REG_VRAM_SIZE);
+        dwVideoMemorySize = SVGA_ReadReg(SVGA_REG_VRAM_SIZE);        
         dwPhysVRAM = SVGA_ReadReg(SVGA_REG_FB_START);
 #else
         int     iChipID;
@@ -474,6 +523,12 @@ int PhysicalEnable( void )
         dwPhysVRAM = BOXV_get_lfb_base( 0 );
 # endif
 #endif
+        /* limit vram size */
+        if(dwVideoMemorySize > MAX_VRAM)
+        {
+        	dwVideoMemorySize = MAX_VRAM;
+        }
+
         dbg_printf( "PhysicalEnable: Hardware detected, dwVideoMemorySize=%lX dwPhysVRAM=%lX\n", dwVideoMemorySize, dwPhysVRAM );
     }
     
