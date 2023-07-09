@@ -9,7 +9,8 @@ Supported and tested virtualization software are:
 - VirtualBox 6.1 (2D, hardware OpenGL 2.1 through DX9 or OpenGL)
 - VirtualBox 7.0 (2D, hardware OpenGL 2.1 through DX9 or OpenGL)
 - VMWare Player 16 (2D, software 3D)
-- ~~VMWare Player 17 (2D, software 3D)~~
+- VMWare Workstation 17 (2D, hardware OpenGL 2.1)
+- QEMU 7.x, 8.0 (2D, software 3D)
 
 2D driver is very generic and probably works with other Virtualization software as well, 3D part required my Mesa port = https://github.com/JHRobotics/mesa9x. See its documentation for more info.
 
@@ -22,6 +23,9 @@ Driver is based on [Michal Necasek's VirtualBox driver](http://www.os2museum.com
 - added OpenGL ICD support (simple command that only returns the name of OpenGL implementation library)
 - added 32bit mini-VDD driver stub (required for future development to better support for 16-bit applications)
 - added access to VMWare/VBox SVGA registers and FIFO to support real 3D acceleration from user space driver
+
+QEMU support (`-vga std`) is from [Philip Kelley driver modification](https://github.com/phkelley/boxv9x)
+
 
 ## OpenGL ICD support
 OpenGL is much more driver independent than DirectX, if fact, there is only 1 (ONE by words) function that needs to be served by driver, 0x1101. More on https://github.com/JHRobotics/mesa9x
@@ -38,9 +42,14 @@ There no DDI support in this driver, but here is Wine project (and with set call
 
 Of course, there is alternative for DX8 and DX9 called Swiftshader 2.0
 
+## QEMU
+QEMU is supported since **v1.2023.0.10**. Supported adapters are `-vga std` which using modified VBE driver (`qemumini.drv`) and `-vga vmware` where VMware driver now works but is limited to 32 bpp colors only. I plan to support *VirGL* in future, but currently no 3D acceleration isn't available in QEMU. 
+
 ## Technical
 `*.drv` = 16bit driver runs in 16-bit protected mode in RING 3 (!) but with access to I/O instructions 
+
 `*.vxd` = 32bit driver runs in 32-bit protected mode in RING 0
+
 `*.dll` = 32bit user library runs in 32-bit protected mode in RING 3
 
 ## Security
@@ -56,7 +65,8 @@ Edit `makefile` to enable addition logging and you can read original [readdev.tx
 ## Todo
 - Complete recomended mini-VDD function in [minivdd.c](minivdd.c), stubs here and cites from original MSDN are in comments.
 - Complete GPU10 functions (with synchronization with Mesa)
-- DDI?
+- VirGL
+- DDI
 
 ## External links
 http://www.os2museum.com/wp/windows-9x-video-minidriver-hd/
