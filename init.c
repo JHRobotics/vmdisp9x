@@ -32,6 +32,11 @@ THE SOFTWARE.
 #include "minidrv.h"
 #include <configmg.h>
 
+#ifdef SVGA
+#include <stdint.h>
+#include "control_vxd.h"
+#endif
+
 /* GlobalSmartPageLock is a semi-undocumented function. Not officially
  * documented but described in KB Article Q180586. */
 UINT WINAPI GlobalSmartPageLock( HGLOBAL hglb );
@@ -329,6 +334,17 @@ UINT FAR DriverInit( UINT cbHeap, UINT hModule, LPSTR lpCmdLine )
     
     /* Read the display configuration before doing anything else. */
     ReadDisplayConfig();
+
+#ifdef SVGA
+		/* connect to 32bit RING-0 driver */
+		if(!VXD_load())
+		{
+			dbg_printf("VXD load failure!\n");
+			return 0;
+		}
+		
+		 dbg_printf("VXD load success\n");
+#endif
 
     return( 1 );    /* Success. */
 }

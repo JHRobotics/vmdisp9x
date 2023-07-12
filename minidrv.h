@@ -143,7 +143,11 @@ extern void CallVDD( unsigned Function );
 BOOL DDCreateDriverObject(int bReset);
 
 /* 9x VRAM limit */
-#define MAX_VRAM 0x8000000UL /* 128 MB */
+#ifdef VRAM256MB
+# define MAX_VRAM 0x10000000UL /* 256 MB */
+#else
+# define MAX_VRAM 0x08000000UL /* 128 MB */
+#endif
 
 #ifdef SVGA
 #define SVGA_PARTIAL_UPDATE_MAX 16

@@ -4,11 +4,11 @@ OBJS = dibthunk.obj dibcall.obj enable.obj init.obj palette.obj &
        scrsw_svga.obj control_svga.obj modes_svga.obj palette_svga.obj &
        pci.obj svga.obj svga3d.obj svga32.obj pci32.obj dddrv.obj &
        enable_svga.obj dibcall_svga.obj boxv_qemu.obj modes_qemu.obj &
-       init_qemu.obj
+       init_qemu.obj init_svga.obj
 
 INCS = -I$(%WATCOM)\h\win -Iddk -Ivmware
 
-VER_BUILD = 10
+VER_BUILD = 11
 
 FLAGS = -DDRV_VER_BUILD=$(VER_BUILD) -DCAP_R5G6B5_ALWAYS_WRONG
 
@@ -16,6 +16,8 @@ FLAGS = -DDRV_VER_BUILD=$(VER_BUILD) -DCAP_R5G6B5_ALWAYS_WRONG
 #FLAGS += -DHWBLT
 # Define HWCURSOR if you want accelerate cursor (SVGA only)
 #FLAGS += -DHWCURSOR
+# Define VRAM256MB if you want set VRAM limit to 256MB (default is 128MB)
+#FLAGS += -DVRAM256MB
 
 # Set DBGPRINT to add debug printf logging.
 #DBGPRINT = 1
@@ -92,6 +94,9 @@ init.obj : init.c .autodepend
 	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
 	
 init_qemu.obj : init_qemu.c .autodepend
+	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
+	
+init_svga.obj : init_svga.c .autodepend
 	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
 
 control.obj : control.c .autodepend
@@ -243,7 +248,7 @@ file dibthunk.obj
 file dibcall_svga.obj
 file drvlib.obj
 file enable_svga.obj
-file init.obj
+file init_svga.obj
 file palette_svga.obj
 file scrsw_svga.obj
 file sswhook.obj

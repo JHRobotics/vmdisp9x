@@ -52,6 +52,71 @@ QEMU is supported since **v1.2023.0.10**. Supported adapters are `-vga std` whic
 
 `*.dll` = 32bit user library runs in 32-bit protected mode in RING 3
 
+### Adapters
+
+Default inf file is supporting these 4 adapter:
+
+`[VBox]` Default adapter to VirtualBox (VBoxVGA) (until version 6.0 only one adapter) - using 16 bit `boxvmini.drv` driver. Device identification is `PCI\VEN_80EE&DEV_BEEF&SUBSYS_00000000`.
+
+`[Qemu]` QEMUs `-vga std` (or `-device VGA`) device - using 16 bit `qemumini.drv` driver. Device identification is `PCI\VEN_1234&DEV_1111`.
+
+`[VMSvga]` VMware adapter, VirtualBox VMSVGA and QEMU `-vga vmware`. Using 16 bit `vmwsmini.drv` driver and 32 bit `vmwsmini.vxd` driver. Device identification is `PCI\VEN_15AD&DEV_0405&SUBSYS_040515AD`.
+
+`[VBoxSvga]` VirtualBox VBoxSVGA, using 16 bit `vmwsmini.drv` driver and 32 bit `vmwsmini.vxd` driver. Device identification is `PCI\VEN_80EE&DEV_BEEF&SUBSYS_040515AD`.
+
+## Resolutions support
+With default `*.inf` file, default maximum resolution is 1920 x 1200. Maximum wired resolution is 5120 x 4096. For compatibility reasons maximum of VRAM is limited to 128 MB (If you set to adapter more, it'll report only first 128 MB).
+
+However it is possible increase the limit to 256 MB (Windows 9x maximum), if code is compiled with defined `VRAM256MB` (edit `makefile` to set this and recompile project) maximum resolution for this settings is 8192 x 5120.
+
+### QXGA, WQHD, 4K and 5K
+Resolutions sets larger than FullHD, are present in inf file, but needs to be *enabled* if you wish use them. They're split to 4 individual section:
+
+- `[VM.QXGA]` - QXGA, QWXGA and some others bit larger then FullHD
+- `[VM.WQHD]` - 1440p resolutions set
+- `[VM.UHD]` - 4K resolutions set
+- `[VM.R5K]` - 5K resolutions set
+
+To enable one of them just append section name to `AddReg=` parameter to corresponding adapter. For example to add 4K to **VMware adapter** change:
+
+```
+[VMSvga]
+CopyFiles=VMSvga.Copy,Dx.Copy,DX.CopyBackup,Voodoo.Copy
+DelReg=VM.DelReg
+AddReg=VMSvga.AddReg,VM.AddReg,DX.addReg
+```
+
+to:
+
+```
+[VMSvga]
+CopyFiles=VMSvga.Copy,Dx.Copy,DX.CopyBackup,Voodoo.Copy
+DelReg=VM.DelReg
+AddReg=VMSvga.AddReg,VM.AddReg,DX.addReg,VM.UHD
+```
+
+### Custom resolutions
+
+To add custom resolution just append line to `[VM.AddReg]` section with following format:
+
+```
+HKR,"MODES\{BPP}\{WIDTH},{HEIGHT}"
+```
+
+For example adding 1366x768 for all color modes can look like:
+
+```
+HKR,"MODES\8\1366,768"
+HKR,"MODES\16\1366,768"
+HKR,"MODES\24\1366,768"
+HKR,"MODES\32\1366,768"
+```
+
+### VRAM size
+
+In current state the driver using VRAM as framebuffer only. For example if you're using 1920 x 1080 x 32 bpp, driver consume only 8 MB of VRAM and rest of is unutilized. Even if you using HW accelerated graphics with this driver all textures, surface and even backbuffers (implemented as surfaces) are stored in virtual machine's RAM.
+
+
 ## Security
 In 2D mode any application could read and write guest frame buffer and rest of video ram. If 3D is enabled and works (on hypervisor site) is possible by any application to write virtual GPU FIFO which could leads to read memory of different process (in same guest) or crash the guest. These risks are noted but needs to be mentioned that these old systems haven't or has only minimal security management. For example, Microsoft Windows 9x system hasn't no file system rights, all process has mapped system memory (in last 1 GB of 32bit memory space) and any user could run 16bit application where have access to everything including I/O because of compatibility.
 

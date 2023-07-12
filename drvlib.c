@@ -31,7 +31,6 @@ void __far *drv_malloc(DWORD dwSize, DWORD __far *lpLinear)
 	if(!wSel)
 		return NULL;
 
-	/* Map the framebuffer physical memory. */
 	dwLin = DPMI_AllocMemBlk(dwSize);
     
 	if(dwLin)
@@ -45,4 +44,53 @@ void __far *drv_malloc(DWORD dwSize, DWORD __far *lpLinear)
 	}
 
 	return NULL;
+}
+
+/**
+ * MEMSET for area larger than one segment. This function is not very effective,
+ * I assume it will be called only in few speed non critical situation
+ * (driver/screen inicialization or reset).
+ *
+ * @param dwLinearBase: linear address
+ * @param dwOffset: offset to linear address
+ * @param value: value to set (same bahaviour as C memset)
+ * @param dwNum: number of bytes to set;
+ *
+ **/
+void drv_memset_large(DWORD dwLinearBase, DWORD dwOffset, UINT value, DWORD dwNum)
+{
+	WORD  wSel;
+	DWORD dwLinPtr;
+	DWORD dwLinPtrMax;
+	WORD  wAddr;
+	BYTE __far *lpPM16Ptr;
+	
+	wSel = DPMI_AllocLDTDesc(1);
+	if(!wSel) return;
+	
+	dwLinPtr = dwLinearBase + dwOffset;
+	dwLinPtrMax = dwLinPtr + dwNum;
+	
+	/* overflow or nothing to do */
+	if(dwLinPtrMax <= dwLinPtr) return;
+	
+	DPMI_SetSegBase(wSel, dwLinPtr);
+	DPMI_SetSegLimit(wSel, 0xFFFF);
+	
+	for(; dwLinPtr < dwLinPtrMax; dwLinPtr++)
+	{
+		wAddr = dwLinPtr & 0xFFFF;
+		
+		/* move to new segment */
+		if(wAddr == 0x0000)
+		{
+			DPMI_SetSegBase(wSel, dwLinPtr);
+		}
+		
+		lpPM16Ptr = (BYTE __far *)(wSel :> wAddr);
+		
+		*lpPM16Ptr = value;
+	}
+	
+	DPMI_FreeLDTDesc(wSel);
 }

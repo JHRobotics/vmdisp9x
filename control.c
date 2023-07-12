@@ -178,6 +178,8 @@ typedef struct _svga_hda_t
 #define ULF_HEIGHT 2
 #define ULF_BPP    3
 #define ULF_PITCH  4
+#define ULF_LOCK_UL   5
+#define ULF_LOCK_FIFO 6
 
 static svga_hda_t SVGAHDA;
 
@@ -315,8 +317,8 @@ void SVGAHDA_init()
 {
 	_fmemset(&SVGAHDA, 0, sizeof(svga_hda_t));
   
-  SVGAHDA.ul_flags_index = 0; // dirty, width, height, bpp, pitch
-  SVGAHDA.ul_fence_index = SVGAHDA.ul_flags_index + 5;
+  SVGAHDA.ul_flags_index = 0; // dirty, width, height, bpp, pitch, fifo_lock, ul_lock, fb_lock
+  SVGAHDA.ul_fence_index = SVGAHDA.ul_flags_index + 8;
   SVGAHDA.ul_gmr_start   = SVGAHDA.ul_fence_index + 1;
   SVGAHDA.ul_gmr_count   = SVGA_ReadReg(SVGA_REG_GMR_MAX_IDS);
   SVGAHDA.ul_ctx_start   = SVGAHDA.ul_gmr_start + SVGAHDA.ul_gmr_count*4;
@@ -332,11 +334,23 @@ void SVGAHDA_init()
 		SVGAHDA.userlist_pm16[ULF_DIRTY] = 0xFFFFFFFFUL;
 		
 		/* zero the memory, because is large than 64k, is much easier do it in PM32 */
-		if(VXD_load())
-		{
-			VXD_zeromem(SVGAHDA.userlist_linear, SVGAHDA.userlist_length * sizeof(uint32_t));
-		}
+		VXD_zeromem(SVGAHDA.userlist_linear, SVGAHDA.userlist_length * sizeof(uint32_t));
 		
+		SVGAHDA.userlist_pm16[ULF_LOCK_UL] = 0;
+		SVGAHDA.userlist_pm16[ULF_LOCK_FIFO] = 0;
+	}
+	
+	dbg_printf("SVGAHDA_init\n");
+}
+
+/**
+ * update frame buffer and fifo addresses in SVGAHDA from gSVGA
+ *
+ **/
+void SVGAHDA_setmode()
+{
+	if(SVGAHDA.userlist_pm16)
+	{
 		SVGAHDA.vram_linear   = gSVGA.fbLinear;
 		SVGAHDA.vram_pm16     = gSVGA.fbMem;
 		SVGAHDA.vram_physical = gSVGA.fbPhy;
@@ -346,6 +360,109 @@ void SVGAHDA_init()
 	  SVGAHDA.fifo_pm16     = gSVGA.fifoMem;
 	  SVGAHDA.fifo_physical = gSVGA.fifoPhy;
 		SVGAHDA.fifo_size     = gSVGA.fifoSize;
+	}
+}
+
+/**
+ * Lock resource
+ *
+ * Note: this is simple spinlock implementation because multitasking isn't
+ * preemptive in Win9x this can lead to deadlock. Please use SVGAHDA_trylock
+ * instead.
+ *
+ * Note: please call SVGAHDA_unlock every time after this function
+ *
+ **/
+BOOL SVGAHDA_lock(uint32_t lockid)
+{
+	volatile uint32_t __far * ptr_lock = SVGAHDA.userlist_pm16 + lockid;
+	
+	if(SVGAHDA.userlist_pm16)
+	{
+		_asm
+		{
+			.386
+			push eax
+			push ebx
+			
+			spin_lock:
+				mov  eax, 1
+				les   bx, ptr_lock
+				lock xchg eax, es:[bx]
+				test eax, eax
+				jnz  spin_lock
+			
+			pop ebx
+			pop eax
+			
+		};
+		
+		return TRUE;
+	}
+	
+	return FALSE;
+}
+
+/**
+ * Try to lock resource and return TRUE is success.
+ *
+ * Note: if is function successfull you must call SVGAHDA_unlock!
+ *
+ **/
+BOOL SVGAHDA_trylock(uint32_t lockid)
+{
+	volatile uint32_t __far * ptr_lock = SVGAHDA.userlist_pm16 + lockid;
+	BOOL locked = FALSE;
+	
+	if(SVGAHDA.userlist_pm16)
+	{
+		_asm
+		{
+			.386
+			push eax
+			push ebx
+			
+			mov  eax, 1
+			les   bx, ptr_lock
+			lock xchg eax, es:[bx]
+			test eax, eax
+			jnz lock_false
+			mov locked, 1
+			lock_false:
+			
+			pop ebx
+			pop eax
+			
+		};
+	}
+	
+	return locked;
+}
+
+/**
+ * Unlock resource
+ *
+ **/
+void SVGAHDA_unlock(uint32_t lockid)
+{
+	volatile uint32_t __far * ptr_lock = SVGAHDA.userlist_pm16 + lockid;
+	
+	if(SVGAHDA.userlist_pm16)
+	{
+		_asm
+		{
+			.386
+			push eax
+			push ebx
+			
+			xor  eax, eax
+			les   bx, ptr_lock
+			lock xchg eax, es:[bx]
+			
+			pop ebx
+			pop eax
+			
+		};
 	}
 }
 
@@ -597,8 +714,6 @@ LONG WINAPI __loadds Control(LPVOID lpDevice, UINT function,
 	  	uint32_t ppn;
 	  	uint32_t pgblk;
 	  	
-	  	VXD_load();
-	  	
 	  	if(VXD_CreateRegion(lpIn[1], &lAddr, &ppn, &pgblk)) /* allocate physical memory */
 	  	{
 	  		dbg_printf("Region address = %lX, PPN = %lX, GMRBLK = %lX\n", lAddr, ppn, pgblk);
@@ -640,7 +755,6 @@ LONG WINAPI __loadds Control(LPVOID lpDevice, UINT function,
     SVGA_Flush();
     
     /* region physical delete */
-    VXD_load();
     VXD_FreeRegion(linear, pgblk);
     
     rc = 1;
@@ -739,14 +853,7 @@ LONG WINAPI __loadds Control(LPVOID lpDevice, UINT function,
   	
   	lpver[0] = DRV_API_LEVEL;
   	
-  	if(VXD_load())
-    {
-    	lpver[1] = VXD_apiver();
-    }
-    else
-    {
-    	lpver[1] = 0;
-    }
+    lpver[1] = VXD_apiver();
     
     rc = 1;
   }

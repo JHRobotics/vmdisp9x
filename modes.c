@@ -46,11 +46,16 @@ THE SOFTWARE.
 #include <stdlib.h> /* abs */
 
 /* Somewhat arbitrary max resolution. */
-//#define RES_MAX_X   (5 * 1024)
-//#define RES_MAX_Y   (5 * 768)
+#ifdef VRAM256MB
+/* (max) 256MB VRAM: max 8K in 16:10 */
+#define RES_MAX_X 8192
+#define RES_MAX_Y 5120
+#else
+/* (max) 128MB VRAM: max 5K in 5:4 */
 #define RES_MAX_X 5120
 #define RES_MAX_Y 4096
-/* ^ JH: 5K in 5:4 */
+#endif
+
 
 WORD wScreenX       = 0;
 WORD wScreenY       = 0;
@@ -108,8 +113,15 @@ extern DWORD CallVDDRegister( WORD Function, WORD wPitch, WORD wHeight, void _fa
 /* from control.c */
 #ifdef SVGA
 void SVGAHDA_init();
+void SVGAHDA_setmode();
 WORD SVGA_3DSupport();
 void SVGAHDA_update(DWORD width, DWORD height, DWORD bpp, DWORD pitch);
+BOOL SVGAHDA_lock(DWORD lockid);
+BOOL SVGAHDA_trylock(DWORD lockid);
+void SVGAHDA_unlock(DWORD lockid);
+
+#define LOCK_FIFO 6
+
 #endif
 
 #pragma code_seg( _INIT );
@@ -199,7 +211,7 @@ static int IsModeOK( WORD wXRes, WORD wYRes, WORD wBpp )
     /* some implementations not support 8 and 16 bpp */
     if(gSVGA.only32bit && wBpp != 32)
     {
-    	return 0;
+      return 0;
     }
 #endif
     
@@ -223,12 +235,12 @@ static int IsModeOK( WORD wXRes, WORD wYRes, WORD wBpp )
 
 
 /* Clear the visible screen by setting it to all black (zeros).
- * NB: Assumes there is no off-screen region to the right of
- * the visible area.
+ * JH: off-screen region to the right is not affected
  */
 static void ClearVisibleScreen( void )
 {
-	LPDWORD     lpScr;
+#if 0
+  LPDWORD     lpScr;
   WORD        wLines = wScreenY;
   WORD        i;
 
@@ -240,6 +252,17 @@ static void ClearVisibleScreen( void )
     }
     lpScr += wScreenPitchBytes; // Scanline pitch.
   }
+#endif
+	DWORD dwLinestart = 0;
+	WORD wLines = wScreenY;
+	WORD wPS = ((wBpp+7) >> 3);
+	
+	while(wLines--)
+	{
+		drv_memset_large(dwScreenFlatAddr, dwLinestart, 0, (DWORD)wScreenX*wPS);
+		
+		dwLinestart += (DWORD)wScreenPitchBytes;
+	}
 }
 
 /* Map physical memory to memory space, lpLinAddress is option pointer to store
@@ -263,7 +286,7 @@ static DWORD AllocLinearSelector(DWORD dwPhysAddr, DWORD dwSize, DWORD __far * l
     
     if(lpLinAddress != NULL)
     {
-    	*lpLinAddress = dwLinear;
+      *lpLinAddress = dwLinear;
     }
 
     return( wSel );
@@ -283,20 +306,20 @@ static void SVGA_defineScreen(unsigned wXRes, unsigned wYRes, unsigned wBpp)
   
   if(screen)
   {
-	  _fmemset(screen, 0, sizeof(SVGAFifoCmdDefineScreen));
-	  screen->screen.structSize = sizeof(SVGAScreenObject);
-	  screen->screen.id = 0;
-	  screen->screen.flags = SVGA_SCREEN_MUST_BE_SET | SVGA_SCREEN_IS_PRIMARY;
-	  screen->screen.size.width = wXRes;
-	  screen->screen.size.height = wYRes;
-	  screen->screen.root.x = 0;
-	  screen->screen.root.y = 0;
-	  screen->screen.cloneCount = 0;
-	  
-	  screen->screen.backingStore.pitch = CalcPitch(wXRes, wBpp);
-	  
-	  SVGA_FIFOCommitAll();
-	}
+    _fmemset(screen, 0, sizeof(SVGAFifoCmdDefineScreen));
+    screen->screen.structSize = sizeof(SVGAScreenObject);
+    screen->screen.id = 0;
+    screen->screen.flags = SVGA_SCREEN_MUST_BE_SET | SVGA_SCREEN_IS_PRIMARY;
+    screen->screen.size.width = wXRes;
+    screen->screen.size.height = wYRes;
+    screen->screen.root.x = 0;
+    screen->screen.root.y = 0;
+    screen->screen.cloneCount = 0;
+    
+    screen->screen.backingStore.pitch = CalcPitch(wXRes, wBpp);
+    
+    SVGA_FIFOCommitAll();
+  }
 }
 
 /* Check if screen acceleration is available */
@@ -315,34 +338,48 @@ static DWORD SVGA_partial_update_cnt = 0;
 /* Update screen rect if its relevant */
 extern void __loadds SVGA_UpdateRect(LONG x, LONG y, LONG w, LONG h)
 {
-	/* SVGA commands works only for 32 bpp surfaces */
-	if(wBpp != 32)
-	{
-		return;
-	}
-	
-	if(SVGA_partial_update_cnt++ > SVGA_PARTIAL_UPDATE_MAX)
-	{
-		SVGA_Update(0, 0, wScreenX, wScreenY);
-		SVGA_partial_update_cnt = 0;
-		return;
-	}
-	
-	if(x < 0) x = 0;
-	if(y < 0) y = 0;
-	if(x+w > wScreenX) w = wScreenX - x;
-	if(y+h > wScreenY) y = wScreenY - h;
-		
-	if(w > 0 && h > 0)
-	{
-		SVGA_Update(x, y, w, h);
-	}
-	
-	/* test if it's full update */
-	if(x == 0 && y == 0 && w == wScreenX && h == wScreenY)
-	{
-		SVGA_partial_update_cnt = 0;
-	}
+  /* SVGA commands works only for 32 bpp surfaces */
+  if(wBpp != 32)
+  {
+    return;
+  }
+  
+  if(SVGA_partial_update_cnt++ > SVGA_PARTIAL_UPDATE_MAX)
+  {
+    if(SVGAHDA_trylock(LOCK_FIFO))
+    {
+      SVGA_Update(0, 0, wScreenX, wScreenY);
+      SVGAHDA_unlock(LOCK_FIFO);
+      SVGA_partial_update_cnt = 0;
+    }
+    return;
+  }
+  
+  if(x < 0) x = 0;
+  if(y < 0) y = 0;
+  if(x+w > wScreenX) w = wScreenX - x;
+  if(y+h > wScreenY) y = wScreenY - h;
+    
+  if(w > 0 && h > 0)
+  {
+    if(SVGAHDA_trylock(LOCK_FIFO))
+    {
+      SVGA_Update(x, y, w, h);
+      SVGAHDA_unlock(LOCK_FIFO);
+    }
+    else
+    {
+      /* update full screen next time! */
+      SVGA_partial_update_cnt = SVGA_PARTIAL_UPDATE_MAX+1;
+      return;
+    }
+  }
+  
+  /* test if it's full update */
+  if(x == 0 && y == 0 && w == wScreenX && h == wScreenY)
+  {
+    SVGA_partial_update_cnt = 0;
+  }
 }
 
 /* Initialize SVGA structure and map FIFO to memory */
@@ -376,11 +413,11 @@ static int __loadds SVGA_full_init()
   gSVGA.fifoSel = DPMI_AllocLDTDesc(1);
   if(gSVGA.fifoSel)
   {
-	  DPMI_SetSegLimit(gSVGA.fifoSel, 0xFFFF);
-	  
-	  gSVGA.fifoAct = 0;
-	  DPMI_SetSegBase(gSVGA.fifoSel, gSVGA.fifoLinear);
-	}
+    DPMI_SetSegLimit(gSVGA.fifoSel, 0xFFFF);
+    
+    gSVGA.fifoAct = 0;
+    DPMI_SetSegBase(gSVGA.fifoSel, gSVGA.fifoLinear);
+  }
   
   /* sets FIFO */
   SVGA_Enable();
@@ -403,42 +440,48 @@ static int SetDisplayMode( WORD wXRes, WORD wYRes, int bFullSet )
     CallVDD( VDD_PRE_MODE_CHANGE );
 
 #ifdef SVGA
-    /* Make sure, that we drain full FIFO */
-    SVGA_Flush(); 
-    
-    SVGA_SetMode(wXRes, wYRes, wBpp); /* setup by legacy registry */
-    wMesa3DEnabled = 0;
-    if(SVGA3D_Init())
+    /* lock FIFO to make sure, no one is filling it during mode change */
+    if(SVGAHDA_trylock(LOCK_FIFO))
     {
-    	wMesa3DEnabled = SVGA_3DSupport();
+      /* Make sure, that we drain full FIFO */
+      SVGA_Flush(); 
+      
+      SVGA_SetMode(wXRes, wYRes, wBpp); /* setup by legacy registry */
+      wMesa3DEnabled = 0;
+      if(SVGA3D_Init())
+      {
+        wMesa3DEnabled = SVGA_3DSupport();
+      }
+      
+      /* setting screen by fifo, this method is required in VB 6.1 */
+      if(SVGA_hasAccelScreen())
+      {
+         SVGA_defineScreen(wXRes, wYRes, wBpp);
+      }
+     
+      /*
+       * JH: this is a bit stupid = all SVGA command cannot work with non 32 bpp. 
+       * SVGA_CMD_UPDATE included. So if we're working in 32 bpp, we'll disable
+       * traces and updating framebuffer changes with SVGA_CMD_UPDATE.
+       * On non 32 bpp we just enable SVGA_REG_TRACES.
+       *
+       * QEMU hasn't SVGA_REG_TRACES register and framebuffer cannot be se to
+       * 16 or 8 bpp = we supporting only 32 bpp moders if we're running under it.
+       */
+      if(wBpp == 32)
+      {
+        SVGA_WriteReg(SVGA_REG_TRACES, FALSE);
+      }
+      else
+      {
+        SVGA_WriteReg(SVGA_REG_TRACES, TRUE);
+      }
+      
+      SVGA_WriteReg(SVGA_REG_ENABLE, TRUE);
+      SVGA_Flush();
+ 
+      SVGAHDA_unlock(LOCK_FIFO);
     }
-    
-    /* setting screen by fifo, this method is required in VB 6.1 */
-    if(SVGA_hasAccelScreen())
-    {
-      SVGA_defineScreen(wXRes, wYRes, wBpp);
-    }
-    
-    /*
-     * JH: this is a bit stupid = all SVGA command cannot work with non 32 bpp. 
-     * SVGA_CMD_UPDATE included. So if we're working in 32 bpp, we'll disable
-     * traces and updating framebuffer changes with SVGA_CMD_UPDATE.
-     * On non 32 bpp we just enable SVGA_REG_TRACES.
-     *
-     * QEMU hasn't SVGA_REG_TRACES register and framebuffer cannot be se to
-     * 16 or 8 bpp = we supporting only 32 bpp moders if we're running under it.
-     */
-    if(wBpp == 32)
-    {
-    	SVGA_WriteReg(SVGA_REG_TRACES, FALSE);
-    }
-    else
-    {
-    	SVGA_WriteReg(SVGA_REG_TRACES, TRUE);
-    }
-    
-    SVGA_WriteReg(SVGA_REG_ENABLE, TRUE);
-    SVGA_Flush();
     
     dbg_printf("Pitch: %lu\n", SVGA_ReadReg(SVGA_REG_BYTES_PER_LINE));
     
@@ -526,10 +569,16 @@ int PhysicalEnable( void )
         /* limit vram size */
         if(dwVideoMemorySize > MAX_VRAM)
         {
-        	dwVideoMemorySize = MAX_VRAM;
+          dwVideoMemorySize = MAX_VRAM;
         }
 
         dbg_printf( "PhysicalEnable: Hardware detected, dwVideoMemorySize=%lX dwPhysVRAM=%lX\n", dwVideoMemorySize, dwPhysVRAM );
+        
+        
+#ifdef SVGA
+        /* init here, there are locks for FIFO commands! */
+        SVGAHDA_init();
+#endif
     }
     
     dbg_printf("PhysicalEnable: continue with %ux%u\n", wScrX, wScrY);
@@ -547,7 +596,7 @@ int PhysicalEnable( void )
 
     /* Allocate an LDT selector for the screen. */
     if( !ScreenSelector ) {
-    	  //ScreenSelector = AllocLinearSelector( dwPhysVRAM, dwVideoMemorySize );
+        //ScreenSelector = AllocLinearSelector( dwPhysVRAM, dwVideoMemorySize );
         ScreenSelector = AllocLinearSelector(dwPhysVRAM, dwVideoMemorySize, &dwScreenFlatAddr);
         if( !ScreenSelector ) {
             dbg_printf( "PhysicalEnable: AllocScreenSelector failed!\n" );
@@ -558,9 +607,9 @@ int PhysicalEnable( void )
         gSVGA.fbLinear = dwScreenFlatAddr;
         gSVGA.fbPhy = dwPhysVRAM;
         gSVGA.fbMem = ScreenSelector :> 0;
-        	
-        /* init userspace hardware access */
-        SVGAHDA_init();
+          
+        /* update userspace hardware access */
+        SVGAHDA_setmode();
 #endif
     }
     
@@ -578,21 +627,21 @@ int PhysicalEnable( void )
     /* allocate and fill FBHDA */
     if(FBHDA_ptr == NULL)
     {
-    	FBHDA_ptr = drv_malloc(sizeof(FBHDA), &FBHDA_linear);
-    	if(FBHDA_ptr)
-    	{
-    		FBHDA_ptr->width  = wScrX;
-    		FBHDA_ptr->height = wScrY;
-    		FBHDA_ptr->bpp    = wBpp;
-    		FBHDA_ptr->pitch  = wScreenPitchBytes;
-    		
-    		FBHDA_ptr->fb_pm32 = dwScreenFlatAddr;
-    		FBHDA_ptr->fb_pm16 = ScreenSelector :> 0;
-    	}
-    	else
-    	{
-    		dbg_printf( "FBHDA_ptr = drv_malloc FAIL\n" );
-    	}
+      FBHDA_ptr = drv_malloc(sizeof(FBHDA), &FBHDA_linear);
+      if(FBHDA_ptr)
+      {
+        FBHDA_ptr->width  = wScrX;
+        FBHDA_ptr->height = wScrY;
+        FBHDA_ptr->bpp    = wBpp;
+        FBHDA_ptr->pitch  = wScreenPitchBytes;
+        
+        FBHDA_ptr->fb_pm32 = dwScreenFlatAddr;
+        FBHDA_ptr->fb_pm16 = ScreenSelector :> 0;
+      }
+      else
+      {
+        dbg_printf( "FBHDA_ptr = drv_malloc FAIL\n" );
+      }
     }
 
 #ifdef SVGA
