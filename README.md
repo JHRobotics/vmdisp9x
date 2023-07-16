@@ -38,12 +38,20 @@ If you have some OpenGL driver, you can use OpenGlide to translate Glide call to
 ## DirectX support
 Microsoft DirectDraw/DirectX is complex and relatively complicated API handled by DDI driver. For Windows 9x there are 4 version of this API DirectX: DirectX 2.0 - 6.1 through DDRAW.dll, DirectX 7 still through DDRAW.dll, DirectX through D3D8.dll and DirectX 9 through D3D9.dll. DDI driver has feature level (basically equals API version request with some forward compatibility) and every API required minimum level, for example DirectX 8 required DDI version 6 as minimum, DirectX 9 required 7. Behaviour changes with DirectX 10 which required DDI version 10. If you wish to implement DDI 9 you must also implement all older. This change with DirectX 11 where is needed only actual feature set and all older DDI can be emulated - but is out of reach by Windows 9x and we still stuck DirectX 9.
 
-There no DDI support in this driver, but here is Wine project (and with set called WineD3D) which can translate DirectX (and DirectDraw too) calls to OpenGL. Minimum is OpenGL with version 2.1 or better. My port WineD3D for Windows 9x is here: https://github.com/JHRobotics/wine9x
+There no DDI support in this driver, but here is Wine project (and with part called WineD3D) which can translate DirectX (and DirectDraw too) calls to OpenGL. Minimum is OpenGL with version 2.1 or better. My port WineD3D for Windows 9x is here: https://github.com/JHRobotics/wine9x
 
 Of course, there is alternative for DX8 and DX9 called Swiftshader 2.0
 
+## VirtualBox
+This driver supporting VirtualBox 6.x and 7.0 (in theory older versions should work, but they weren't test). Supported are all 3 adapters: *VBoxVGA*, *VBoxSVGA* and *VMSVGA*. For better performance (and HW 3D acceleration) is using *VBoxSVGA* or *VMSVGA* recommended. [There is known issue](https://github.com/JHRobotics/vmdisp9x/issues/2), that more than 64 MB VRAM does not work on some configuration. So, for best compatibility set the **video memory** to **64 MB**. Don't worry about low memory for 3D, more on [VRAM size topic](#vram-size).
+
+## VMware
+Driver supports VMware Workstation and WMware Player 16 and 17 (in theory older should works too).
+
+
 ## QEMU
-QEMU is supported since **v1.2023.0.10**. Supported adapters are `-vga std` which using modified VBE driver (`qemumini.drv`) and `-vga vmware` where VMware driver now works but is limited to 32 bpp colors only. I plan to support *VirGL* in future, but currently no 3D acceleration isn't available in QEMU. 
+QEMU is supported since **v1.2023.0.10**. Supported adapters are `-vga std` which using modified VBE driver (`qemumini.drv`) and `-vga vmware` where VMware driver now works but is limited to 32 bpp colors only. I plan to support *VirGL* in future, but currently no 3D acceleration isn't available in QEMU.
+
 
 ## Technical
 `*.drv` = 16bit driver runs in 16-bit protected mode in RING 3 (!) but with access to I/O instructions 
