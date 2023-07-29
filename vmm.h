@@ -369,13 +369,13 @@ typedef struct tagVxD_Desc_Block
 #define VMM___ModifyPageBits 96
 #define VMM___CopyPageTable 97
 #define VMM___LinMapIntoV86 98
-#define VMM___LinPageLock 98
-#define VMM___LinPageUnLock 99
-#define VMM___SetResetV86Pageable 100
-#define VMM___GetV86PageableArray 101
-#define VMM___PageCheckLinRange 102
-#define VMM___PageOutDirtyPages 103
-#define VMM___PageDiscardPages 104
+#define VMM___LinPageLock 99
+#define VMM___LinPageUnLock 100
+#define VMM___SetResetV86Pageable 101
+#define VMM___GetV86PageableArray 102
+#define VMM___PageCheckLinRange 103
+#define VMM___PageOutDirtyPages 104
+#define VMM___PageDiscardPages 105
 /*ENDMACROS*/
 
 /****************************************************
@@ -422,13 +422,13 @@ typedef struct tagVxD_Desc_Block
 // Informational services
 
 /*MACROS*/
-#define VMM___GetNulPageHandle 105
-#define VMM___GetFirstV86Page 106
-#define VMM___MapPhysToLinear 107
-#define VMM___GetAppFlatDSAlias 108
-#define VMM___SelectorMapFlat 109
-#define VMM___GetDemandPageInfo 110
-#define VMM___GetSetPageOutCount 111
+#define VMM___GetNulPageHandle 106
+#define VMM___GetFirstV86Page 107
+#define VMM___MapPhysToLinear 108
+#define VMM___GetAppFlatDSAlias 109
+#define VMM___SelectorMapFlat 110
+#define VMM___GetDemandPageInfo 111
+#define VMM___GetSetPageOutCount 112
 /*ENDMACROS*/
 
 /*
@@ -439,21 +439,21 @@ typedef struct tagVxD_Desc_Block
 // Device VM page manager
 
 /*MACROS*/
-#define VMM__Hook_V86_Page 112
-#define VMM___Assign_Device_V86_Pages 113
-#define VMM___DeAssign_Device_V86_Pages 114
-#define VMM___Get_Device_V86_Pages_Array 115
-#define VMM__MMGR_SetNULPageAddr 116
+#define VMM__Hook_V86_Page 113
+#define VMM___Assign_Device_V86_Pages 114
+#define VMM___DeAssign_Device_V86_Pages 115
+#define VMM___Get_Device_V86_Pages_Array 116
+#define VMM__MMGR_SetNULPageAddr 117
 
 // GDT/LDT management
 
-#define VMM___Allocate_GDT_Selector 117
-#define VMM___Free_GDT_Selector 118
-#define VMM___Allocate_LDT_Selector 119
-#define VMM___Free_LDT_Selector 120
-#define VMM___BuildDescriptorDWORDs 121
-#define VMM___GetDescriptor 122
-#define VMM___SetDescriptor 123
+#define VMM___Allocate_GDT_Selector 118
+#define VMM___Free_GDT_Selector 119
+#define VMM___Allocate_LDT_Selector 120
+#define VMM___Free_LDT_Selector 121
+#define VMM___BuildDescriptorDWORDs 122
+#define VMM___GetDescriptor 123
+#define VMM___SetDescriptor 124
 /*ENDMACROS*/
 
 /*
@@ -473,7 +473,7 @@ typedef struct tagVxD_Desc_Block
 #define ALDTSPECSEL 0x00000001
 
 /*MACROS*/
-#define VMM___MMGR_Toggle_HMA 124
+#define VMM___MMGR_Toggle_HMA 125
 /*ENDMACROS*/
 
 /*
@@ -485,57 +485,57 @@ typedef struct tagVxD_Desc_Block
 #define MMGRHMAQUERY	0x00000008
 
 /*MACROS*/
-#define VMM__Get_Fault_Hook_Addrs 125
-#define VMM__Hook_V86_Fault 126
-#define VMM__Hook_PM_Fault 127
-#define VMM__Hook_VMM_Fault 128
-#define VMM__Begin_Nest_V86_Exec 129
-#define VMM__Begin_Nest_Exec 130
-#define VMM__Exec_Int 131
-#define VMM__Resume_Exec 132
-#define VMM__End_Nest_Exec 133
+#define VMM__Get_Fault_Hook_Addrs 126
+#define VMM__Hook_V86_Fault 127
+#define VMM__Hook_PM_Fault 128
+#define VMM__Hook_VMM_Fault 129
+#define VMM__Begin_Nest_V86_Exec 130
+#define VMM__Begin_Nest_Exec 131
+#define VMM__Exec_Int 132
+#define VMM__Resume_Exec 133
+#define VMM__End_Nest_Exec 134
 
-#define VMM__Allocate_PM_App_CB_Area 134
-#define VMM__Get_Cur_PM_App_CB 135
-#define VMM__Set_V86_Exec_Mode 136
-#define VMM__Set_PM_Exec_Mode 137
+#define VMM__Allocate_PM_App_CB_Area 135
+#define VMM__Get_Cur_PM_App_CB 136
+#define VMM__Set_V86_Exec_Mode 137
+#define VMM__Set_PM_Exec_Mode 138
 
-#define VMM__Begin_Use_Locked_PM_Stack 138
-#define VMM__End_Use_Locked_PM_Stack 139
+#define VMM__Begin_Use_Locked_PM_Stack 139
+#define VMM__End_Use_Locked_PM_Stack 149
 
-#define VMM__Save_Client_State 140
-#define VMM__Restore_Client_State 141
+#define VMM__Save_Client_State 141
+#define VMM__Restore_Client_State 142
 
-#define VMM__Exec_VxD_Int 142
+#define VMM__Exec_VxD_Int 143
 
-#define VMM__Hook_Device_Service 143
-#define VMM__Hook_Device_V86_API 144
-#define VMM__Hook_Device_PM_API 145
+#define VMM__Hook_Device_Service 144
+#define VMM__Hook_Device_V86_API 145
+#define VMM__Hook_Device_PM_API 146
 
-#define VMM__System_Control 146
+#define VMM__System_Control 147
 //   I/O and software interrupt hooks
 
-#define VMM__Simulate_IO 147
-#define VMM__Install_Mult_IO_Handlers 148
-#define VMM__Install_IO_Handler 149
-#define VMM__Enable_Global_Trapping 150
-#define VMM__Enable_Local_Trapping 151
-#define VMM__Disable_Global_Trapping 152
-#define VMM__Disable_Local_Trapping 153
+#define VMM__Simulate_IO 148
+#define VMM__Install_Mult_IO_Handlers 149
+#define VMM__Install_IO_Handler 150
+#define VMM__Enable_Global_Trapping 151
+#define VMM__Enable_Local_Trapping 152
+#define VMM__Disable_Global_Trapping 153
+#define VMM__Disable_Local_Trapping 154
 
 //   Linked List Abstract Data Type Services
 
-#define VMM__List_Create 154
-#define VMM__List_Destroy 155
-#define VMM__List_Allocate 156
-#define VMM__List_Attach 157
-#define VMM__List_Attach_Tail 158
-#define VMM__List_Insert 159
-#define VMM__List_Remove 160
-#define VMM__List_Deallocate 161
-#define VMM__List_Get_First 162
-#define VMM__List_Get_Next 163
-#define VMM__List_Remove_First 164
+#define VMM__List_Create 155
+#define VMM__List_Destroy 156
+#define VMM__List_Allocate 157
+#define VMM__List_Attach 158
+#define VMM__List_Attach_Tail 159
+#define VMM__List_Insert 160
+#define VMM__List_Remove 161
+#define VMM__List_Deallocate 162
+#define VMM__List_Get_First 163
+#define VMM__List_Get_Next 164
+#define VMM__List_Remove_First 165
 /*ENDMACROS*/
 
 /*
@@ -559,14 +559,14 @@ typedef struct tagVxD_Desc_Block
 // Instance data manager
 
 /*MACROS*/
-#define VMM___AddInstanceItem 165
+#define VMM___AddInstanceItem 166
 
 // System structure data manager
 
-#define VMM___Allocate_Device_CB_Area 166
-#define VMM___Allocate_Global_V86_Data_Area 167
-#define VMM___Allocate_Temp_V86_Data_Area 168
-#define VMM___Free_Temp_V86_Data_Area 169
+#define VMM___Allocate_Device_CB_Area 167
+#define VMM___Allocate_Global_V86_Data_Area 168
+#define VMM___Allocate_Temp_V86_Data_Area 169
+#define VMM___Free_Temp_V86_Data_Area 170
 /*ENDMACROS*/
 
 #pragma pack(push)
