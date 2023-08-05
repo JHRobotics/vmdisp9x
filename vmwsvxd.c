@@ -38,6 +38,8 @@ THE SOFTWARE.
 #define PAGE_SIZE 4096
 #endif
 
+#define PTONPAGE (PAGE_SIZE/sizeof(DWORD))
+
 #if 0
 /* dynamic VXDs don't using this init function in discardable segment  */
 
@@ -109,8 +111,13 @@ char dbg_str[] = "%s\n";
 
 char dbg_submitcb_fail[] = "CB submit FAILED\n";
 char dbg_submitcb[] = "CB submit %d\n";
-
 char dbg_lockcb[] = "Reused CB (%d) with status: %d\n";
+
+char dbg_cb_on[] = "CB supported and allocated\n";
+char dbg_gb_on[] = "GB supported and allocated\n";
+
+char dbg_region_info_1[] = "Region id = %d\n";
+char dbg_region_info_2[] ="Region address = %lX, PPN = %lX, GMRBLK = %lX\n";
 
 #endif
 
@@ -138,6 +145,9 @@ typedef struct _cmd_buf_t
 uint64 cmd_buf_next_id = {0, 0};
 
 cmd_buf_t cmd_bufs[CB_COUNT] = {{0}};
+
+BOOL cb_support = FALSE;
+BOOL gb_support = FALSE;
 
 #define ROUND_TO_PAGES(_cb)((((_cb) + PAGE_SIZE - 1)/PAGE_SIZE)*PAGE_SIZE)
 
@@ -226,6 +236,8 @@ void Sys_Critical_Init_proc()
  *
  */
 #define SVGA_DBG             0x110B
+#define SVGA_REGION_CREATE   0x1114
+#define SVGA_REGION_FREE     0x1115
 #define SVGA_SYNC            0x1116
 #define SVGA_RING            0x1117
 #define SVGA_ALLOCPHY        0x1200
@@ -317,11 +329,16 @@ static DWORD getPPN(DWORD virtualaddr)
  * @param outDataAddr: linear address (system space) of data block
  * @param outGMRAddr: linear address of GMR block
  * @param outPPN: physical page number of outGMRAddr (first page)
+ * @param outMobAddr: linear address of MOB PT block - if is NOT null,
+ *                    extra memory of MOB maybe allocated. If result 
+ *                    is NULL, MOB is full flat (no PT needed).
+ * @param outMobPPN: physical page number of MOB
  *
  * @return: TRUE on success
  *
  **/
-static BOOL GMRAlloc(ULONG nPages, ULONG *outDataAddr, ULONG *outGMRAddr, ULONG *outPPN)
+static BOOL GMRAlloc(ULONG nPages, ULONG *outDataAddr, ULONG *outGMRAddr, ULONG *outPPN, 
+	ULONG *outMobAddr, ULONG *outMobPPN)
 {
 	ULONG phy;
 	ULONG pgblk_phy;
@@ -345,7 +362,13 @@ static BOOL GMRAlloc(ULONG nPages, ULONG *outDataAddr, ULONG *outGMRAddr, ULONG 
 			*outDataAddr = laddr;
 			*outGMRAddr = pgblk;
 			*outPPN = (pgblk_phy/P_SIZE);
-		
+			
+			if(outMobAddr)
+				*outMobAddr = 0;
+			
+			if(outMobPPN)
+				*outMobPPN = (phy/P_SIZE);
+
 			return TRUE;
 		}
 		else
@@ -364,7 +387,8 @@ static BOOL GMRAlloc(ULONG nPages, ULONG *outDataAddr, ULONG *outGMRAddr, ULONG 
 		ULONG blocks = 1;
 		ULONG blk_pages = 0;
 		
-		laddr = _PageAllocate(nPages, PG_SYS, 0, 0, 0x0, 0x100000, NULL, PAGEFIXED);
+		//laddr = _PageAllocate(nPages, PG_SYS, 0, 0, 0x0, 0x100000, NULL, PAGEFIXED);
+		laddr = 0;
 		
 		if(laddr)
 		{
@@ -438,6 +462,38 @@ static BOOL GMRAlloc(ULONG nPages, ULONG *outDataAddr, ULONG *outGMRAddr, ULONG 
 				*outGMRAddr = pgblk;
 				*outPPN = (pgblk_phy/P_SIZE);
 				
+				if(outMobAddr)
+				{
+					DWORD mobphy;
+					/* for simplicity we're always creating table of depth 2, first page is page of PPN pages */
+					DWORD *mob = (DWORD *)_PageAllocate(1 + (nPages + PTONPAGE - 1)/PTONPAGE, PG_SYS, 0, 0, 0x0, 0x100000, &mobphy,
+						PAGECONTIG | PAGEUSEALIGN | PAGEFIXED);
+					
+					if(mob)
+					{
+						int i;
+						/* dim 1 */
+						for(i = 0; i < (nPages + PTONPAGE - 1)/PTONPAGE; i++)
+						{
+							mob[i] = (mobphy/PAGE_SIZE) + i + 1;
+						}
+						
+						/* dim 2 */
+						for(i = 0; i < nPages; i++)
+						{
+							mob[PTONPAGE + i] = getPPN(laddr + i*PAGE_SIZE);
+						}
+						
+						*outMobAddr = (DWORD)mob;
+						if(outMobPPN) *outMobPPN = mobphy/PAGE_SIZE;
+					}
+					else
+					{
+						*outMobAddr = NULL;
+						if(outMobPPN) *outMobPPN = getPPN(laddr);
+					}
+				}
+				
 				return TRUE;
 			}
 			else
@@ -455,7 +511,7 @@ static BOOL GMRAlloc(ULONG nPages, ULONG *outDataAddr, ULONG *outGMRAddr, ULONG 
  * Free data allocated by GMRAlloc
  *
  **/
-static BOOL GMRFree(ULONG DataAddr, ULONG GMRAddr)
+static BOOL GMRFree(ULONG DataAddr, ULONG GMRAddr, ULONG MobAddr)
 {
 	BOOL ret = FALSE;
 
@@ -469,12 +525,16 @@ static BOOL GMRFree(ULONG DataAddr, ULONG GMRAddr)
 		ret = TRUE;
 	}
 	
+	if(MobAddr != 0)
+	{
+		_PageFree((PVOID)MobAddr, 0);
+	}
+	
 	return ret;
 }
 
 /**
- *
- *
+ * Allocate OTable for GB objects
  **/
 static void AllocateOTable()
 {
@@ -494,6 +554,9 @@ static void AllocateOTable()
 	}
 }
 
+/**
+ * Allocate Command Buffers
+ **/
 static void AllocateCB()
 {
 	int i;
@@ -507,6 +570,9 @@ static void AllocateCB()
 	}
 }
 
+/**
+ * Test if selected CB is not used
+ **/
 static BOOL isCBfree(int index)
 {
 	switch(cmd_bufs[index].status)
@@ -527,7 +593,9 @@ static BOOL isCBfree(int index)
 	return FALSE;
 }
 
-/* inc 64-bit id */
+/**
+ * Increment 64-bit ID of CB segment
+ **/
 static void nextID_CB()
 {
 	_asm
@@ -537,6 +605,9 @@ static void nextID_CB()
 	}
 }
 
+/**
+ * Lock one of buffers and return ptr for RING-3
+ **/
 static void *LockCB()
 {
 	int index;
@@ -556,9 +627,11 @@ static void *LockCB()
 	return NULL;
 }
 
-/*
- cbctx_id = SVGA_CB_CONTEXT_0,...
-*/
+/**
+ * Submit CB to GPU.
+ * If length is 0, buffer not executed
+ * cbctx_id = SVGA_CB_CONTEXT_0,...
+ **/
 
 static BOOL submitCB(void *ptr, DWORD cbctx_id)
 {
@@ -600,7 +673,9 @@ static BOOL submitCB(void *ptr, DWORD cbctx_id)
 	return FALSE;
 }
 
-/* wait until all CB are completed */
+/**
+ * Wait until all CB are completed
+ **/
 static void syncCB()
 {
 	int index;
@@ -634,14 +709,16 @@ static void syncCB()
  **/
 BOOL CreateRegion(unsigned int nPages, ULONG *lpLAddr, ULONG *lpPPN, ULONG *lpPGBLK)
 {	
-	return GMRAlloc(nPages, lpLAddr, lpPGBLK, lpPPN);
+	return GMRAlloc(nPages, lpLAddr, lpPGBLK, lpPPN, NULL, NULL);
 }
 
-BOOL FreeRegion(ULONG LAddr, ULONG PGBLK)
+BOOL FreeRegion(ULONG LAddr, ULONG PGBLK, ULONG MobAddr)
 {
-	return GMRFree(LAddr, PGBLK);
+	return GMRFree(LAddr, PGBLK, MobAddr);
 }
 
+#if 0
+/* I'm using this sometimes for developing, not for end user! */
 BOOL AllocPhysical(DWORD nPages, DWORD *outLinear, DWORD *outPhysical)
 {
 	*outLinear = _PageAllocate(nPages, PG_SYS, 0, 0, 0x0, 0x100000, outPhysical, PAGECONTIG | PAGEUSEALIGN | PAGEFIXED);
@@ -658,7 +735,9 @@ void FreePhysical(DWORD linear)
 {
 	_PageFree((void*)linear, 0);
 }
+#endif
 
+/* process V86/PM16 calls */
 WORD __stdcall VMWS_API_Proc(PCRS_32 state)
 {
 	WORD rc = 0xFFFF;
@@ -700,7 +779,7 @@ WORD __stdcall VMWS_API_Proc(PCRS_32 state)
 		/* free region = input: ECX: lin. address */
 		case VMWSVXD_PM16_DESTROY_REGION: 
 		{
-			if(FreeRegion(state->Client_ECX, state->Client_EBX))
+			if(FreeRegion(state->Client_ECX, state->Client_EBX, 0))
 			{
 				rc = 1;
 			}
@@ -773,14 +852,27 @@ void __declspec(naked) VMWS_API_Entry()
 void Device_Init_proc()
 {
 	dbg_printf(dbg_Device_Init_proc);
-	AllocateOTable();
-	AllocateCB();
+	
 	// VMMCall _Allocate_Device_CB_Area
 	
 	if(SVGA_Init(FALSE) == 0)
 	{
 		dbg_printf(dbg_Device_Init_proc_succ);
 		svga_init_success = TRUE;
+			
+		if(SVGA_ReadReg(SVGA_REG_CAPABILITIES) & SVGA_CAP_GBOBJECTS)
+		{
+			AllocateOTable();
+			gb_support = TRUE;
+			dbg_printf(dbg_gb_on);
+		}
+		
+		if(SVGA_ReadReg(SVGA_REG_CAPABILITIES) & (SVGA_CAP_COMMAND_BUFFERS | SVGA_CAP_CMD_BUFFERS_2))
+		{
+			AllocateCB();
+			cb_support = TRUE;
+			dbg_printf(dbg_cb_on);
+		}
 			
 		VDD_Get_Mini_Dispatch_Table();
 		if(DispatchTableLength >= 0x31)
@@ -791,7 +883,7 @@ void Device_Init_proc()
 }
 #undef VDDFUNC
 
-
+/* process user space (PM32, RING-3) call */
 DWORD __stdcall Device_IO_Control_entry(struct DIOCParams *params)
 {
 	switch(params->dwIoControlCode)
@@ -808,6 +900,7 @@ DWORD __stdcall Device_IO_Control_entry(struct DIOCParams *params)
 			//dbg_printf(dbg_dic_ring);
 			SVGA_WriteReg(SVGA_REG_SYNC, 1);
 			return 0;
+#if 0
 		case SVGA_ALLOCPHY:
 		{
 			DWORD nPages = ((DWORD*)params->lpInBuffer)[0];
@@ -825,6 +918,7 @@ DWORD __stdcall Device_IO_Control_entry(struct DIOCParams *params)
 			FreePhysical(linear);
 			return 0;
 		}
+#endif
 		/* input:
 		    - id 
 		   output:
@@ -837,6 +931,10 @@ DWORD __stdcall Device_IO_Control_entry(struct DIOCParams *params)
 		{
 			DWORD   id = ((DWORD*)params->lpInBuffer)[0];
 			DWORD *out = (DWORD*)params->lpOutBuffer;
+			
+			if(!gb_support)
+				return 1;
+			
 			if(id < SVGA_OTABLE_DX_MAX)
 			{
 				out[0] = (DWORD)otable[id].lin;
@@ -855,6 +953,10 @@ DWORD __stdcall Device_IO_Control_entry(struct DIOCParams *params)
 		{
 			DWORD   id  = ((DWORD*)params->lpInBuffer)[0];
 			DWORD flags = ((DWORD*)params->lpInBuffer)[1];
+			
+			if(!gb_support)
+				return 1;
+			
 			if(id < SVGA_OTABLE_DX_MAX)
 			{
 				otable[id].flags = flags;
@@ -869,12 +971,15 @@ DWORD __stdcall Device_IO_Control_entry(struct DIOCParams *params)
 		 */
 		case SVGA_CB_LOCK:
 		{
-			void *ptr = LockCB();
-			if(ptr)
+			if(cb_support)
 			{
-				DWORD* out = (DWORD*)params->lpOutBuffer;
-				*out = (DWORD)ptr;
-				return 0;
+				void *ptr = LockCB();
+				if(ptr)
+				{
+					DWORD* out = (DWORD*)params->lpOutBuffer;
+					*out = (DWORD)ptr;
+					return 0;
+				}
 			}
 			return 1;
 		}
@@ -886,18 +991,99 @@ DWORD __stdcall Device_IO_Control_entry(struct DIOCParams *params)
 		 */
 		case SVGA_CB_SUBMIT:
 		{
-			DWORD *in = (DWORD*)params->lpInBuffer;
+			if(cb_support)
+			{
+				DWORD *in = (DWORD*)params->lpInBuffer;
+				
+				if(submitCB((void*)in[0], in[1]))
+				{
+					return 0;
+				}
+			}
+			return 1;
+		}
+		/* 
+		 none arguments
+		*/
+		case SVGA_CB_SYNC:
+			if(cb_support)
+			{
+				syncCB();
+				return 0;
+			}
+			return 1;
+		/*
+		 input:
+			- region id
+			- pages
+		 output:
+			- region id
+			- user page address
+			- page block
+			- mob page address
+			- mob ppn
+		*/
+		case SVGA_REGION_CREATE:
+		{
+  		DWORD *lpIn  = (DWORD*)params->lpInBuffer;
+  		DWORD *lpOut = (DWORD*)params->lpOutBuffer;
+  		DWORD gmrPPN = 0;
+  		
+  		dbg_printf(dbg_region_info_1, lpIn[0]);
+  		
+			if(GMRAlloc(lpIn[1], &lpOut[1], &lpOut[2], &gmrPPN, &lpOut[3], &lpOut[4]))
+			{
+				if(lpIn[0] != 0)
+				{
+		    	SVGA_WriteReg(SVGA_REG_GMR_ID, lpIn[0]);
+		    	SVGA_WriteReg(SVGA_REG_GMR_DESCRIPTOR, gmrPPN);
+		    	
+		    	dbg_printf(dbg_region_info_2, lpOut[1], gmrPPN, lpOut[2]);
+		    	
+		    	/* refresh all register, so make sure that new commands will accepts this region */
+		    	SVGA_Flush();
+		    	
+		    	lpOut[0] = lpIn[0]; // copy GMR ID
+				}
+				return 0;
+			}
+			else
+			{
+				dbg_printf(dbg_region_err);
+			}
+  		
+  		return 1;
+		}
+		/*
+		 input
+			- region id
+			- user page address
+			- page block address
+			- mob PT address
+		*/
+		case SVGA_REGION_FREE:
+		{
+			DWORD *lpIn = (DWORD*)params->lpInBuffer;
 			
-			if(submitCB((void*)in[0], in[1]))
+			/* flush all register inc. fifo so make sure, that all commands are processed */
+			if(cb_support)
+			{
+				syncCB();
+			}
+    	SVGA_Flush();
+    
+    	SVGA_WriteReg(SVGA_REG_GMR_ID, lpIn[0]);
+    	SVGA_WriteReg(SVGA_REG_GMR_DESCRIPTOR, 0);
+			
+			/* sync again */
+    	SVGA_Flush();
+			
+			if(FreeRegion(lpIn[1], lpIn[2], lpIn[3]))
 			{
 				return 0;
 			}
 			return 1;
 		}
-		/* none arguments */
-		case SVGA_CB_SYNC:
-			syncCB();
-			return 0;
 		case SVGA_DBG:
 #ifdef DBGPRINT
 			dbg_printf(dbg_str, params->lpInBuffer);
