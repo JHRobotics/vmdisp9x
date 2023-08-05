@@ -38,11 +38,6 @@
  * Extra types
  */
 
-typedef struct uint64 {
-	uint32 low;
-	uint32 hi;
-} uint64;
-
 typedef uint16 SVGA3dLogicOp;
 typedef uint32 SVGA3dSurface1Flags;
 typedef uint32 SVGA3dSurface2Flags;

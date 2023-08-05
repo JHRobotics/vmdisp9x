@@ -4,7 +4,7 @@ OBJS = dibthunk.obj dibcall.obj enable.obj init.obj palette.obj &
        scrsw_svga.obj control_svga.obj modes_svga.obj palette_svga.obj &
        pci.obj svga.obj svga3d.obj svga32.obj pci32.obj dddrv.obj &
        enable_svga.obj dibcall_svga.obj boxv_qemu.obj modes_qemu.obj &
-       init_qemu.obj init_svga.obj
+       init_qemu.obj init_svga.obj qemuvxd.obj minivdd_qemu.obj
 
 INCS = -I$(%WATCOM)\h\win -Iddk -Ivmware
 
@@ -42,7 +42,7 @@ CC32 = wcc386
 CFLAGS32 += -DCOM2
 !endif
 
-all : boxvmini.drv vmwsmini.drv qemumini.drv vmwsmini.vxd
+all : boxvmini.drv vmwsmini.drv qemumini.drv vmwsmini.vxd qemumini.vxd
 
 # Object files
 drvlib.obj : drvlib.c .autodepend
@@ -134,8 +134,14 @@ scrsw_svga.obj : scrsw_svga.c .autodepend
 
 vmwsvxd.obj : vmwsvxd.c .autodepend
 	$(CC32) $(CFLAGS32) $(INCS) $(FLAGS) $<
+	
+qemuvxd.obj : qemuvxd.c .autodepend
+	$(CC32) $(CFLAGS32) $(INCS) $(FLAGS) $<
 
 minivdd_svga.obj : minivdd_svga.c .autodepend
+	$(CC32) $(CFLAGS32) $(INCS) $(FLAGS) $<
+
+minivdd_qemu.obj : minivdd_qemu.c .autodepend
 	$(CC32) $(CFLAGS32) $(INCS) $(FLAGS) $<
 
 dddrv.obj : dddrv.c .autodepend
@@ -388,7 +394,7 @@ file vmwsvxd.obj
 file minivdd_svga.obj
 file pci32.obj
 file svga32.obj
-segment '_LTEXT' PRELOAD NONDISCARDABLE
+segment '_LTEXT' PRELOAD NONDISCARDABLE 
 segment '_TEXT'  PRELOAD NONDISCARDABLE
 segment '_DATA'  PRELOAD NONDISCARDABLE
 export VMWS_DDB.1
@@ -397,6 +403,19 @@ export VMWS_DDB.1
 # not working now
 #	wrc -q vmws_vxd.res $@
 
+qemumini.vxd : $(OBJS) vmws_vxd.res
+	wlink op quiet $(DBGFILE32) @<<qemumini.lnk
+system win_vxd dynamic
+option map=qemuvxd.map
+option nodefaultlibs
+name qemumini.vxd
+file qemuvxd.obj
+file minivdd_qemu.obj
+segment '_LTEXT' PRELOAD NONDISCARDABLE
+segment '_TEXT'  PRELOAD NONDISCARDABLE
+segment '_DATA'  PRELOAD NONDISCARDABLE
+export QEMU_DDB.1
+<<
 
 # Cleanup
 clean : .symbolic

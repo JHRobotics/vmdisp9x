@@ -22,6 +22,8 @@ THE SOFTWARE.
 
 *****************************************************************************/
 
+#define SVGA
+
 #include "winhack.h"
 #include "vmm.h"
 #include "vmwsvxd.h"
@@ -31,6 +33,10 @@ THE SOFTWARE.
 #include "minivdd32.h"
 
 #include "version.h"
+
+#ifndef PAGE_SIZE
+#define PAGE_SIZE 4096
+#endif
 
 #if 0
 /* dynamic VXDs don't using this init function in discardable segment  */
@@ -97,10 +103,57 @@ char dbg_dic_unknown[] = "DeviceIOControl: Unknown: %d\n";
 char dbg_dic_system[] = "DeviceIOControl: System code: %d\n";
 char dbg_get_ppa[] = "%lx -> %lx\n";
 char dbg_get_ppa_beg[] = "Virtual: %lx\n";
+char dbg_mob_allocate[] = "Allocted: %d\n";
 
 char dbg_str[] = "%s\n";
 
+char dbg_submitcb_fail[] = "CB submit FAILED\n";
+char dbg_submitcb[] = "CB submit %d\n";
+
+char dbg_lockcb[] = "Reused CB (%d) with status: %d\n";
+
 #endif
+
+typedef struct _otinfo_entry_t
+{
+	DWORD   phy;
+	void   *lin;
+	DWORD   size;
+	DWORD   flags;
+} otinfo_entry_t;
+
+typedef struct _cmd_buf_t
+{
+	DWORD   phy;
+	void   *lin;
+	DWORD   status;
+} cmd_buf_t;
+
+#define CB_STATUS_EMPTY   0 /* buffer was not used yet */
+#define CB_STATUS_LOCKED  1 /* buffer is using by Ring-3 proccess */
+#define CB_STATUS_PROCESS 2 /* buffer is register by VGPU */
+
+#define CB_COUNT 2
+
+uint64 cmd_buf_next_id = {0, 0};
+
+cmd_buf_t cmd_bufs[CB_COUNT] = {{0}};
+
+#define ROUND_TO_PAGES(_cb)((((_cb) + PAGE_SIZE - 1)/PAGE_SIZE)*PAGE_SIZE)
+
+#define SVGA3D_MAX_MOBS (SVGA3D_MAX_CONTEXT_IDS + SVGA3D_MAX_CONTEXT_IDS + SVGA3D_MAX_SURFACE_IDS)
+
+#define FLAG_ALLOCATED 1
+#define FLAG_ACTIVE    2
+
+otinfo_entry_t otable[SVGA_OTABLE_DX_MAX] = {
+	{0, NULL, ROUND_TO_PAGES(SVGA3D_MAX_MOBS*sizeof(SVGAOTableMobEntry)),              0}, /* SVGA_OTABLE_MOB */
+	{0, NULL, ROUND_TO_PAGES(SVGA3D_MAX_SURFACE_IDS*sizeof(SVGAOTableSurfaceEntry)),   0}, /* SVGA_OTABLE_SURFACE */
+	{0, NULL, ROUND_TO_PAGES(SVGA3D_MAX_CONTEXT_IDS*sizeof(SVGAOTableContextEntry)),   0}, /* SVGA_OTABLE_CONTEXT */
+	{0, NULL, 0,                                                                       0}, /* SVGA_OTABLE_SHADER - not used */
+	{0, NULL, ROUND_TO_PAGES(64*sizeof(SVGAOTableScreenTargetEntry)),                  0}, /* SVGA_OTABLE_SCREENTARGET (VBOX_VIDEO_MAX_SCREENS) */
+	{0, NULL, ROUND_TO_PAGES(SVGA3D_MAX_CONTEXT_IDS*sizeof(SVGAOTableDXContextEntry)), 0}, /* SVGA_OTABLE_DXCONTEXT */
+};
 
 DWORD *DispatchTable = 0;
 DWORD DispatchTableLength = 0;
@@ -175,34 +228,16 @@ void Sys_Critical_Init_proc()
 #define SVGA_DBG             0x110B
 #define SVGA_SYNC            0x1116
 #define SVGA_RING            0x1117
+#define SVGA_ALLOCPHY        0x1200
+#define SVGA_FREEPHY         0x1201
+#define SVGA_OTABLE_QUERY    0x1202
+#define SVGA_OTABLE_FLAGS    0x1203
 
-DWORD __stdcall Device_IO_Control_entry(struct DIOCParams *params)
-{
-	switch(params->dwIoControlCode)
-	{
-		case DIOC_OPEN:
-		case DIOC_CLOSEHANDLE:
-			dbg_printf(dbg_dic_system, params->dwIoControlCode);
-			return 0;
-		case SVGA_SYNC:
-			//dbg_printf(dbg_dic_sync);
-			SVGA_Flush();
-			return 0;
-		case SVGA_RING:
-			//dbg_printf(dbg_dic_ring);
-			SVGA_WriteReg(SVGA_REG_SYNC, 1);
-			return 0;
-		case SVGA_DBG:
-#ifdef DBGPRINT
-			dbg_printf(dbg_str, params->lpInBuffer);
-#endif			
-			return 0;
-	}
-		
-	dbg_printf(dbg_dic_unknown, params->dwIoControlCode);
-	
-	return 1;
-}
+#define SVGA_CB_LOCK         0x1204
+#define SVGA_CB_SUBMIT       0x1205
+#define SVGA_CB_SYNC         0x1206
+
+DWORD __stdcall Device_IO_Control_entry(struct DIOCParams *params);
 
 void __declspec(naked) Device_IO_Control_proc()
 {
@@ -438,6 +473,163 @@ static BOOL GMRFree(ULONG DataAddr, ULONG GMRAddr)
 }
 
 /**
+ *
+ *
+ **/
+static void AllocateOTable()
+{
+	int i;
+	for(i = 0; i < SVGA_OTABLE_DX_MAX; i++)
+	{
+		otinfo_entry_t *entry = &otable[i];
+		if(entry->size != 0 && (entry->flags & FLAG_ALLOCATED) == 0)
+		{
+			entry->lin = (void*)_PageAllocate(entry->size/PAGE_SIZE, PG_SYS, 0, 0, 0x0, 0x100000, &entry->phy, PAGECONTIG | PAGEUSEALIGN | PAGEFIXED);
+			if(entry->lin)
+			{
+				dbg_printf(dbg_mob_allocate, i);
+				entry->flags |= FLAG_ALLOCATED;
+			}
+		}
+	}
+}
+
+static void AllocateCB()
+{
+	int i;
+	for(i = 0; i < CB_COUNT; i++)
+	{
+		if(cmd_bufs[i].phy == 0)
+		{
+			cmd_bufs[i].lin = (void *)_PageAllocate((SVGA_CB_MAX_SIZE+PAGE_SIZE-1)/PAGE_SIZE, PG_SYS, 0, 0, 0x0, 0x100000, &(cmd_bufs[i].phy), PAGECONTIG | PAGEUSEALIGN | PAGEFIXED);
+			cmd_bufs[i].status = CB_STATUS_EMPTY;
+		}
+	}
+}
+
+static BOOL isCBfree(int index)
+{
+	switch(cmd_bufs[index].status)
+	{
+		case CB_STATUS_EMPTY:
+			return TRUE;
+		case CB_STATUS_PROCESS:
+		{
+			SVGACBHeader *cb = (SVGACBHeader *)cmd_bufs[index].lin;
+			if(cb->status > SVGA_CB_STATUS_NONE)
+			{
+				return TRUE;
+			}
+			break;
+		}
+	}
+	
+	return FALSE;
+}
+
+/* inc 64-bit id */
+static void nextID_CB()
+{
+	_asm
+	{
+		inc dword ptr [cmd_buf_next_id]
+		adc dword ptr [cmd_buf_next_id+4], 0
+	}
+}
+
+static void *LockCB()
+{
+	int index;
+	for(index = 0; index < CB_COUNT; index++)
+	{
+		if(isCBfree(index))
+		{
+			{
+				SVGACBHeader *cb = (SVGACBHeader *)cmd_bufs[index].lin;
+				dbg_printf(dbg_lockcb, index, cb->status);
+			}
+			cmd_bufs[index].status = CB_STATUS_LOCKED;
+			return cmd_bufs[index].lin;
+		}
+	}
+	
+	return NULL;
+}
+
+/*
+ cbctx_id = SVGA_CB_CONTEXT_0,...
+*/
+
+static BOOL submitCB(void *ptr, DWORD cbctx_id)
+{
+	int index;
+	
+	for(index = 0; index < CB_COUNT; index++)
+	{
+		if(cmd_bufs[index].lin == ptr)
+		{
+			SVGACBHeader *cb = (SVGACBHeader *)cmd_bufs[index].lin;
+			if(cb->length > 0)
+			{
+				cb->status = SVGA_CB_STATUS_NONE;
+				cb->ptr.pa.hi   = 0;
+				cb->ptr.pa.low  = cmd_bufs[index].phy + sizeof(SVGACBHeader);
+				cb->flags |= SVGA_CB_FLAG_NO_IRQ;
+				cb->id.low = cmd_buf_next_id.low;
+				cb->id.hi  = cmd_buf_next_id.hi;
+				
+				SVGA_WriteReg(SVGA_REG_COMMAND_HIGH, 0); // high part of 64-bit memory address...
+				SVGA_WriteReg(SVGA_REG_COMMAND_LOW, cmd_bufs[index].phy | cbctx_id);
+				cmd_bufs[index].status = CB_STATUS_PROCESS;
+				
+				dbg_printf(dbg_submitcb, index);
+				
+				nextID_CB();
+			}
+			else
+			{
+				cmd_bufs[index].status = CB_STATUS_EMPTY;
+			}
+			
+			return TRUE;
+		}
+	}
+	
+	dbg_printf(dbg_submitcb_fail);
+	
+	return FALSE;
+}
+
+/* wait until all CB are completed */
+static void syncCB()
+{
+	int index;
+	BOOL synced;
+	do
+	{
+		synced = TRUE;
+		for(index = 0; index < CB_COUNT; index++)
+		{
+			switch(cmd_bufs[index].status)
+			{
+				case CB_STATUS_EMPTY:
+				case CB_STATUS_LOCKED:
+					break;
+				case CB_STATUS_PROCESS:
+				{
+					SVGACBHeader *cb = (SVGACBHeader *)cmd_bufs[index].lin;
+					if(cb->status == SVGA_CB_STATUS_NONE)
+					{
+						synced = FALSE;
+					}
+					break;
+				}
+			}
+		}
+	} while(!synced);
+}
+
+/**
  * PM16 driver RING0 calls
  **/
 BOOL CreateRegion(unsigned int nPages, ULONG *lpLAddr, ULONG *lpPPN, ULONG *lpPGBLK)
@@ -450,43 +642,21 @@ BOOL FreeRegion(ULONG LAddr, ULONG PGBLK)
 	return GMRFree(LAddr, PGBLK);
 }
 
-#define MOB_PER_PAGE_CNT (P_SIZE/sizeof(ULONG))
-
-BOOL CreateMOB(unsigned int nPages, ULONG *lpLAddr, ULONG *lpPPN)
+BOOL AllocPhysical(DWORD nPages, DWORD *outLinear, DWORD *outPhysical)
 {
-	unsigned int mobBasePages = (nPages + MOB_PER_PAGE_CNT - 1)/MOB_PER_PAGE_CNT;
-	ULONG phy;
-	ULONG laddr;
+	*outLinear = _PageAllocate(nPages, PG_SYS, 0, 0, 0x0, 0x100000, outPhysical, PAGECONTIG | PAGEUSEALIGN | PAGEFIXED);
 	
-	laddr = _PageAllocate(nPages + mobBasePages, PG_SYS, 0, 0x0, 0, 0x0fffff, &phy, PAGECONTIG | PAGEUSEALIGN | PAGEFIXED);
-	if(laddr)
+	if(*outLinear != NULL)
 	{
-		unsigned int i;
-		ULONG ppu = (phy/P_SIZE) + mobBasePages;
-		ULONG *ptr = (ULONG*)laddr;
-		
-		for(i = 0; i < nPages; i++)
-		{
-			ptr[i] = ppu;
-			ppu++;
-		}
-
-		*lpLAddr = laddr;
-		*lpPPN = (phy/P_SIZE);
 		return TRUE;
 	}
 	
 	return FALSE;
 }
 
-BOOL FreeMOB(ULONG LAddr)
+void FreePhysical(DWORD linear)
 {
-	if(_PageFree((PVOID)LAddr, 0) != 0)
-	{
-		return TRUE;
-	}
-	
-	return FALSE;	
+	_PageFree((void*)linear, 0);
 }
 
 WORD __stdcall VMWS_API_Proc(PCRS_32 state)
@@ -539,42 +709,6 @@ WORD __stdcall VMWS_API_Proc(PCRS_32 state)
 				rc = 0;
 			}
 			break;			
-		}
-		/* Create MOB = input: ECX - num_pages; output: EDX - lin. address of descriptor, ECX - PPN of descriptor */
-		case VMWSVXD_PM16_CREATE_MOB:
-		{
-			ULONG lAddr;
-			ULONG PPN;
-				
-			if(CreateMOB(state->Client_ECX, &lAddr, &PPN))
-			{
-				state->Client_ECX = PPN;
-				state->Client_EDX = lAddr;
-				rc = 1;
-			}
-			else
-			{
-				state->Client_ECX = 0;
-				state->Client_EDX = 0;
-				
-				dbg_printf(dbg_region_err);
-				
-				rc = 0;
-			}
-			break;
-		}
-		/* Free MOB = input: ECX: lin. address */
-		case VMWSVXD_PM16_DESTROY_MOB:
-		{
-			if(FreeMOB(state->Client_ECX))
-			{
-				rc = 1;
-			}
-			else
-			{
-				rc = 0;
-			}
-			break;
 		}
 		/* clear memory on linear address (ESI) by defined size (ECX) */
 		case VMWSVXD_PM16_ZEROMEM:
@@ -639,6 +773,8 @@ void __declspec(naked) VMWS_API_Entry()
 void Device_Init_proc()
 {
 	dbg_printf(dbg_Device_Init_proc);
+	AllocateOTable();
+	AllocateCB();
 	// VMMCall _Allocate_Device_CB_Area
 	
 	if(SVGA_Init(FALSE) == 0)
@@ -654,3 +790,122 @@ void Device_Init_proc()
 	}
 }
 #undef VDDFUNC
+
+
+DWORD __stdcall Device_IO_Control_entry(struct DIOCParams *params)
+{
+	switch(params->dwIoControlCode)
+	{
+		case DIOC_OPEN:
+		case DIOC_CLOSEHANDLE:
+			dbg_printf(dbg_dic_system, params->dwIoControlCode);
+			return 0;
+		case SVGA_SYNC:
+			//dbg_printf(dbg_dic_sync);
+			SVGA_Flush();
+			return 0;
+		case SVGA_RING:
+			//dbg_printf(dbg_dic_ring);
+			SVGA_WriteReg(SVGA_REG_SYNC, 1);
+			return 0;
+		case SVGA_ALLOCPHY:
+		{
+			DWORD nPages = ((DWORD*)params->lpInBuffer)[0];
+			DWORD *linear = &((DWORD*)params->lpOutBuffer)[0];
+			DWORD *phy = &((DWORD*)params->lpOutBuffer)[1];
+			if(AllocPhysical(nPages, linear, phy))
+			{
+				return 0;
+			}
+			return 1;
+		}
+		case SVGA_FREEPHY:
+		{
+			DWORD linear = ((DWORD*)params->lpInBuffer)[0];
+			FreePhysical(linear);
+			return 0;
+		}
+		/* input:
+		    - id 
+		   output:
+		    - linear
+		    - physical
+		    - size
+		    - flags
+		 */
+		case SVGA_OTABLE_QUERY:
+		{
+			DWORD   id = ((DWORD*)params->lpInBuffer)[0];
+			DWORD *out = (DWORD*)params->lpOutBuffer;
+			if(id < SVGA_OTABLE_DX_MAX)
+			{
+				out[0] = (DWORD)otable[id].lin;
+				out[1] = otable[id].phy;
+				out[2] = otable[id].size;
+				out[3] = otable[id].flags;
+				return 0;
+			}
+			return 1;
+		}
+		/* input:
+		   - id
+		   - new flags
+		 */
+		case SVGA_OTABLE_FLAGS:
+		{
+			DWORD   id  = ((DWORD*)params->lpInBuffer)[0];
+			DWORD flags = ((DWORD*)params->lpInBuffer)[1];
+			if(id < SVGA_OTABLE_DX_MAX)
+			{
+				otable[id].flags = flags;
+				return 0;
+			}
+			return 1;
+		}
+		/*
+		 input:
+		 output:
+		  - linear address of buffer
+		 */
+		case SVGA_CB_LOCK:
+		{
+			void *ptr = LockCB();
+			if(ptr)
+			{
+				DWORD* out = (DWORD*)params->lpOutBuffer;
+				*out = (DWORD)ptr;
+				return 0;
+			}
+			return 1;
+		}
+		/*
+		 input:
+		  - linear address of buffer
+		  - CB context ID
+		 output:
+		 */
+		case SVGA_CB_SUBMIT:
+		{
+			DWORD *in = (DWORD*)params->lpInBuffer;
+			
+			if(submitCB((void*)in[0], in[1]))
+			{
+				return 0;
+			}
+			return 1;
+		}
+		/* none arguments */
+		case SVGA_CB_SYNC:
+			syncCB();
+			return 0;
+		case SVGA_DBG:
+#ifdef DBGPRINT
+			dbg_printf(dbg_str, params->lpInBuffer);
+#endif			
+			return 0;
+	}
+		
+	dbg_printf(dbg_dic_unknown, params->dwIoControlCode);
+	
+	return 1;
+}

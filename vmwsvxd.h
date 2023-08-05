@@ -7,15 +7,13 @@
  */
 #define VMWSVXD_DEVICE_ID 0x7fe7
 
-#define VMWSVXD_MAJOR_VER 2
+#define VMWSVXD_MAJOR_VER 4 /* should be 4 for windows 95 and newer */
 #define VMWSVXD_MINOR_VER 0
 
 #define VMWSVXD_PM16_VERSION                      0
 #define VMWSVXD_PM16_VMM_VERSION                  1
 #define VMWSVXD_PM16_CREATE_REGION                2
 #define VMWSVXD_PM16_DESTROY_REGION               3
-#define VMWSVXD_PM16_CREATE_MOB                   4
-#define VMWSVXD_PM16_DESTROY_MOB                  5
 #define VMWSVXD_PM16_ZEROMEM                      6
 #define VMWSVXD_PM16_APIVER                       7
 

@@ -1,2 +1,2 @@
-#define SVGA
+#define QEMU
 #include "minivdd.c"

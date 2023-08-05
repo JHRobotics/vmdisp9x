@@ -85,7 +85,7 @@ int BOXV_ext_mode_set( void *cx, int xres, int yres, int bpp, int v_xres, int v_
     /* Enable the extended display registers. */
     vid_outw( cx, VBE_DISPI_IOPORT_INDEX, VBE_DISPI_INDEX_ENABLE );
 #ifdef QEMU
-    vid_outw( cx, VBE_DISPI_IOPORT_DATA, VBE_DISPI_ENABLED | VBE_DISPI_8BIT_DAC | VBE_DISPI_LFB_ENABLED );
+    vid_outw( cx, VBE_DISPI_IOPORT_DATA, VBE_DISPI_ENABLED | VBE_DISPI_8BIT_DAC | VBE_DISPI_LFB_ENABLED | VBE_DISPI_NOCLEARMEM  );
 #else
     vid_outw( cx, VBE_DISPI_IOPORT_DATA, VBE_DISPI_ENABLED | VBE_DISPI_8BIT_DAC );
 #endif

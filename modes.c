@@ -201,13 +201,15 @@ static int IsModeOK( WORD wXRes, WORD wYRes, WORD wBpp )
     if( !FixModeInfo( &mode ) )
         return( 0 );
 
-#ifdef SVGA
+#if defined(SVGA) || defined(QEMU)
     /* not working in vmware, in vbox is working without acceleration, so only confusing users */
     if(wBpp == 24)
     {
       return 0;
     }
+#endif
     
+#ifdef SVGA
     /* some implementations not support 8 and 16 bpp */
     if(gSVGA.only32bit && wBpp != 32)
     {

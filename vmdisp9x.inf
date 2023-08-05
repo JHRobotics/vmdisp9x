@@ -27,6 +27,8 @@ DX.CopyBackup=10,SYSBCKUP
 boxvmini.drv=1
 vmwsmini.drv=1
 vmwsmini.vxd=1
+qemumini.drv=1
+qemumini.vxd=1
 ;mesa:mesa3d.dll=1
 ;mesa:vmwsgl32.dll=1
 ;openglide:glide2x.dll=1
@@ -79,6 +81,7 @@ boxvmini.drv,,,0x00000004
 
 [Qemu.Copy]
 qemumini.drv,,,0x00000004
+qemumini.vxd,,,0x00000004
 ;mesa:mesa3d.dll,,,0x00000004
 ;bridge:bridge99.dll,,,0x00000004
 
@@ -112,7 +115,7 @@ vmwsmini.vxd,,,0x00000004
 
 [Qemu.AddReg]
 HKR,DEFAULT,drv,,qemumini.drv
-;HKR,DEFAULT,minivdd,,qemumini.vxd
+HKR,DEFAULT,minivdd,,qemumini.vxd
 HKR,DEFAULT,Mode,,"8,640,480"
 
 [VBox.AddReg]

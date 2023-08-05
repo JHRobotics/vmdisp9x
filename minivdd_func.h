@@ -8,8 +8,10 @@ VDDFUNC(REGISTER_DISPLAY_DRIVER, register_display_driver)
 //VDDFUNC(GET_VDD_BANK, get_vdd_bank)
 //VDDFUNC(SET_VDD_BANK, set_vdd_bank)
 //VDDFUNC(RESET_BANK, reset_bank)
-//VDDFUNC(PRE_HIRES_TO_VGA, pre_hires_to_vga)
-//VDDFUNC(POST_HIRES_TO_VGA, post_hires_to_vga)
+#ifdef QEMU
+VDDFUNC(PRE_HIRES_TO_VGA, pre_hires_to_vga)
+VDDFUNC(POST_HIRES_TO_VGA, post_hires_to_vga)
+#endif
 //VDDFUNC(PRE_VGA_TO_HIRES, pre_vga_to_hires)
 //VDDFUNC(POST_VGA_TO_HIRES, post_vga_to_hires)
 //VDDFUNC(SAVE_REGISTERS, save_registers)
@@ -17,7 +19,9 @@ VDDFUNC(REGISTER_DISPLAY_DRIVER, register_display_driver)
 //VDDFUNC(MODIFY_REGISTER_STATE, modify_register_state)
 //VDDFUNC(ACCESS_VGA_MEMORY_MODE, access_vga_memory_mode)
 //VDDFUNC(ACCESS_LINEAR_MEMORY_MODE, access_linear_memory_mode)
-//VDDFUNC(ENABLE_TRAPS, enable_traps)
+#ifdef QEMU
+VDDFUNC(ENABLE_TRAPS, enable_traps)
+#endif
 //VDDFUNC(DISABLE_TRAPS, disable_traps)
 //VDDFUNC(MAKE_HARDWARE_NOT_BUSY, make_hardware_not_busy)
 //VDDFUNC(VIRTUALIZE_CRTC_IN, virtualize_crtc_in)
@@ -30,7 +34,9 @@ VDDFUNC(REGISTER_DISPLAY_DRIVER, register_display_driver)
 //VDDFUNC(RESET_LATCH_BANK, reset_latch_bank)
 //VDDFUNC(SAVE_LATCHES, save_latches)
 //VDDFUNC(RESTORE_LATCHES, restore_latches)
-//VDDFUNC(DISPLAY_DRIVER_DISABLING, display_driver_disabling)
+#ifdef QEMU
+VDDFUNC(DISPLAY_DRIVER_DISABLING, display_driver_disabling)
+#endif
 //VDDFUNC(SELECT_PLANE, select_plane)
 //VDDFUNC(PRE_CRTC_MODE_CHANGE, pre_crtc_mode_change)
 //VDDFUNC(POST_CRTC_MODE_CHANGE, post_crtc_mode_change)
@@ -40,13 +46,17 @@ VDDFUNC(REGISTER_DISPLAY_DRIVER, register_display_driver)
 //VDDFUNC(GET_CURRENT_BANK_READ, get_current_bank_read)
 ///! VDDFUNC(SET_BANK, set_bank)
 //VDDFUNC(CHECK_HIRES_MODE, check_hires_mode)
+#ifdef SVGA
 VDDFUNC(GET_TOTAL_VRAM_SIZE, get_total_vram_size)
+#endif
 ///! VDDFUNC(GET_BANK_SIZE, get_bank_size)
 ///! VDDFUNC(SET_HIRES_MODE, set_hires_mode)
 ///! VDDFUNC(PRE_HIRES_SAVE_RESTORE, pre_hires_save_restore)
 ///! VDDFUNC(POST_HIRES_SAVE_RESTORE, post_hires_save_restore)
 ///! VDDFUNC(VESA_SUPPORT, vesa_support)
+#ifdef SVGA
 VDDFUNC(GET_CHIP_ID, get_chip_id)
+#endif
 ///! VDDFUNC(CHECK_SCREEN_SWITCH_OK, check_screen_switch_ok)
 //VDDFUNC(VIRTUALIZE_BLTER_IO, virtualize_blter_io)
 //VDDFUNC(SAVE_MESSAGE_MODE_STATE, save_message_mode_state)
