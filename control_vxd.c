@@ -37,7 +37,7 @@ extern void dbg_printf( const char *s, ... );
 #define dbg_printf(...)
 #endif
 
-static uint32_t VXD_srv = 0;
+static DWORD VXD_srv = 0;
 
 #pragma code_seg( _INIT )
 
@@ -73,12 +73,12 @@ BOOL VXD_load()
 	return VXD_srv != 0;
 }
 
-BOOL VXD_CreateRegion(uint32_t nPages, uint32_t __far *lpLAddr, uint32_t __far *lpPPN, uint32_t __far *lpPGBLKAddr)
+BOOL VXD_CreateRegion(DWORD nPages, DWORD __far *lpLAddr, DWORD __far *lpPPN, DWORD __far *lpPGBLKAddr)
 {
-	static uint32_t snPages;
-	static uint32_t sLAddr;
-	static uint32_t sPPN;
-	static uint32_t sPGBLKAddr;
+	static DWORD snPages;
+	static DWORD sLAddr;
+	static DWORD sPPN;
+	static DWORD sPGBLKAddr;
 	static uint16_t state = 0;
 	
 	snPages = nPages;
@@ -124,11 +124,11 @@ BOOL VXD_CreateRegion(uint32_t nPages, uint32_t __far *lpLAddr, uint32_t __far *
 	return FALSE;
 }
 
-BOOL VXD_FreeRegion(uint32_t LAddr, uint32_t PGBLKAddr)
+BOOL VXD_FreeRegion(DWORD LAddr, DWORD PGBLKAddr)
 {
-	static uint32_t sLAddr;
+	static DWORD sLAddr;
 	static uint16_t state;
-	static uint32_t sPGBLKAddr;
+	static DWORD sPGBLKAddr;
 	
 	sLAddr = LAddr;
 	sPGBLKAddr = PGBLKAddr;
@@ -164,10 +164,10 @@ BOOL VXD_FreeRegion(uint32_t LAddr, uint32_t PGBLKAddr)
 	return FALSE;
 }
 
-void VXD_zeromem(uint32_t LAddr, uint32_t size)
+void VXD_zeromem(DWORD LAddr, DWORD size)
 {
-	static uint32_t sLAddr;
-	static uint32_t ssize;
+	static DWORD sLAddr;
+	static DWORD ssize;
 	
 	sLAddr = LAddr;
 	ssize = size;
@@ -195,9 +195,9 @@ void VXD_zeromem(uint32_t LAddr, uint32_t size)
 	}
 }
 
-uint32_t VXD_apiver()
+DWORD VXD_apiver()
 {
-	static uint32_t sver = 0;
+	static DWORD sver = 0;
 	
 	if(VXD_srv != 0)
 	{
@@ -219,4 +219,39 @@ uint32_t VXD_apiver()
 	}
 	
 	return sver;
+}
+
+
+void CB_start()
+{
+	if(VXD_srv != 0)
+	{
+		_asm
+		{
+			.386
+			push eax
+			push edx
+		  mov edx, VMWSVXD_PM16_CB_START
+		  call dword ptr [VXD_srv]
+			pop edx
+			pop eax
+		}
+	}
+}
+
+void CB_stop()
+{
+	if(VXD_srv != 0)
+	{
+		_asm
+		{
+			.386
+			push eax
+			push edx
+		  mov edx, VMWSVXD_PM16_CB_STOP
+		  call dword ptr [VXD_srv]
+			pop edx
+			pop eax
+		}
+	}
 }

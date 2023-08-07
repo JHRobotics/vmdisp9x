@@ -105,7 +105,7 @@ char dbg_dic_unknown[] = "DeviceIOControl: Unknown: %d\n";
 char dbg_dic_system[] = "DeviceIOControl: System code: %d\n";
 char dbg_get_ppa[] = "%lx -> %lx\n";
 char dbg_get_ppa_beg[] = "Virtual: %lx\n";
-char dbg_mob_allocate[] = "Allocted: %d\n";
+char dbg_mob_allocate[] = "Allocated OTable row: %d\n";
 
 char dbg_str[] = "%s\n";
 
@@ -113,8 +113,11 @@ char dbg_submitcb_fail[] = "CB submit FAILED\n";
 char dbg_submitcb[] = "CB submit %d\n";
 char dbg_lockcb[] = "Reused CB (%d) with status: %d\n";
 
+char dbg_lockcb_lasterr[] = "Error command: %lX\n";
+
 char dbg_cb_on[] = "CB supported and allocated\n";
 char dbg_gb_on[] = "GB supported and allocated\n";
+char dbg_cb_ena[] = "CB context 0 enabled\n";
 
 char dbg_region_info_1[] = "Region id = %d\n";
 char dbg_region_info_2[] ="Region address = %lX, PPN = %lX, GMRBLK = %lX\n";
@@ -148,6 +151,7 @@ cmd_buf_t cmd_bufs[CB_COUNT] = {{0}};
 
 BOOL cb_support = FALSE;
 BOOL gb_support = FALSE;
+BOOL cb_context0 = FALSE;
 
 #define ROUND_TO_PAGES(_cb)((((_cb) + PAGE_SIZE - 1)/PAGE_SIZE)*PAGE_SIZE)
 
@@ -615,10 +619,22 @@ static void *LockCB()
 	{
 		if(isCBfree(index))
 		{
+#ifdef DBGPRINT
 			{
 				SVGACBHeader *cb = (SVGACBHeader *)cmd_bufs[index].lin;
-				dbg_printf(dbg_lockcb, index, cb->status);
+				if(cb->status > 1)
+				{
+					dbg_printf(dbg_lockcb, index, cb->status);
+					
+					if(cb->status == SVGA_CB_STATUS_COMMAND_ERROR)
+					{
+						DWORD *ptr = (DWORD*)(((unsigned char*)cmd_bufs[index].lin) + sizeof(SVGACBHeader) + cb->errorOffset);
+						dbg_printf(dbg_lockcb_lasterr, *ptr);
+					}
+					
+				}
 			}
+#endif
 			cmd_bufs[index].status = CB_STATUS_LOCKED;
 			return cmd_bufs[index].lin;
 		}
@@ -636,6 +652,12 @@ static void *LockCB()
 static BOOL submitCB(void *ptr, DWORD cbctx_id)
 {
 	int index;
+	
+	/* context 0 is turned on and of by driver and if it is off don't use it! */
+	if(cb_context0 == FALSE && cbctx_id == SVGA_CB_CONTEXT_0)
+	{
+		return FALSE;
+	}
 	
 	for(index = 0; index < CB_COUNT; index++)
 	{
@@ -655,7 +677,7 @@ static BOOL submitCB(void *ptr, DWORD cbctx_id)
 				SVGA_WriteReg(SVGA_REG_COMMAND_LOW, cmd_bufs[index].phy | cbctx_id);
 				cmd_bufs[index].status = CB_STATUS_PROCESS;
 				
-				dbg_printf(dbg_submitcb, index);
+				//dbg_printf(dbg_submitcb, cbctx_id);
 				
 				nextID_CB();
 			}
@@ -701,6 +723,11 @@ static void syncCB()
 				}
 			}
 		}
+		
+		if(!synced)
+		{
+			SVGA_WriteReg(SVGA_REG_SYNC, 1);
+		}
 	} while(!synced);
 }
 
@@ -716,6 +743,31 @@ BOOL FreeRegion(ULONG LAddr, ULONG PGBLK, ULONG MobAddr)
 {
 	return GMRFree(LAddr, PGBLK, MobAddr);
 }
+
+/* some CRT */
+void memset(void *dst, int c, unsigned int size)
+{
+	unsigned int par;
+	unsigned int i;
+	unsigned int dw_count;
+	unsigned int dw_size;
+	
+	c &= 0xFF;
+	par = (c << 24) | (c << 16) | (c << 8) | c;
+	dw_count = size >> 2;
+	dw_size = size & 0xFFFFFFFCUL;
+	
+	for(i = 0; i < dw_count; i++)
+	{
+		((unsigned int*)dst)[i] = par; 
+	}
+	
+	for(i = dw_size; i < size; i++)
+	{
+		((unsigned char*)dst)[i] = c; 
+	}
+}
+
 
 #if 0
 /* I'm using this sometimes for developing, not for end user! */
@@ -736,6 +788,16 @@ void FreePhysical(DWORD linear)
 	_PageFree((void*)linear, 0);
 }
 #endif
+
+#pragma pack(push)
+#pragma pack(1)
+typedef struct _cb_enable_t
+{
+	SVGACBHeader       cbheader;
+	uint32             cmd;
+	SVGADCCmdStartStop cbstart;
+} cb_enable_t;
+#pragma pack(pop)
 
 /* process V86/PM16 calls */
 WORD __stdcall VMWS_API_Proc(PCRS_32 state)
@@ -792,18 +854,62 @@ WORD __stdcall VMWS_API_Proc(PCRS_32 state)
 		/* clear memory on linear address (ESI) by defined size (ECX) */
 		case VMWSVXD_PM16_ZEROMEM:
 		{
+			/*
 			ULONG i = 0;
 			unsigned char *ptr = (unsigned char *)state->Client_ESI;
 			for(i = 0; i < state->Client_ECX; i++)
 			{
 				ptr[i] = 0;
 			}
+			*/
+			memset((void*)state->Client_ESI, 0, state->Client_ECX);
 			rc = 1;
 			break;
 		}
 		/* set ECX to actual api version */
 		case VMWSVXD_PM16_APIVER:
 			state->Client_ECX = DRV_API_LEVEL;
+			rc = 1;
+			break;
+		case VMWSVXD_PM16_CB_START:
+			if(cb_support)
+			{
+				cb_enable_t *cbe;
+				do
+				{
+					cbe = LockCB();
+				} while(cbe == NULL);
+				memset(cbe, 0, sizeof(cb_enable_t));
+				cbe->cbheader.length = sizeof(SVGADCCmdStartStop) + sizeof(uint32);
+				cbe->cmd = SVGA_DC_CMD_START_STOP_CONTEXT;
+				cbe->cbstart.enable  = 1;
+				cbe->cbstart.context = SVGA_CB_CONTEXT_0;
+				submitCB(cbe, SVGA_CB_CONTEXT_DEVICE);
+				syncCB();
+
+				dbg_printf(dbg_cb_ena);
+				cb_context0 = TRUE;
+			}
+			rc = 1;
+			break;
+		case VMWSVXD_PM16_CB_STOP:
+			if(cb_support)
+			{
+				cb_enable_t *cbe;
+				cb_context0 = FALSE;
+				
+				syncCB();
+				do
+				{
+					cbe = LockCB();
+				} while(cbe == NULL);
+				memset(cbe, 0, sizeof(cb_enable_t));
+				cbe->cbheader.length = sizeof(SVGADCCmdStartStop) + sizeof(uint32);
+				cbe->cmd = SVGA_DC_CMD_START_STOP_CONTEXT;
+				cbe->cbstart.enable  = 0;
+				cbe->cbstart.context = SVGA_CB_CONTEXT_0;
+				submitCB(cbe, SVGA_CB_CONTEXT_DEVICE);
+			}
 			rc = 1;
 			break;
 	}
@@ -893,11 +999,9 @@ DWORD __stdcall Device_IO_Control_entry(struct DIOCParams *params)
 			dbg_printf(dbg_dic_system, params->dwIoControlCode);
 			return 0;
 		case SVGA_SYNC:
-			//dbg_printf(dbg_dic_sync);
 			SVGA_Flush();
 			return 0;
 		case SVGA_RING:
-			//dbg_printf(dbg_dic_ring);
 			SVGA_WriteReg(SVGA_REG_SYNC, 1);
 			return 0;
 #if 0
@@ -973,13 +1077,9 @@ DWORD __stdcall Device_IO_Control_entry(struct DIOCParams *params)
 		{
 			if(cb_support)
 			{
-				void *ptr = LockCB();
-				if(ptr)
-				{
-					DWORD* out = (DWORD*)params->lpOutBuffer;
-					*out = (DWORD)ptr;
-					return 0;
-				}
+				DWORD *out = (DWORD*)params->lpOutBuffer;
+				out[0] = (DWORD)LockCB();
+				return 0;
 			}
 			return 1;
 		}
@@ -1066,10 +1166,6 @@ DWORD __stdcall Device_IO_Control_entry(struct DIOCParams *params)
 			DWORD *lpIn = (DWORD*)params->lpInBuffer;
 			
 			/* flush all register inc. fifo so make sure, that all commands are processed */
-			if(cb_support)
-			{
-				syncCB();
-			}
     	SVGA_Flush();
     
     	SVGA_WriteReg(SVGA_REG_GMR_ID, lpIn[0]);

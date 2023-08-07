@@ -16,5 +16,7 @@
 #define VMWSVXD_PM16_DESTROY_REGION               3
 #define VMWSVXD_PM16_ZEROMEM                      6
 #define VMWSVXD_PM16_APIVER                       7
+#define VMWSVXD_PM16_CB_START                     8
+#define VMWSVXD_PM16_CB_STOP                      9
 
 #endif

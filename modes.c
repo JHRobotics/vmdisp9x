@@ -37,6 +37,7 @@ THE SOFTWARE.
 
 #ifdef SVGA
 # include "svga_all.h"
+# include "control_vxd.h"
 #endif
 
 #include "drvlib.h"
@@ -255,6 +256,12 @@ static void ClearVisibleScreen( void )
     lpScr += wScreenPitchBytes; // Scanline pitch.
   }
 #endif
+#ifdef SVGA
+	DWORD dwPS = ((wBpp+7) >> 3);
+	DWORD cb = ((DWORD)wScreenY)*((DWORD)wScreenX)*dwPS;
+	VXD_zeromem(dwScreenFlatAddr, cb);
+	SVGA_UpdateRect(0, 0, wScreenX, wScreenY);
+#else
 	DWORD dwLinestart = 0;
 	WORD wLines = wScreenY;
 	WORD wPS = ((wBpp+7) >> 3);
@@ -265,6 +272,7 @@ static void ClearVisibleScreen( void )
 		
 		dwLinestart += (DWORD)wScreenPitchBytes;
 	}
+#endif
 }
 
 /* Map physical memory to memory space, lpLinAddress is option pointer to store
@@ -448,6 +456,9 @@ static int SetDisplayMode( WORD wXRes, WORD wYRes, int bFullSet )
       /* Make sure, that we drain full FIFO */
       SVGA_Flush(); 
       
+      /* stop command buffer context 0 */
+      CB_stop();
+      
       SVGA_SetMode(wXRes, wYRes, wBpp); /* setup by legacy registry */
       wMesa3DEnabled = 0;
       if(SVGA3D_Init())
@@ -459,7 +470,11 @@ static int SetDisplayMode( WORD wXRes, WORD wYRes, int bFullSet )
       if(SVGA_hasAccelScreen())
       {
          SVGA_defineScreen(wXRes, wYRes, wBpp);
+         SVGA_Flush();
       }
+      
+      /* start command buffer context 0 */
+      CB_start();
      
       /*
        * JH: this is a bit stupid = all SVGA command cannot work with non 32 bpp. 
@@ -716,6 +731,7 @@ UINT WINAPI __loadds ValidateMode( DISPVALMODE FAR *lpValMode )
 void PhysicalDisable(void)
 {
 #ifdef SVGA
+	CB_stop();
   SVGA_Disable();
 #endif
 }

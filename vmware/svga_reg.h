@@ -402,6 +402,7 @@ typedef enum {
    SVGA_CB_CONTEXT_DEVICE = 0x3f,
    SVGA_CB_CONTEXT_0      = 0x0,
    SVGA_CB_CONTEXT_MAX    = 0x1,
+   SVGA_CB_CONTEXT_FORCE_UINT = MAX_UINT32,
 } SVGACBContext;
 
 

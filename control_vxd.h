@@ -2,9 +2,11 @@
 #define __CONTROL_VXD_H__INCLUDED__
 
 BOOL VXD_load();
-BOOL VXD_CreateRegion(uint32_t nPages, uint32_t __far *lpLAddr, uint32_t __far *lpPPN, uint32_t __far *lpPGBLKAddr);
-BOOL VXD_FreeRegion(uint32_t LAddr, uint32_t PGBLKAddr);
-void VXD_zeromem(uint32_t LAddr, uint32_t size);
-uint32_t VXD_apiver();
+BOOL VXD_CreateRegion(DWORD nPages, DWORD __far *lpLAddr, DWORD __far *lpPPN, DWORD __far *lpPGBLKAddr);
+BOOL VXD_FreeRegion(DWORD LAddr, DWORD PGBLKAddr);
+void VXD_zeromem(DWORD LAddr, DWORD size);
+DWORD VXD_apiver();
+void CB_start();
+void CB_stop();
 
 #endif

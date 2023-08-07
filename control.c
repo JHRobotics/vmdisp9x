@@ -182,6 +182,7 @@ typedef struct _svga_hda_t
 #define ULF_LOCK_FIFO 6
 
 #define GMR_INDEX_CNT 6
+#define CTX_INDEX_CNT 2
 
 static svga_hda_t SVGAHDA;
 
@@ -325,7 +326,7 @@ void SVGAHDA_init()
   SVGAHDA.ul_gmr_count   = SVGA_ReadReg(SVGA_REG_GMR_MAX_IDS);
   SVGAHDA.ul_ctx_start   = SVGAHDA.ul_gmr_start + SVGAHDA.ul_gmr_count*GMR_INDEX_CNT;
   SVGAHDA.ul_ctx_count   = GetDevCap(SVGA3D_DEVCAP_MAX_CONTEXT_IDS);
-  SVGAHDA.ul_surf_start  = SVGAHDA.ul_ctx_start + SVGAHDA.ul_ctx_count;
+  SVGAHDA.ul_surf_start  = SVGAHDA.ul_ctx_start + SVGAHDA.ul_ctx_count*CTX_INDEX_CNT;
   SVGAHDA.ul_surf_count  = GetDevCap(SVGA3D_DEVCAP_MAX_SURFACE_IDS);
 	SVGAHDA.userlist_length = SVGAHDA.ul_surf_start + SVGAHDA.ul_surf_count;
 	
