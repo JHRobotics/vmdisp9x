@@ -143,11 +143,13 @@ typedef struct _cmd_buf_t
 #define CB_STATUS_LOCKED  1 /* buffer is using by Ring-3 proccess */
 #define CB_STATUS_PROCESS 2 /* buffer is register by VGPU */
 
-#define CB_COUNT 2
+#define CB_COUNT 4
 
 uint64 cmd_buf_next_id = {0, 0};
 
 cmd_buf_t cmd_bufs[CB_COUNT] = {{0}};
+
+int queued_cmd_buf = -1;
 
 BOOL cb_support = FALSE;
 BOOL gb_support = FALSE;
@@ -156,6 +158,7 @@ BOOL cb_context0 = FALSE;
 #define ROUND_TO_PAGES(_cb)((((_cb) + PAGE_SIZE - 1)/PAGE_SIZE)*PAGE_SIZE)
 
 #define SVGA3D_MAX_MOBS (SVGA3D_MAX_CONTEXT_IDS + SVGA3D_MAX_CONTEXT_IDS + SVGA3D_MAX_SURFACE_IDS)
+#define VBOX_VIDEO_MAX_SCREENS 64
 
 #define FLAG_ALLOCATED 1
 #define FLAG_ACTIVE    2
@@ -165,7 +168,7 @@ otinfo_entry_t otable[SVGA_OTABLE_DX_MAX] = {
 	{0, NULL, ROUND_TO_PAGES(SVGA3D_MAX_SURFACE_IDS*sizeof(SVGAOTableSurfaceEntry)),   0}, /* SVGA_OTABLE_SURFACE */
 	{0, NULL, ROUND_TO_PAGES(SVGA3D_MAX_CONTEXT_IDS*sizeof(SVGAOTableContextEntry)),   0}, /* SVGA_OTABLE_CONTEXT */
 	{0, NULL, 0,                                                                       0}, /* SVGA_OTABLE_SHADER - not used */
-	{0, NULL, ROUND_TO_PAGES(64*sizeof(SVGAOTableScreenTargetEntry)),                  0}, /* SVGA_OTABLE_SCREENTARGET (VBOX_VIDEO_MAX_SCREENS) */
+	{0, NULL, ROUND_TO_PAGES(VBOX_VIDEO_MAX_SCREENS*sizeof(SVGAOTableScreenTargetEntry)), 0}, /* SVGA_OTABLE_SCREENTARGET (VBOX_VIDEO_MAX_SCREENS) */
 	{0, NULL, ROUND_TO_PAGES(SVGA3D_MAX_CONTEXT_IDS*sizeof(SVGAOTableDXContextEntry)), 0}, /* SVGA_OTABLE_DXCONTEXT */
 };
 
@@ -252,6 +255,7 @@ void Sys_Critical_Init_proc()
 #define SVGA_CB_LOCK         0x1204
 #define SVGA_CB_SUBMIT       0x1205
 #define SVGA_CB_SYNC         0x1206
+#define SVGA_CB_SUBMIT_SYNC  0x1207
 
 DWORD __stdcall Device_IO_Control_entry(struct DIOCParams *params);
 
@@ -391,8 +395,7 @@ static BOOL GMRAlloc(ULONG nPages, ULONG *outDataAddr, ULONG *outGMRAddr, ULONG 
 		ULONG blocks = 1;
 		ULONG blk_pages = 0;
 		
-		//laddr = _PageAllocate(nPages, PG_SYS, 0, 0, 0x0, 0x100000, NULL, PAGEFIXED);
-		laddr = 0;
+		laddr = _PageAllocate(nPages, PG_SYS, 0, 0, 0x0, 0x100000, NULL, PAGEFIXED);
 		
 		if(laddr)
 		{
@@ -636,6 +639,12 @@ static void *LockCB()
 			}
 #endif
 			cmd_bufs[index].status = CB_STATUS_LOCKED;
+			
+			if(queued_cmd_buf == index)
+			{
+				queued_cmd_buf = -1;
+			}
+			
 			return cmd_bufs[index].lin;
 		}
 	}
@@ -649,7 +658,7 @@ static void *LockCB()
  * cbctx_id = SVGA_CB_CONTEXT_0,...
  **/
 
-static BOOL submitCB(void *ptr, DWORD cbctx_id)
+static BOOL submitCB(void *ptr, DWORD cbctx_id, BOOL sync)
 {
 	int index;
 	
@@ -673,9 +682,35 @@ static BOOL submitCB(void *ptr, DWORD cbctx_id)
 				cb->id.low = cmd_buf_next_id.low;
 				cb->id.hi  = cmd_buf_next_id.hi;
 				
+#if 0
+				if(queued_cmd_buf >= 0)
+				{
+					/* wait to complete the last command */
+					SVGACBHeader *cb_queued = (SVGACBHeader *)cmd_bufs[queued_cmd_buf].lin;
+					
+					while(cb_queued->status == SVGA_CB_STATUS_NONE)
+					{
+						SVGA_WriteReg(SVGA_REG_SYNC, 1);
+					}
+				}
+#endif
+				
 				SVGA_WriteReg(SVGA_REG_COMMAND_HIGH, 0); // high part of 64-bit memory address...
 				SVGA_WriteReg(SVGA_REG_COMMAND_LOW, cmd_bufs[index].phy | cbctx_id);
 				cmd_bufs[index].status = CB_STATUS_PROCESS;
+				
+				if(sync)
+				{
+					while(cb->status == SVGA_CB_STATUS_NONE)
+					{
+						SVGA_WriteReg(SVGA_REG_SYNC, 1);
+					}
+					queued_cmd_buf = -1;
+				}
+				else
+				{
+					queued_cmd_buf = index;
+				}
 				
 				//dbg_printf(dbg_submitcb, cbctx_id);
 				
@@ -884,8 +919,7 @@ WORD __stdcall VMWS_API_Proc(PCRS_32 state)
 				cbe->cmd = SVGA_DC_CMD_START_STOP_CONTEXT;
 				cbe->cbstart.enable  = 1;
 				cbe->cbstart.context = SVGA_CB_CONTEXT_0;
-				submitCB(cbe, SVGA_CB_CONTEXT_DEVICE);
-				syncCB();
+				submitCB(cbe, SVGA_CB_CONTEXT_DEVICE, TRUE);
 
 				dbg_printf(dbg_cb_ena);
 				cb_context0 = TRUE;
@@ -908,7 +942,7 @@ WORD __stdcall VMWS_API_Proc(PCRS_32 state)
 				cbe->cmd = SVGA_DC_CMD_START_STOP_CONTEXT;
 				cbe->cbstart.enable  = 0;
 				cbe->cbstart.context = SVGA_CB_CONTEXT_0;
-				submitCB(cbe, SVGA_CB_CONTEXT_DEVICE);
+				submitCB(cbe, SVGA_CB_CONTEXT_DEVICE, FALSE); // FALSE?
 			}
 			rc = 1;
 			break;
@@ -1095,7 +1129,20 @@ DWORD __stdcall Device_IO_Control_entry(struct DIOCParams *params)
 			{
 				DWORD *in = (DWORD*)params->lpInBuffer;
 				
-				if(submitCB((void*)in[0], in[1]))
+				if(submitCB((void*)in[0], in[1], FALSE))
+				{
+					return 0;
+				}
+			}
+			return 1;
+		}
+		case SVGA_CB_SUBMIT_SYNC:
+		{
+			if(cb_support)
+			{
+				DWORD *in = (DWORD*)params->lpInBuffer;
+				
+				if(submitCB((void*)in[0], in[1], TRUE))
 				{
 					return 0;
 				}
@@ -1129,16 +1176,22 @@ DWORD __stdcall Device_IO_Control_entry(struct DIOCParams *params)
   		DWORD *lpOut = (DWORD*)params->lpOutBuffer;
   		DWORD gmrPPN = 0;
   		
-  		dbg_printf(dbg_region_info_1, lpIn[0]);
+  		//dbg_printf(dbg_region_info_1, lpIn[0]);
   		
 			if(GMRAlloc(lpIn[1], &lpOut[1], &lpOut[2], &gmrPPN, &lpOut[3], &lpOut[4]))
 			{
 				if(lpIn[0] != 0)
 				{
-		    	SVGA_WriteReg(SVGA_REG_GMR_ID, lpIn[0]);
-		    	SVGA_WriteReg(SVGA_REG_GMR_DESCRIPTOR, gmrPPN);
+					DWORD gmr_max = SVGA_ReadReg(SVGA_REG_GMR_MAX_IDS);
+					
+					/* if region id extends GRM max, don't register region and only use it as MOB */
+					if(lpIn[0] < gmr_max)
+					{
+		    		SVGA_WriteReg(SVGA_REG_GMR_ID, lpIn[0]);
+		    		SVGA_WriteReg(SVGA_REG_GMR_DESCRIPTOR, gmrPPN);
+		    	}
 		    	
-		    	dbg_printf(dbg_region_info_2, lpOut[1], gmrPPN, lpOut[2]);
+		    	//dbg_printf(dbg_region_info_2, lpOut[1], gmrPPN, lpOut[2]);
 		    	
 		    	/* refresh all register, so make sure that new commands will accepts this region */
 		    	SVGA_Flush();

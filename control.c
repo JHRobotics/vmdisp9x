@@ -293,10 +293,19 @@ WORD SVGA_3DSupport()
 	{
 		if(GetDevCap(SVGA3D_DEVCAP_3D)) /* is 3D enabled */
 		{
-			uint32_t surfcap = GetDevCap(SVGA3D_DEVCAP_SURFACEFMT_X8R8G8B8);
-			if((surfcap & SVGA3DFORMAT_OP_3DACCELERATION) != 0) /* at last X8R8G8B8 needs to be accelerated! */
+			uint32_t cap_xgrb = GetDevCap(SVGA3D_DEVCAP_SURFACEFMT_X8R8G8B8);
+			uint32_t cap_dx_xgrb = GetDevCap(SVGA3D_DEVCAP_DXFMT_X8R8G8B8);
+			if((cap_xgrb & SVGA3DFORMAT_OP_3DACCELERATION) != 0) /* at last X8R8G8B8 needs to be accelerated! */
 			{
 				return 1;
+			}
+			else if((cap_dx_xgrb & SVGA3DFORMAT_OP_TEXTURE) != 0) /* vGPU10 - DX11 mode */
+			{
+				return 1;
+			}
+			else
+			{
+				dbg_printf("no surface caps %lX %lX!\n", cap_xgrb, cap_dx_xgrb);
 			}
 		}
 		else
@@ -312,6 +321,8 @@ WORD SVGA_3DSupport()
 	return 0;
 }
 
+#define SVGA3D_MAX_MOBS 33280UL /* SVGA3D_MAX_CONTEXT_IDS + SVGA3D_MAX_CONTEXT_IDS + SVGA3D_MAX_SURFACE_IDS */
+
 /**
  * init SVGAHDA -> memory map between user space and (virtual) hardware memory
  *
@@ -324,6 +335,7 @@ void SVGAHDA_init()
   SVGAHDA.ul_fence_index = SVGAHDA.ul_flags_index + 8;
   SVGAHDA.ul_gmr_start   = SVGAHDA.ul_fence_index + 1;
   SVGAHDA.ul_gmr_count   = SVGA_ReadReg(SVGA_REG_GMR_MAX_IDS);
+  //SVGAHDA.ul_gmr_count   = SVGA3D_MAX_MOBS;
   SVGAHDA.ul_ctx_start   = SVGAHDA.ul_gmr_start + SVGAHDA.ul_gmr_count*GMR_INDEX_CNT;
   SVGAHDA.ul_ctx_count   = GetDevCap(SVGA3D_DEVCAP_MAX_CONTEXT_IDS);
   SVGAHDA.ul_surf_start  = SVGAHDA.ul_ctx_start + SVGAHDA.ul_ctx_count*CTX_INDEX_CNT;
@@ -343,7 +355,7 @@ void SVGAHDA_init()
 		SVGAHDA.userlist_pm16[ULF_LOCK_FIFO] = 0;
 	}
 	
-	dbg_printf("SVGAHDA_init\n");
+	dbg_printf("SVGAHDA_init: %ld\n", SVGAHDA.userlist_length * sizeof(uint32_t));
 }
 
 /**
@@ -514,7 +526,7 @@ LONG WINAPI __loadds Control(LPVOID lpDevice, UINT function,
 {
 	LONG rc = -1;
 	
-	dbg_printf("Control (16bit): %d (0x%x)\n", function, function);
+	//dbg_printf("Control (16bit): %d (0x%x)\n", function, function);
 	
   if(function == QUERYESCSUPPORT)
   {

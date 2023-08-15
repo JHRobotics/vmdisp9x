@@ -310,6 +310,7 @@ static DWORD AllocLinearSelector(DWORD dwPhysAddr, DWORD dwSize, DWORD __far * l
 static void SVGA_defineScreen(unsigned wXRes, unsigned wYRes, unsigned wBpp)
 {
   SVGAFifoCmdDefineScreen __far *screen;
+  SVGAFifoCmdDefineGMRFB __far *fbgmr;
    
   /* create screen 0 */
   screen = SVGA_FIFOReserveCmd(SVGA_CMD_DEFINE_SCREEN, sizeof(SVGAFifoCmdDefineScreen));
@@ -330,6 +331,29 @@ static void SVGA_defineScreen(unsigned wXRes, unsigned wYRes, unsigned wBpp)
     
     SVGA_FIFOCommitAll();
   }
+  
+  /* set GMR to same location as screen */
+  if(wBpp >= 15)
+  {
+	  fbgmr = SVGA_FIFOReserveCmd(SVGA_CMD_DEFINE_GMRFB, sizeof(SVGAFifoCmdDefineGMRFB));
+	  
+	  if(fbgmr)
+	  {
+	  	fbgmr->ptr.gmrId = SVGA_GMR_FRAMEBUFFER;
+	  	fbgmr->ptr.offset = 0;
+	  	fbgmr->bytesPerLine = CalcPitch(wXRes, wBpp);
+	  	fbgmr->format.colorDepth = wBpp;
+	  	if(wBpp >= 24)
+	  	{
+	  		fbgmr->format.bitsPerPixel = 32;
+	  	}
+	  	else
+	  	{
+	  		fbgmr->format.bitsPerPixel = 16;
+	  	}
+	  }
+	  SVGA_FIFOCommitAll();
+	}
 }
 
 /* Check if screen acceleration is available */
@@ -460,6 +484,7 @@ static int SetDisplayMode( WORD wXRes, WORD wYRes, int bFullSet )
       CB_stop();
       
       SVGA_SetMode(wXRes, wYRes, wBpp); /* setup by legacy registry */
+      SVGA_Flush(); /* make sure, that is really set */
       wMesa3DEnabled = 0;
       if(SVGA3D_Init())
       {
