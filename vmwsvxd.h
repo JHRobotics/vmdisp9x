@@ -18,5 +18,7 @@
 #define VMWSVXD_PM16_APIVER                       7
 #define VMWSVXD_PM16_CB_START                     8
 #define VMWSVXD_PM16_CB_STOP                      9
+#define VMWSVXD_PM16_GET_ADDR                     10
+#define VMWSVXD_PM16_FIFO_COMMIT                  11
 
 #endif

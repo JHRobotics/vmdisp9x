@@ -35,7 +35,6 @@
 #include "winhack.h"
 
 #include "svga_all.h"
-#include "pci.h"
 
 #ifdef VXD32
 #define IO_IN32
@@ -70,7 +69,7 @@ void dbg_printf( const char *s, ... );
 #endif
 
 
-SVGADevice gSVGA;
+SVGADevice gSVGA = {0};
 
 static void SVGAFIFOFull(void);
 
@@ -91,6 +90,9 @@ static void SVGAInterruptHandler(int vector);
 #ifndef VXD32
 #pragma code_seg( _INIT )
 #endif
+
+static char dbg_addr[] = "PCI bars: %lx %lx %lx\n";
+static char dbg_siz[] = "Size of gSVGA(1) = %d %d\n";
 
 /*
  *-----------------------------------------------------------------------------
@@ -133,7 +135,7 @@ SVGA_Init(Bool enableFIFO)
       vga_found = 1;
    }
    
-   if (PCI_FindDevice(PCI_VENDOR_ID_INNOTEK, PCI_DEVICE_ID_VBOX_VGA, &gSVGA.pciAddr)) {   
+   if (PCI_FindDevice(PCI_VENDOR_ID_INNOTEK, PCI_DEVICE_ID_VBOX_VGA, &gSVGA.pciAddr)) {
    	  uint32 subsys = PCI_GetSubsystem(&gSVGA.pciAddr);
       if(subsys == PCI_SUBCLASS_ID_SVGA2)
       {
@@ -153,7 +155,7 @@ SVGA_Init(Bool enableFIFO)
    }
    
    if(vga_found == 0)
-   {   
+   {
       Console_Panic("No VMware SVGA device found.");
       return 1;
    }
@@ -166,15 +168,17 @@ SVGA_Init(Bool enableFIFO)
    PCI_SetMemEnable(&gSVGA.pciAddr, TRUE);
    if(gSVGA.deviceId == PCI_DEVICE_ID_VBOX_VGA) {
    	  /* VBox SVGA have swapped IO and VRAM in PCI BAR */
-      gSVGA.fbMem = (void __far*) PCI_GetBARAddr(&gSVGA.pciAddr, 0);
+      gSVGA.fbPhy  = PCI_GetBARAddr(&gSVGA.pciAddr, 0);
       gSVGA.ioBase = PCI_GetBARAddr(&gSVGA.pciAddr, 1);
    } else {
       gSVGA.ioBase = PCI_GetBARAddr(&gSVGA.pciAddr, 0);
-      gSVGA.fbMem = (void __far*) PCI_GetBARAddr(&gSVGA.pciAddr, 1);
+      gSVGA.fbPhy  = PCI_GetBARAddr(&gSVGA.pciAddr, 1);
    }
-   gSVGA.fifoMem = (void __far*) PCI_GetBARAddr(&gSVGA.pciAddr, 2);
+   gSVGA.fifoPhy = PCI_GetBARAddr(&gSVGA.pciAddr, 2);
+   
+   dbg_printf(dbg_addr, gSVGA.ioBase, gSVGA.fbPhy, gSVGA.fifoPhy);
 
-#ifndef VXD32 /* version negotiation is done in PM16 driver, only get addresses here */
+#ifdef VXD32 /* version negotiation is done in PM32 driver now */
    /*
     * Version negotiation:
     *
@@ -195,8 +199,14 @@ SVGA_Init(Bool enableFIFO)
    } while (gSVGA.deviceVersionId >= SVGA_ID_0);
 
    if (gSVGA.deviceVersionId < SVGA_ID_0) {
+#if 0
       Console_Panic("Error negotiating SVGA device version.");
+#endif
+      return 2;
    }
+#else /* !VXD32 */
+   /* version is already set by VXD driver - only read register with ID */
+   gSVGA.deviceVersionId = SVGA_ReadReg(SVGA_REG_ID);
 #endif
 
    /*
@@ -214,9 +224,12 @@ SVGA_Init(Bool enableFIFO)
     * These are arbitrary values.
     */
 
+#ifdef VXD32
    if (gSVGA.fbSize < 0x100000) {
       SVGA_Panic("FB size very small, probably incorrect.");
    }
+#endif
+
    if (gSVGA.fifoSize < 0x20000) {
       SVGA_Panic("FIFO size very small, probably incorrect.");
    }
@@ -259,6 +272,7 @@ SVGA_Init(Bool enableFIFO)
    gSVGA.fifoSel    = 0;
    gSVGA.fifoAct    = 0;
    
+#ifdef VXD32
    /* set if SVGA supporting different BPP then 32 */
    SVGA_WriteReg(SVGA_REG_ENABLE, TRUE);
    SVGA_WriteReg(SVGA_REG_CONFIG_DONE, TRUE);
@@ -279,6 +293,9 @@ SVGA_Init(Bool enableFIFO)
    {
    	 SVGA_Enable();
    }
+#endif
+
+   dbg_printf(dbg_siz, sizeof(gSVGA), sizeof(uint8 FARP *));
    
    return 0;
 }
@@ -641,10 +658,10 @@ SVGA_HasFIFOCap(unsigned long cap)
  *-----------------------------------------------------------------------------
  */
 
-void __far *
+void FARP *
 SVGA_FIFOReserve(uint32 bytes)  // IN
 {
-   volatile uint32 __far *fifo = gSVGA.fifoMem;
+   volatile uint32 FARP *fifo = gSVGA.fifoMem;
    uint32 max = fifo[SVGA_FIFO_MAX];
    uint32 min = fifo[SVGA_FIFO_MIN];
 #if 0
@@ -658,7 +675,7 @@ SVGA_FIFOReserve(uint32 bytes)  // IN
     * dynamically allocate a buffer if and only if it's necessary.
     */
 
-   if (bytes > sizeof gSVGA.fifo.bounceBuffer ||
+   if (bytes > SVGA_BOUNCE_SIZE /*sizeof gSVGA.fifo.bounceBuffer*/ ||
        bytes > (max - min)) {
       SVGA_Panic("FIFO command too large");
    }
@@ -755,7 +772,7 @@ SVGA_FIFOReserve(uint32 bytes)  // IN
             if (reserveable) {
                fifo[SVGA_FIFO_RESERVED] = bytes;
             }
-            return nextCmd + (uint8 __far*) fifo;
+            return nextCmd + (uint8 FARP*) fifo;
          } else {
             /*
              * Need to bounce because we can't trust the VMX to safely
@@ -772,12 +789,15 @@ SVGA_FIFOReserve(uint32 bytes)  // IN
        */
       if (needBounce) {
          gSVGA.fifo.usingBounceBuffer = TRUE;
-         return (void __far *)(&gSVGA.fifo.bounceBuffer[0]);
+         return (void FARP *)(&gSVGA.fifo.bounceBuffer[0]);
       }
    } /* while (1) */
 #else
+#if 0
   gSVGA.fifo.usingBounceBuffer = TRUE;
-  return (void __far *)(&gSVGA.fifo.bounceBuffer[0]);
+  return (void FARP *)(&gSVGA.fifo.bounceBuffer[0]);
+#endif
+	return (void FARP *)(gSVGA.fifo.bounceMem);
 #endif
 }
 
@@ -814,7 +834,7 @@ static void WriteFifo(uint32 pos, uint32 dw)
 	uint32 act = pos >> 16;
 	uint16 off = pos & 0xFFFF;
 	
-	uint32 __far *ptr;
+	uint32 FARP *ptr;
 	
 	if(act != gSVGA.fifoAct)
 	{
@@ -824,7 +844,7 @@ static void WriteFifo(uint32 pos, uint32 dw)
 	
 	//dbg_printf("Fifo: %ld (%X:%X)\n", pos, gSVGA.fifoAct, off);
 	
-	ptr = (uint32 __far *)(gSVGA.fifoSel :> off);
+	ptr = (uint32 FARP *)(gSVGA.fifoSel :> off);
 	
 	*ptr = dw;
 }
@@ -833,23 +853,28 @@ static void WriteFifo(uint32 pos, uint32 dw)
 void
 SVGA_FIFOCommit(uint32 bytes)  // IN
 {
-   volatile uint32 __far *fifo = gSVGA.fifoMem;
+   volatile uint32 FARP *fifo = gSVGA.fifoMem;
    uint32 nextCmd = fifo[SVGA_FIFO_NEXT_CMD];
    uint32 max = fifo[SVGA_FIFO_MAX];
    uint32 min = fifo[SVGA_FIFO_MIN];
-   Bool reserveable = 0; //SVGA_HasFIFOCap(SVGA_FIFO_CAP_RESERVE);
+   //Bool reserveable = SVGA_HasFIFOCap(SVGA_FIFO_CAP_RESERVE);
 
    if (gSVGA.fifo.reservedSize == 0) {
       SVGA_Panic("FIFOCommit before FIFOReserve");
    }
+
    gSVGA.fifo.reservedSize = 0;
 
-   if (gSVGA.fifo.usingBounceBuffer) {
+#if 0 /* always using bounce buffer */
+   if (gSVGA.fifo.usingBounceBuffer)
+#endif
+   {
       /*
        * Slow paths: copy out of a bounce buffer.
        */
-      uint8 __far *buffer = gSVGA.fifo.bounceBuffer;
+      uint8 FARP *buffer = gSVGA.fifo.bounceMem;
 
+#if 0
       if (reserveable) {
          /*
           * Slow path: bulk copy out of a bounce buffer in two chunks.
@@ -865,17 +890,19 @@ SVGA_FIFOCommit(uint32 bytes)  // IN
 
          uint32 chunkSize = MIN(bytes, max - nextCmd);
          fifo[SVGA_FIFO_RESERVED] = bytes;
-         drv_memcpy(nextCmd + (uint8 __far*) fifo, buffer, chunkSize);
-         drv_memcpy(min + (uint8 __far*) fifo, buffer + chunkSize, bytes - chunkSize);
+         drv_memcpy(nextCmd + (uint8 FARP*) fifo, buffer, chunkSize);
+         drv_memcpy(min + (uint8 FARP*) fifo, buffer + chunkSize, bytes - chunkSize);
 
-      } else {
+      } else
+#endif
+      {
          /*
           * Slowest path: copy one dword at a time, updating NEXT_CMD as
           * we go, so that we bound how much data the guest has written
           * and the host doesn't know to checkpoint.
           */
 
-         uint32 *dword = (uint32 *)buffer;
+         uint32 FARP *dword = (uint32 FARP *)buffer;
 
          while (bytes > 0) {
             //fifo[nextCmd / sizeof(uint32)] = *dword++;
@@ -897,6 +924,7 @@ SVGA_FIFOCommit(uint32 bytes)  // IN
       }
    }
 
+#if 0
    /*
     * Atomically update NEXT_CMD, if we didn't already
     */
@@ -914,6 +942,7 @@ SVGA_FIFOCommit(uint32 bytes)  // IN
    if (reserveable) {
       fifo[SVGA_FIFO_RESERVED] = 0;
    }
+#endif
 }
 
 
@@ -961,11 +990,11 @@ SVGA_FIFOCommitAll(void)
  *-----------------------------------------------------------------------------
  */
 
-void __far *
+void FARP *
 SVGA_FIFOReserveCmd(uint32 type,   // IN
                     uint32 bytes)  // IN
 {
-   uint32 __far *cmd = SVGA_FIFOReserve(bytes + sizeof type);
+   uint32 FARP *cmd = SVGA_FIFOReserve(bytes + sizeof type);
    cmd[0] = type;
    return cmd + 1;
 }
@@ -997,7 +1026,7 @@ SVGA_FIFOReserveCmd(uint32 type,   // IN
  *-----------------------------------------------------------------------------
  */
 
-void __far *
+void FARP *
 SVGA_FIFOReserveEscape(uint32 nsid,   // IN
                        uint32 bytes)  // IN
 {
@@ -1008,7 +1037,7 @@ SVGA_FIFOReserveEscape(uint32 nsid,   // IN
       uint32 cmd;
       uint32 nsid;
       uint32 size;
-   } __far *header;
+   } FARP *header;
 #pragma pack(pop)
    
    header = SVGA_FIFOReserve(paddedBytes + sizeof(*header));
@@ -1135,7 +1164,7 @@ SVGA_InsertFence(void)
    struct {
       uint32 id;
       uint32 fence;
-   } __far *cmd;
+   } FARP *cmd;
 #pragma pack(pop)
 
    if (!SVGA_HasFIFOCap(SVGA_FIFO_CAP_FENCE)) {
@@ -1447,6 +1476,9 @@ void SVGA_Flush(void)
 {
 		SVGA_WriteReg(SVGA_REG_SYNC, 1);
 		while (SVGA_ReadReg(SVGA_REG_BUSY) != FALSE);
+#ifndef VXD32
+    dbg_printf("SVGA_Flush\n");
+#endif
 }
 
 
@@ -1686,9 +1718,9 @@ SVGAInterruptHandler(int vector)  // IN (unused)
  *----------------------------------------------------------------------
  */
 
-void __far *
+void FARP *
 SVGA_AllocGMR(uint32 size,        // IN
-              SVGAGuestPtr __far *ptr)  // OUT
+              SVGAGuestPtr FARP *ptr)  // OUT
 {
    static SVGAGuestPtr nextPtr = { SVGA_GMR_FRAMEBUFFER, 0 };
    *ptr = nextPtr;
@@ -1719,7 +1751,7 @@ SVGA_Update(uint32 x,       // IN
             uint32 width,   // IN
             uint32 height)  // IN
 {
-   SVGAFifoCmdUpdate __far *cmd = SVGA_FIFOReserveCmd(SVGA_CMD_UPDATE, sizeof *cmd);
+   SVGAFifoCmdUpdate FARP *cmd = SVGA_FIFOReserveCmd(SVGA_CMD_UPDATE, sizeof *cmd);
    cmd->x = x;
    cmd->y = y;
    cmd->width = width;
@@ -1748,20 +1780,20 @@ SVGA_Update(uint32 x,       // IN
  */
 
 void
-SVGA_BeginDefineCursor(const SVGAFifoCmdDefineCursor __far *cursorInfo,  // IN
-                       void __far * __far *andMask,                      // OUT
-                       void __far * __far *xorMask)                      // OUT
+SVGA_BeginDefineCursor(const SVGAFifoCmdDefineCursor FARP *cursorInfo,  // IN
+                       void FARP * FARP *andMask,                      // OUT
+                       void FARP * FARP *xorMask)                      // OUT
 {
    uint32 andPitch = ((cursorInfo->andMaskDepth * cursorInfo->width + 31) >> 5) << 2;
    uint32 andSize = andPitch * cursorInfo->height;
    uint32 xorPitch = ((cursorInfo->xorMaskDepth * cursorInfo->width + 31) >> 5) << 2;
    uint32 xorSize = xorPitch * cursorInfo->height;
 
-   SVGAFifoCmdDefineCursor __far *cmd = SVGA_FIFOReserveCmd(SVGA_CMD_DEFINE_CURSOR,
+   SVGAFifoCmdDefineCursor FARP *cmd = SVGA_FIFOReserveCmd(SVGA_CMD_DEFINE_CURSOR,
                                                       sizeof *cmd + andSize + xorSize);
    *cmd = *cursorInfo;
    *andMask = (void*) (cmd + 1);
-   *xorMask = (void*) (andSize + (uint8 __far*) *andMask);
+   *xorMask = (void*) (andSize + (uint8 FARP*) *andMask);
 }
 
 
@@ -1786,11 +1818,11 @@ SVGA_BeginDefineCursor(const SVGAFifoCmdDefineCursor __far *cursorInfo,  // IN
  */
 
 void
-SVGA_BeginDefineAlphaCursor(const SVGAFifoCmdDefineAlphaCursor __far *cursorInfo,  // IN
-                            void __far * __far * data)                             // OUT
+SVGA_BeginDefineAlphaCursor(const SVGAFifoCmdDefineAlphaCursor FARP *cursorInfo,  // IN
+                            void FARP * FARP * data)                             // OUT
 {
    uint32 imageSize = cursorInfo->width * cursorInfo->height * sizeof(uint32);
-   SVGAFifoCmdDefineAlphaCursor __far *cmd = SVGA_FIFOReserveCmd(SVGA_CMD_DEFINE_ALPHA_CURSOR,
+   SVGAFifoCmdDefineAlphaCursor FARP *cmd = SVGA_FIFOReserveCmd(SVGA_CMD_DEFINE_ALPHA_CURSOR,
                                                            sizeof *cmd + imageSize);
    *cmd = *cursorInfo;
    *data = (void*) (cmd + 1);
@@ -1853,9 +1885,9 @@ SVGA_MoveCursor(uint32 visible,   // IN
 void
 SVGA_BeginVideoSetRegs(uint32 streamId,                   // IN
                        uint32 numItems,                   // IN
-                       SVGAEscapeVideoSetRegs __far * __far * setRegs)  // OUT
+                       SVGAEscapeVideoSetRegs FARP * FARP * setRegs)  // OUT
 {
-   SVGAEscapeVideoSetRegs __far *cmd;
+   SVGAEscapeVideoSetRegs FARP *cmd;
    uint32 cmdSize = (sizeof *cmd
                      - sizeof cmd->items
                      + numItems * sizeof cmd->items[0]);
@@ -1896,12 +1928,12 @@ SVGA_BeginVideoSetRegs(uint32 streamId,                   // IN
 
 void
 SVGA_VideoSetAllRegs(uint32 streamId,        // IN
-                     SVGAOverlayUnit __far *regs,  // IN
+                     SVGAOverlayUnit FARP *regs,  // IN
                      uint32 maxReg)          // IN
 {
-   uint32 __far *regArray = (uint32 __far*) regs;
+   uint32 FARP *regArray = (uint32 FARP*) regs;
    const uint32 numRegs = maxReg + 1;
-   SVGAEscapeVideoSetRegs __far *setRegs;
+   SVGAEscapeVideoSetRegs FARP *setRegs;
    uint32 i;
 
    SVGA_BeginVideoSetRegs(streamId, numRegs, &setRegs);
@@ -1940,7 +1972,7 @@ SVGA_VideoSetReg(uint32 streamId,    // IN
                  uint32 registerId,  // IN
                  uint32 value)       // IN
 {
-   SVGAEscapeVideoSetRegs __far *setRegs;
+   SVGAEscapeVideoSetRegs FARP *setRegs;
 
    SVGA_BeginVideoSetRegs(streamId, 1, &setRegs);
    setRegs->items[0].registerId = registerId;
@@ -1978,7 +2010,7 @@ SVGA_VideoSetReg(uint32 streamId,    // IN
 void
 SVGA_VideoFlush(uint32 streamId)  // IN
 {
-   SVGAEscapeVideoFlush __far *cmd;
+   SVGAEscapeVideoFlush FARP *cmd;
 
    cmd = SVGA_FIFOReserveEscape(SVGA_ESCAPE_NSID_VMWARE, sizeof *cmd);
    cmd->cmdType = SVGA_ESCAPE_VMWARE_VIDEO_FLUSH;

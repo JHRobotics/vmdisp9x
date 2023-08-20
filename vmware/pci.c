@@ -68,7 +68,7 @@
  */
 
 static uint32
-PCIConfigPackAddress(const PCIAddress  __far *addr, uint16 offset)
+PCIConfigPackAddress(const PCIAddress  FARP *addr, uint16 offset)
 {
    const uint32 enableBit = 0x80000000UL;
 
@@ -95,42 +95,42 @@ PCIConfigPackAddress(const PCIAddress  __far *addr, uint16 offset)
  */
 
 uint32
-PCI_ConfigRead32(const PCIAddress __far *addr, uint16 offset)
+PCI_ConfigRead32(const PCIAddress FARP *addr, uint16 offset)
 {
    outpd(PCI_REG_CONFIG_ADDRESS, PCIConfigPackAddress(addr, offset));
    return inpd(PCI_REG_CONFIG_DATA);
 }
 
 uint16
-PCI_ConfigRead16(const PCIAddress __far *addr, uint16 offset)
+PCI_ConfigRead16(const PCIAddress FARP *addr, uint16 offset)
 {
    outpd(PCI_REG_CONFIG_ADDRESS, PCIConfigPackAddress(addr, offset));
    return inpw(PCI_REG_CONFIG_DATA);
 }
 
 uint8
-PCI_ConfigRead8(const PCIAddress __far *addr, uint16 offset)
+PCI_ConfigRead8(const PCIAddress FARP *addr, uint16 offset)
 {
    outpd(PCI_REG_CONFIG_ADDRESS, PCIConfigPackAddress(addr, offset));
    return inp(PCI_REG_CONFIG_DATA);
 }
 
 void
-PCI_ConfigWrite32(const PCIAddress __far *addr, uint16 offset, uint32 data)
+PCI_ConfigWrite32(const PCIAddress FARP *addr, uint16 offset, uint32 data)
 {
    outpd(PCI_REG_CONFIG_ADDRESS, PCIConfigPackAddress(addr, offset));
    outpd(PCI_REG_CONFIG_DATA, data);
 }
 
 void
-PCI_ConfigWrite16(const PCIAddress __far *addr, uint16 offset, uint16 data)
+PCI_ConfigWrite16(const PCIAddress FARP *addr, uint16 offset, uint16 data)
 {
    outpd(PCI_REG_CONFIG_ADDRESS, PCIConfigPackAddress(addr, offset));
    outpw(PCI_REG_CONFIG_DATA, data);
 }
 
 void
-PCI_ConfigWrite8(const PCIAddress __far *addr, uint16 offset, uint8 data)
+PCI_ConfigWrite8(const PCIAddress FARP *addr, uint16 offset, uint8 data)
 {
    outpd(PCI_REG_CONFIG_ADDRESS, PCIConfigPackAddress(addr, offset));
    outpd(PCI_REG_CONFIG_DATA, data);
@@ -152,7 +152,7 @@ PCI_ConfigWrite8(const PCIAddress __far *addr, uint16 offset, uint8 data)
  */
 
 Bool
-PCI_ScanBus(PCIScanState __far *state)
+PCI_ScanBus(PCIScanState FARP *state)
 {
    PCIConfigSpace config;
 
@@ -190,7 +190,7 @@ PCI_ScanBus(PCIScanState __far *state)
  */
 
 Bool
-PCI_FindDevice(uint16 vendorId, uint16 deviceId, PCIAddress __far *addrOut)
+PCI_FindDevice(uint16 vendorId, uint16 deviceId, PCIAddress FARP *addrOut)
 {
    PCIScanState busScan = {0};
 
@@ -212,7 +212,7 @@ PCI_FindDevice(uint16 vendorId, uint16 deviceId, PCIAddress __far *addrOut)
  */
 
 void
-PCI_SetBAR(const PCIAddress __far *addr, int index, uint32 value)
+PCI_SetBAR(const PCIAddress FARP *addr, int index, uint32 value)
 {
    // PCI_ConfigWrite32(addr, offsetof(PCIConfigSpace, BAR[index]), value);
    PCI_ConfigWrite32(addr, 16+4*index, value);
@@ -229,7 +229,7 @@ PCI_SetBAR(const PCIAddress __far *addr, int index, uint32 value)
  */
 
 uint32
-PCI_GetBARAddr(const PCIAddress __far *addr, int index)
+PCI_GetBARAddr(const PCIAddress FARP *addr, int index)
 {
    // uint32 bar = PCI_ConfigRead32(addr, offsetof(PCIConfigSpace, BAR[index]));
    uint32 bar = PCI_ConfigRead32(addr, 16+4*index);
@@ -239,7 +239,7 @@ PCI_GetBARAddr(const PCIAddress __far *addr, int index)
 }
 
 uint32
-PCI_GetSubsystem(const PCIAddress __far *addr)
+PCI_GetSubsystem(const PCIAddress FARP *addr)
 {
 	uint32 subsys = PCI_ConfigRead32(addr, 44);
 	
@@ -256,7 +256,7 @@ PCI_GetSubsystem(const PCIAddress __far *addr)
  */
 
 void
-PCI_SetMemEnable(const PCIAddress __far *addr, Bool enable)
+PCI_SetMemEnable(const PCIAddress FARP *addr, Bool enable)
 {
    //uint16 command = PCI_ConfigRead16(addr, offsetof(PCIConfigSpace, command));
    uint16 command = PCI_ConfigRead16(addr, 4);

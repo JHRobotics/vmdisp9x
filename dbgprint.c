@@ -276,6 +276,11 @@ void dbg_printf( const char *s, ... )
 #endif
                 } else if( conv == 'x' || conv == 'X' ) {
                     hexa = conv - 'X' + 'A';
+#ifdef VXD32
+                    if( !width )
+                        width = 8;
+                    prt_hex32( dword, width, hexa );
+#else
                     if( type_len == 'l' ) {
                         if( !width )
                             width = 8;
@@ -285,6 +290,7 @@ void dbg_printf( const char *s, ... )
                             width = 4;
                         prt_hex32( word, width, hexa );
                     }
+#endif
                 }
             } else {
                 /* Just print whatever is there. */

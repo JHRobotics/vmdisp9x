@@ -12,6 +12,8 @@ typedef unsigned int uint16;
 typedef signed char int8;
 typedef unsigned char uint8;
 
+#define FARP __far
+
 #define fastcall
 
 #else
@@ -24,6 +26,8 @@ typedef unsigned short uint16;
 
 typedef signed char int8;
 typedef unsigned char uint8;
+
+#define FARP
 
 #endif
 

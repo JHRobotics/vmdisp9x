@@ -8,5 +8,6 @@ void VXD_zeromem(DWORD LAddr, DWORD size);
 DWORD VXD_apiver();
 void CB_start();
 void CB_stop();
+void VXD_get_addr(DWORD __far *lpLinFB, DWORD __far *lpLinFifo, DWORD __far *lpLinFifoBounce);
 
 #endif

@@ -78,14 +78,14 @@ SVGA3D_Init(void)
    SVGA3dHardwareVersion hwVersion;
 
    if (!(gSVGA.capabilities & SVGA_CAP_EXTENDED_FIFO)) {
-      dbg_printf("3D requires the Extended FIFO capability.");
+      dbg_printf("3D requires the Extended FIFO capability.\n");
    }
 
    if (SVGA_HasFIFOCap(SVGA_FIFO_CAP_3D_HWVERSION_REVISED)) {
       hwVersion = gSVGA.fifoMem[SVGA_FIFO_3D_HWVERSION_REVISED];
    } else {
       if (gSVGA.fifoMem[SVGA_FIFO_MIN] <= sizeof(uint32) * SVGA_FIFO_GUEST_3D_HWVERSION) {
-         dbg_printf("GUEST_3D_HWVERSION register not present.");
+         dbg_printf("GUEST_3D_HWVERSION register not present.\n");
       }
       hwVersion = gSVGA.fifoMem[SVGA_FIFO_3D_HWVERSION];
    }
@@ -138,7 +138,7 @@ void *
 SVGA3D_FIFOReserve(uint32 cmd,      // IN
                    uint32 cmdSize)  // IN
 {
-   SVGA3dCmdHeader __far *header;
+   SVGA3dCmdHeader FARP *header;
 
    header = SVGA_FIFOReserve(sizeof *header + cmdSize);
    header->id = cmd;

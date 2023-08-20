@@ -75,7 +75,9 @@ DWORD FBHDA_linear = 0;
        DWORD    dwScreenFlatAddr = 0;   /* 32-bit flat address of VRAM. */
        DWORD    dwVideoMemorySize = 0;  /* Installed VRAM in bytes. */
 static WORD     wScreenPitchBytes = 0;  /* Current scanline pitch. */
+#ifndef SVGA
 static DWORD    dwPhysVRAM = 0;         /* Physical LFB base address. */
+#endif
 
 /* These are currently calculated not needed in the absence of
  * offscreen video memory.
@@ -275,6 +277,7 @@ static void ClearVisibleScreen( void )
 #endif
 }
 
+#ifndef SVGA
 /* Map physical memory to memory space, lpLinAddress is option pointer to store
  * mapped linear address
  */
@@ -301,6 +304,7 @@ static DWORD AllocLinearSelector(DWORD dwPhysAddr, DWORD dwSize, DWORD __far * l
 
     return( wSel );
 }
+#endif
 
 #ifdef SVGA
 /*
@@ -420,7 +424,8 @@ extern void __loadds SVGA_UpdateRect(LONG x, LONG y, LONG w, LONG h)
 static int __loadds SVGA_full_init()
 {
   int rc = 0;
-  DWORD fifosel = 0; 
+  DWORD bounce_sel = 0;
+  DWORD fifo_base_sel = 0;
   
   dbg_printf("VMWare SVGA-II init\n");
   
@@ -431,31 +436,44 @@ static int __loadds SVGA_full_init()
     return rc;
   }
   
-  /* gSVGA.fifoMem now holding physical address, map it to linear and convert this address to far pointer */
-  gSVGA.fifoPhy = (uint32)gSVGA.fifoMem;
-  fifosel = AllocLinearSelector(gSVGA.fifoPhy, gSVGA.fifoSize, &gSVGA.fifoLinear);
-  if(fifosel == 0)
+  /* get system linear addressed from PM32 RING-0 driver */
+  VXD_get_addr(&gSVGA.fbLinear, &gSVGA.fifoLinear, &gSVGA.fifo.bounceLinear);
+  
+  dbg_printf("VXD: received %lX %lX %lX\n",
+  	gSVGA.fbLinear,
+  	gSVGA.fifoLinear, 
+  	gSVGA.fifo.bounceLinear);
+  
+  /* map fifo to PM16 memory */
+  fifo_base_sel = DPMI_AllocLDTDesc(1);
+  if(fifo_base_sel)
   {
-    dbg_printf("SVGA: Failed to map FIFO memory!\n");
-    return 2;
+    DPMI_SetSegLimit(fifo_base_sel, 0xFFFF);
+    DPMI_SetSegBase(fifo_base_sel, gSVGA.fifoLinear);
+    gSVGA.fifoMem = fifo_base_sel :> 0x0;
   }
   
-  dbg_printf("SVGA: memory selector for fifo: %lX (physical: %lX, size: %lX)\n", fifosel, gSVGA.fifoMem, gSVGA.fifoSize);
-  gSVGA.fifoMem = fifosel :> 0x0;
-  
-  /* from PM16 cannot be accesed full fifo buffer properly, so allocate selector to maping as 64K sector */
+   /* from PM16 cannot be accesed full fifo buffer properly, so allocate selector to maping as 64K sector */
   gSVGA.fifoSel = DPMI_AllocLDTDesc(1);
   if(gSVGA.fifoSel)
   {
     DPMI_SetSegLimit(gSVGA.fifoSel, 0xFFFF);
+    DPMI_SetSegBase(gSVGA.fifoSel, gSVGA.fifoLinear);
     
     gSVGA.fifoAct = 0;
-    DPMI_SetSegBase(gSVGA.fifoSel, gSVGA.fifoLinear);
   }
   
-  /* sets FIFO */
-  SVGA_Enable();
+  bounce_sel = DPMI_AllocLDTDesc(1);
+  if(bounce_sel)
+  {
+		DPMI_SetSegLimit(bounce_sel, SVGA_BOUNCE_SIZE-1);
+		DPMI_SetSegBase(bounce_sel,  gSVGA.fifo.bounceLinear);
+		
+		gSVGA.fifo.bounceMem = bounce_sel :> 0x0;
+  }
   
+  //SVGA_Enable();
+    
   return 0;
 }
 #endif
@@ -593,7 +611,7 @@ int PhysicalEnable( void )
         }
         
         dwVideoMemorySize = SVGA_ReadReg(SVGA_REG_VRAM_SIZE);        
-        dwPhysVRAM = SVGA_ReadReg(SVGA_REG_FB_START);
+        //dwPhysVRAM = SVGA_ReadReg(SVGA_REG_FB_START);
 #else
         int     iChipID;
 
@@ -613,14 +631,16 @@ int PhysicalEnable( void )
         {
           dwVideoMemorySize = MAX_VRAM;
         }
-
-        dbg_printf( "PhysicalEnable: Hardware detected, dwVideoMemorySize=%lX dwPhysVRAM=%lX\n", dwVideoMemorySize, dwPhysVRAM );
-        
         
 #ifdef SVGA
         /* init here, there are locks for FIFO commands! */
         SVGAHDA_init();
+        dbg_printf( "PhysicalEnable: Hardware detected, dwVideoMemorySize=%lX\n", dwVideoMemorySize );
+#else
+        dbg_printf( "PhysicalEnable: Hardware detected, dwVideoMemorySize=%lX dwPhysVRAM=%lX\n", dwVideoMemorySize, dwPhysVRAM );
 #endif
+
+
     }
     
     dbg_printf("PhysicalEnable: continue with %ux%u\n", wScrX, wScrY);
@@ -638,18 +658,24 @@ int PhysicalEnable( void )
 
     /* Allocate an LDT selector for the screen. */
     if( !ScreenSelector ) {
+#ifndef SVGA
         //ScreenSelector = AllocLinearSelector( dwPhysVRAM, dwVideoMemorySize );
         ScreenSelector = AllocLinearSelector(dwPhysVRAM, dwVideoMemorySize, &dwScreenFlatAddr);
         if( !ScreenSelector ) {
             dbg_printf( "PhysicalEnable: AllocScreenSelector failed!\n" );
             return( 0 );
         }
-
-#ifdef SVGA   
-        gSVGA.fbLinear = dwScreenFlatAddr;
-        gSVGA.fbPhy = dwPhysVRAM;
+#else
+        ScreenSelector = DPMI_AllocLDTDesc(1);
+        
+        dbg_printf("%lX, %lX %lX\n", gSVGA.fbPhy, SVGA_ReadReg(SVGA_REG_FB_START), SVGA_ReadReg(SVGA_REG_FB_SIZE));
+        
+		    DPMI_SetSegBase(ScreenSelector,  gSVGA.fbLinear);
+		    DPMI_SetSegLimit(ScreenSelector, dwVideoMemorySize-1);
+		    
+        dwScreenFlatAddr = gSVGA.fbLinear;
         gSVGA.fbMem = ScreenSelector :> 0;
-          
+         
         /* update userspace hardware access */
         SVGAHDA_setmode();
 #endif
@@ -725,7 +751,7 @@ UINT WINAPI __loadds ValidateMode( DISPVALMODE FAR *lpValMode )
             }
             
             dwVideoMemorySize = SVGA_ReadReg(SVGA_REG_VRAM_SIZE);
-            dwPhysVRAM = SVGA_ReadReg(SVGA_REG_FB_START);
+            //dwPhysVRAM = SVGA_ReadReg(SVGA_REG_FB_START);
 #else
             int     iChipID;
 
@@ -740,8 +766,8 @@ UINT WINAPI __loadds ValidateMode( DISPVALMODE FAR *lpValMode )
 # else
             dwPhysVRAM = BOXV_get_lfb_base( 0 );
 # endif
-#endif
             dbg_printf( "ValidateMode: Hardware detected, dwVideoMemorySize=%lX dwPhysVRAM=%lX\n", dwVideoMemorySize, dwPhysVRAM );
+#endif
         }
 
         if( !IsModeOK( lpValMode->dvmXRes, lpValMode->dvmYRes, lpValMode->dvmBpp ) ) {

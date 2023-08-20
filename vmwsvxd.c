@@ -22,6 +22,7 @@ THE SOFTWARE.
 
 *****************************************************************************/
 
+#define VXD32
 #define SVGA
 
 #include "winhack.h"
@@ -120,7 +121,12 @@ char dbg_gb_on[] = "GB supported and allocated\n";
 char dbg_cb_ena[] = "CB context 0 enabled\n";
 
 char dbg_region_info_1[] = "Region id = %d\n";
-char dbg_region_info_2[] ="Region address = %lX, PPN = %lX, GMRBLK = %lX\n";
+char dbg_region_info_2[] = "Region address = %lX, PPN = %lX, GMRBLK = %lX\n";
+
+char dbg_mapping[] = "Memory mapping:\n";
+char dbg_mapping_map[] = "  %X -> %X\n";
+
+static char dbg_siz[] = "Size of gSVGA(2) = %d %d\n";
 
 #endif
 
@@ -218,6 +224,11 @@ ULONG __declspec(naked) __cdecl _LinPageLock(ULONG page, ULONG npages, ULONG fla
 ULONG __declspec(naked) __cdecl _LinPageUnLock(ULONG page, ULONG npages, ULONG flags)
 {
 	VMMJmp(_LinPageUnLock);
+}
+
+ULONG __declspec(naked) __cdecl _MapPhysToLinear(ULONG PhysAddr, ULONG nBytes, ULONG flags)
+{
+	VMMJmp(_MapPhysToLinear);
 }
 
 /**
@@ -888,19 +899,9 @@ WORD __stdcall VMWS_API_Proc(PCRS_32 state)
 		}
 		/* clear memory on linear address (ESI) by defined size (ECX) */
 		case VMWSVXD_PM16_ZEROMEM:
-		{
-			/*
-			ULONG i = 0;
-			unsigned char *ptr = (unsigned char *)state->Client_ESI;
-			for(i = 0; i < state->Client_ECX; i++)
-			{
-				ptr[i] = 0;
-			}
-			*/
 			memset((void*)state->Client_ESI, 0, state->Client_ECX);
 			rc = 1;
 			break;
-		}
 		/* set ECX to actual api version */
 		case VMWSVXD_PM16_APIVER:
 			state->Client_ECX = DRV_API_LEVEL;
@@ -944,6 +945,17 @@ WORD __stdcall VMWS_API_Proc(PCRS_32 state)
 				cbe->cbstart.context = SVGA_CB_CONTEXT_0;
 				submitCB(cbe, SVGA_CB_CONTEXT_DEVICE, FALSE); // FALSE?
 			}
+			rc = 1;
+			break;
+		case VMWSVXD_PM16_GET_ADDR:
+			state->Client_ECX = gSVGA.fbLinear;
+			state->Client_EDI = gSVGA.fifoLinear;
+			state->Client_ESI = gSVGA.fifo.bounceLinear + PAGE_SIZE; /* first page is for CB header (if CB supported) */
+			
+			rc = 1;
+			break;
+		case VMWSVXD_PM16_FIFO_COMMIT:
+			
 			rc = 1;
 			break;
 	}
@@ -999,7 +1011,38 @@ void Device_Init_proc()
 	{
 		dbg_printf(dbg_Device_Init_proc_succ);
 		svga_init_success = TRUE;
-			
+		
+		dbg_printf(dbg_mapping_map, gSVGA.fbPhy, gSVGA.fifoPhy);
+		
+		/* map phys FB to linear */
+		gSVGA.fbLinear = _MapPhysToLinear(gSVGA.fbPhy, gSVGA.vramSize, 0);
+		
+		/* map phys FIFO to linear */
+		gSVGA.fifoLinear = _MapPhysToLinear(gSVGA.fifoPhy, gSVGA.fifoSize, 0);
+		
+		/* allocate fifo bounce buffer */
+		gSVGA.fifo.bounceLinear =
+			_PageAllocate(
+				(SVGA_BOUNCE_SIZE + PAGE_SIZE)/PAGE_SIZE,
+				PG_SYS, 0, 0, 0x0, 0x100000, &(gSVGA.fifo.bouncePhy), PAGECONTIG | PAGEUSEALIGN | PAGEFIXED
+			);
+		
+		/* system linear addres == PM32 address */
+		gSVGA.fbMem = (uint8 *)gSVGA.fbLinear;
+		gSVGA.fifoMem = (uint32 *)gSVGA.fifoLinear;
+		gSVGA.fifo.bounceMem = (uint8 *)(gSVGA.fifo.bounceLinear + PAGE_SIZE); /* first page is for CB header (if CB supported) */
+		
+		
+		dbg_printf(dbg_mapping);
+		dbg_printf(dbg_mapping_map, gSVGA.fbPhy, gSVGA.fbMem);
+		dbg_printf(dbg_mapping_map, gSVGA.fifoPhy, gSVGA.fifoMem);
+		dbg_printf(dbg_mapping_map, gSVGA.fifo.bouncePhy, gSVGA.fifo.bounceMem);
+		dbg_printf(dbg_siz, sizeof(gSVGA), sizeof(uint8 FARP *));
+		
+		/* enable FIFO */
+		SVGA_Enable();
+		
+		/* allocate GB tables, if supported */
 		if(SVGA_ReadReg(SVGA_REG_CAPABILITIES) & SVGA_CAP_GBOBJECTS)
 		{
 			AllocateOTable();
@@ -1007,13 +1050,15 @@ void Device_Init_proc()
 			dbg_printf(dbg_gb_on);
 		}
 		
+		/* allocate command buffers if supported */
 		if(SVGA_ReadReg(SVGA_REG_CAPABILITIES) & (SVGA_CAP_COMMAND_BUFFERS | SVGA_CAP_CMD_BUFFERS_2))
 		{
 			AllocateCB();
 			cb_support = TRUE;
 			dbg_printf(dbg_cb_on);
 		}
-			
+		
+		/* register miniVDD functions */
 		VDD_Get_Mini_Dispatch_Table();
 		if(DispatchTableLength >= 0x31)
 		{

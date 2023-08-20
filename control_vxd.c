@@ -255,3 +255,44 @@ void CB_stop()
 		}
 	}
 }
+
+void VXD_get_addr(DWORD __far *lpLinFB, DWORD __far *lpLinFifo, DWORD __far *lpLinFifoBounce)
+{
+	static DWORD linFB = 0;
+	static DWORD linFifo = 0;
+	static DWORD linFifoBounce = 0;
+	
+	if(VXD_srv != 0)
+	{
+		_asm
+		{
+			.386
+			push eax
+			push edx
+			
+			push ecx
+			push esi
+			push edi
+			
+		  mov edx, VMWSVXD_PM16_GET_ADDR
+		  call dword ptr [VXD_srv]
+			
+			mov [linFB], ecx
+			mov [linFifo], edi
+			mov [linFifoBounce], esi
+			
+			pop edi
+			pop esi
+			pop ecx
+			
+			pop edx
+			pop eax
+		}
+	}
+	
+	*lpLinFB = linFB;
+	*lpLinFifo = linFifo;
+	*lpLinFifoBounce = linFifoBounce;
+}
+
+

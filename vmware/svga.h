@@ -52,13 +52,13 @@
 typedef struct SVGADevice {
    PCIAddress pciAddr;    // 0
    uint32     ioBase;     // 4
-   uint32 __far *fifoMem; // 8
-   uint8  __far *fbMem;   // 16
-   uint32     fifoSize;   // 20
+   uint32 FARP *fifoMem;  // 8
+   uint8  FARP *fbMem;    // 12
+   uint32     fifoSize;   // 16
    
-   uint32     fifoLinear; // 24
-   uint16     fifoSel;    // 28
-   uint16     fifoAct;    // 32
+   uint32     fifoLinear; // 20
+   uint16     fifoSel;    // 22
+   uint16     fifoAct;    // 24
    
    uint32     fifoPhy;
    
@@ -77,15 +77,21 @@ typedef struct SVGADevice {
 
    struct {
       uint32  reservedSize;
+#if 0
       Bool    usingBounceBuffer;
       uint8   bounceBuffer[16 * 1024];
+#else
+      uint32  bouncePhy;
+      uint32  bounceLinear;
+      uint8 FARP *bounceMem;
+#endif
       uint32  nextFence;
    } fifo;
   
    /* VMWare SVGAII and VBox SVGA is same device with different PCI ID */
    uint16 vendorId;
    uint16 deviceId;
-   /* adaper in QEMU works only on 32bit */
+   /* adapter in QEMU works only on 32bit */
    uint32 only32bit;
 
 #ifndef REALLY_TINY
@@ -99,6 +105,8 @@ typedef struct SVGADevice {
 #endif
 
 } SVGADevice;
+
+#define SVGA_BOUNCE_SIZE (16*1024)
 
 extern SVGADevice gSVGA;
 
@@ -123,9 +131,9 @@ uint32 SVGA_WaitForIRQ();
 Bool SVGA_IsFIFORegValid(int reg);
 Bool SVGA_HasFIFOCap(unsigned long cap);
 
-void __far *SVGA_FIFOReserve(uint32 bytes);
-void __far *SVGA_FIFOReserveCmd(uint32 type, uint32 bytes);
-void __far *SVGA_FIFOReserveEscape(uint32 nsid, uint32 bytes);
+void FARP *SVGA_FIFOReserve(uint32 bytes);
+void FARP *SVGA_FIFOReserveCmd(uint32 type, uint32 bytes);
+void FARP *SVGA_FIFOReserveEscape(uint32 nsid, uint32 bytes);
 void SVGA_FIFOCommit(uint32 bytes);
 void SVGA_FIFOCommitAll(void);
 
@@ -134,20 +142,20 @@ void SVGA_SyncToFence(uint32 fence);
 Bool SVGA_HasFencePassed(uint32 fence);
 void SVGA_RingDoorbell(void);
 
-void __far *SVGA_AllocGMR(uint32 size, SVGAGuestPtr __far *ptr);
+void FARP *SVGA_AllocGMR(uint32 size, SVGAGuestPtr FARP *ptr);
 
 /* 2D commands */
 
 void SVGA_Update(uint32 x, uint32 y, uint32 width, uint32 height);
-void SVGA_BeginDefineCursor(const SVGAFifoCmdDefineCursor __far *cursorInfo,
-                            void __far * __far *andMask, void __far * __far *xorMask);
-void SVGA_BeginDefineAlphaCursor(const SVGAFifoCmdDefineAlphaCursor __far *cursorInfo,
-                                 void __far * __far *data);
+void SVGA_BeginDefineCursor(const SVGAFifoCmdDefineCursor FARP *cursorInfo,
+                            void FARP * FARP *andMask, void FARP * FARP *xorMask);
+void SVGA_BeginDefineAlphaCursor(const SVGAFifoCmdDefineAlphaCursor FARP *cursorInfo,
+                                 void FARP * FARP *data);
 void SVGA_MoveCursor(uint32 visible, uint32 x, uint32 y, uint32 screenId);
 
 void SVGA_BeginVideoSetRegs(uint32 streamId, uint32 numItems,
-                            SVGAEscapeVideoSetRegs __far * __far *setRegs);
-void SVGA_VideoSetAllRegs(uint32 streamId, SVGAOverlayUnit __far *regs, uint32 maxReg);
+                            SVGAEscapeVideoSetRegs FARP * FARP *setRegs);
+void SVGA_VideoSetAllRegs(uint32 streamId, SVGAOverlayUnit FARP *regs, uint32 maxReg);
 void SVGA_VideoSetReg(uint32 streamId, uint32 registerId, uint32 value);
 void SVGA_VideoFlush(uint32 streamId);
 

@@ -50,7 +50,7 @@ void outpd_asm( unsigned port, unsigned long val );
     "mov    ax, bx"     \
     "out    dx, eax"    \
     "pop    eax"        \
-    parm [dx] [bx ax] nomemory;
+    parm [dx] [bx ax] modify [bx] nomemory;
 
 #ifdef NEEDVIDEO
 

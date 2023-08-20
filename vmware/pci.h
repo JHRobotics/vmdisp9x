@@ -66,7 +66,6 @@ typedef union PCIConfigSpace {
       uint8  maxLatency;       // 63
    };
 } PCIConfigSpace;
-#pragma pack(pop)
 
 typedef struct PCIAddress {
    uint8 bus, device, function, padding;
@@ -79,23 +78,25 @@ typedef struct PCIScanState {
    PCIAddress addr;
 } PCIScanState;
 
+#pragma pack(pop)
+
 // BAR bits
 #define PCI_CONF_BAR_IO          0x01
 #define PCI_CONF_BAR_64BIT       0x04
 #define PCI_CONF_BAR_PREFETCH    0x08
 
-uint32 PCI_ConfigRead32(const PCIAddress __far *addr, uint16 offset);
-uint16 PCI_ConfigRead16(const PCIAddress __far *addr, uint16 offset);
-uint8 PCI_ConfigRead8(const PCIAddress __far *addr, uint16 offset);
-void PCI_ConfigWrite32(const PCIAddress __far *addr, uint16 offset, uint32 data);
-void PCI_ConfigWrite16(const PCIAddress __far *addr, uint16 offset, uint16 data);
-void PCI_ConfigWrite8(const PCIAddress __far *addr, uint16 offset, uint8 data);
+uint32 PCI_ConfigRead32(const PCIAddress FARP *addr, uint16 offset);
+uint16 PCI_ConfigRead16(const PCIAddress FARP *addr, uint16 offset);
+uint8 PCI_ConfigRead8(const PCIAddress FARP *addr, uint16 offset);
+void PCI_ConfigWrite32(const PCIAddress FARP *addr, uint16 offset, uint32 data);
+void PCI_ConfigWrite16(const PCIAddress FARP *addr, uint16 offset, uint16 data);
+void PCI_ConfigWrite8(const PCIAddress FARP *addr, uint16 offset, uint8 data);
 
-Bool PCI_ScanBus(PCIScanState  __far *state);
-Bool PCI_FindDevice(uint16 vendorId, uint16 deviceId, PCIAddress __far *addrOut);
-void PCI_SetBAR(const PCIAddress __far *addr, int index, uint32 value);
-uint32 PCI_GetBARAddr(const PCIAddress __far *addr, int index);
-void PCI_SetMemEnable(const PCIAddress __far *addr, Bool enable);
-uint32 PCI_GetSubsystem(const PCIAddress __far *addr);
+Bool PCI_ScanBus(PCIScanState  FARP *state);
+Bool PCI_FindDevice(uint16 vendorId, uint16 deviceId, PCIAddress FARP *addrOut);
+void PCI_SetBAR(const PCIAddress FARP *addr, int index, uint32 value);
+uint32 PCI_GetBARAddr(const PCIAddress FARP *addr, int index);
+void PCI_SetMemEnable(const PCIAddress FARP *addr, Bool enable);
+uint32 PCI_GetSubsystem(const PCIAddress FARP *addr);
 
 #endif /* __PCI_H__ */

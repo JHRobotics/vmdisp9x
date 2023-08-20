@@ -26,6 +26,7 @@ THE SOFTWARE.
  * This file is generally C port of boxvmini.asm by Philip Kelley
  */
 
+#define VXD32
 #define QEMU
 
 #include "winhack.h"
