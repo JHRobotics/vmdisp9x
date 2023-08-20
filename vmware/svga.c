@@ -273,18 +273,16 @@ SVGA_Init(Bool enableFIFO)
    gSVGA.fifoAct    = 0;
    
 #ifdef VXD32
-   /* set if SVGA supporting different BPP then 32 */
+	gSVGA.userFlags = 0;
+
+   /* check if SVGA supporting different BPP then 32 */
    SVGA_WriteReg(SVGA_REG_ENABLE, TRUE);
    SVGA_WriteReg(SVGA_REG_CONFIG_DONE, TRUE);
    
    SVGA_WriteReg(SVGA_REG_BITS_PER_PIXEL, 8);
    if(SVGA_ReadReg(SVGA_REG_CONFIG_DONE) == 0)
    {
-      gSVGA.only32bit = 1;
-   }
-   else
-   {
-      gSVGA.only32bit = 0;
+      gSVGA.userFlags |= SVGA_USER_FLAGS_32BITONLY;
    }
    SVGA_WriteReg(SVGA_REG_ENABLE, FALSE);
    SVGA_WriteReg(SVGA_REG_CONFIG_DONE, FALSE);

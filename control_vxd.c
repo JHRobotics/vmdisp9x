@@ -295,4 +295,61 @@ void VXD_get_addr(DWORD __far *lpLinFB, DWORD __far *lpLinFifo, DWORD __far *lpL
 	*lpLinFifoBounce = linFifoBounce;
 }
 
+void VXD_get_flags(DWORD __far *lpFlags)
+{
+	static DWORD flags = 0;
+	
+	if(VXD_srv != 0)
+	{
+		_asm
+		{
+			.386
+			push eax
+			push edx
+			
+			push ecx
+			
+		  mov edx, VMWSVXD_PM16_GET_FLAGS
+		  call dword ptr [VXD_srv]
+			
+			mov [flags], ecx
+			
+			pop ecx
+			
+			pop edx
+			pop eax
+		}
+	}
+	
+	*lpFlags = flags;
+}
 
+BOOL VXD_FIFOCommit(DWORD bytes)
+{
+	static DWORD sbytes;
+
+	sbytes = bytes;
+	
+	if(VXD_srv != 0)
+	{
+		_asm
+		{
+			.386
+			push eax
+			push edx
+			push ecx
+			
+			mov ecx, [sbytes]
+		  mov edx, VMWSVXD_PM16_FIFO_COMMIT
+		  call dword ptr [VXD_srv]
+			
+			pop ecx
+			pop edx
+			pop eax
+		}
+	
+		return TRUE;
+	}
+	
+	return FALSE;
+}

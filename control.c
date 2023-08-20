@@ -204,32 +204,34 @@ uint32_t FixDevCap(uint32_t cap_id, uint32_t cap_val)
 	switch(cap_id)
 	{
 		case SVGA3D_DEVCAP_SURFACEFMT_R5G6B5:
-#ifdef CAP_R5G6B5_ALWAYS_WRONG
 		{
-			uint32_t xrgb8888 = GetDevCap(SVGA3D_DEVCAP_SURFACEFMT_X8R8G8B8);
-			xrgb8888 &= ~SVGA3DFORMAT_OP_SRGBWRITE; /* nvidia */
-			return xrgb8888;
-		}
-#else
-			if(cap_val & SVGA3DFORMAT_OP_SAME_FORMAT_UP_TO_ALPHA_RENDERTARGET) /* VirtualBox BUG */
+			if(gSVGA.userFlags & SVGA_USER_FLAGS_RGB565_BROKEN)
 			{
 				uint32_t xrgb8888 = GetDevCap(SVGA3D_DEVCAP_SURFACEFMT_X8R8G8B8);
 				xrgb8888 &= ~SVGA3DFORMAT_OP_SRGBWRITE; /* nvidia */
 				return xrgb8888;
 			}
-			
-			if((cap_val & SVGA3DFORMAT_OP_3DACCELERATION) == 0) /* VirtualBox BUG, older drivers */
+			else
 			{
-				uint32_t xrgb8888 = GetDevCap(SVGA3D_DEVCAP_SURFACEFMT_X8R8G8B8);
-				xrgb8888 &= ~SVGA3DFORMAT_OP_SRGBWRITE; /* nvidia */
-				if(xrgb8888 & SVGA3DFORMAT_OP_3DACCELERATION)
+				if(cap_val & SVGA3DFORMAT_OP_SAME_FORMAT_UP_TO_ALPHA_RENDERTARGET) /* VirtualBox BUG */
 				{
+					uint32_t xrgb8888 = GetDevCap(SVGA3D_DEVCAP_SURFACEFMT_X8R8G8B8);
+					xrgb8888 &= ~SVGA3DFORMAT_OP_SRGBWRITE; /* nvidia */
 					return xrgb8888;
 				}
+				
+				if((cap_val & SVGA3DFORMAT_OP_3DACCELERATION) == 0) /* VirtualBox BUG, older drivers */
+				{
+					uint32_t xrgb8888 = GetDevCap(SVGA3D_DEVCAP_SURFACEFMT_X8R8G8B8);
+					xrgb8888 &= ~SVGA3DFORMAT_OP_SRGBWRITE; /* nvidia */
+					if(xrgb8888 & SVGA3DFORMAT_OP_3DACCELERATION)
+					{
+						return xrgb8888;
+					}
+				}
 			}
-#endif
-			
-			break;
+		}
+		break;
 	}
 	
 	return cap_val;

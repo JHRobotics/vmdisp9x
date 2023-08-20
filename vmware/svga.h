@@ -92,7 +92,7 @@ typedef struct SVGADevice {
    uint16 vendorId;
    uint16 deviceId;
    /* adapter in QEMU works only on 32bit */
-   uint32 only32bit;
+   uint32 userFlags;
 
 #ifndef REALLY_TINY
    volatile struct {
@@ -107,6 +107,21 @@ typedef struct SVGADevice {
 } SVGADevice;
 
 #define SVGA_BOUNCE_SIZE (16*1024)
+
+/* SVGA working only on 32bpp modes */
+#define SVGA_USER_FLAGS_32BITONLY 1
+
+/* SVGA using HW cursor */
+#define SVGA_USER_FLAGS_HWCURSOR  2
+
+/* SVGA using alpha channel cursor */
+#define SVGA_USER_FLAGS_ALPHA_CUR 4
+
+/* SVGA surface 565 is broken (VBox bug) */
+#define SVGA_USER_FLAGS_RGB565_BROKEN 8
+
+/* limit SVGA VRAM to 128 MB */
+#define SVGA_USER_FLAGS_128MB_MAX 16
 
 extern SVGADevice gSVGA;
 

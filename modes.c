@@ -214,7 +214,7 @@ static int IsModeOK( WORD wXRes, WORD wYRes, WORD wBpp )
     
 #ifdef SVGA
     /* some implementations not support 8 and 16 bpp */
-    if(gSVGA.only32bit && wBpp != 32)
+    if((gSVGA.userFlags & SVGA_USER_FLAGS_32BITONLY) && wBpp != 32)
     {
       return 0;
     }
@@ -333,7 +333,7 @@ static void SVGA_defineScreen(unsigned wXRes, unsigned wYRes, unsigned wBpp)
     
     screen->screen.backingStore.pitch = CalcPitch(wXRes, wBpp);
     
-    SVGA_FIFOCommitAll();
+    VXD_FIFOCommitAll();
   }
   
   /* set GMR to same location as screen */
@@ -356,7 +356,7 @@ static void SVGA_defineScreen(unsigned wXRes, unsigned wYRes, unsigned wBpp)
 	  		fbgmr->format.bitsPerPixel = 16;
 	  	}
 	  }
-	  SVGA_FIFOCommitAll();
+	  VXD_FIFOCommitAll();
 	}
 }
 
@@ -369,6 +369,16 @@ static BOOL SVGA_hasAccelScreen()
   }
   
   return FALSE;
+}
+
+static void VXD_Update(uint32 x, uint32 y, uint32 width, uint32 height)
+{
+	SVGAFifoCmdUpdate FARP *cmd = SVGA_FIFOReserveCmd(SVGA_CMD_UPDATE, sizeof *cmd);
+	cmd->x = x;
+	cmd->y = y;
+	cmd->width = width;
+	cmd->height = height;
+	VXD_FIFOCommitAll();
 }
 
 static DWORD SVGA_partial_update_cnt = 0;
@@ -386,7 +396,7 @@ extern void __loadds SVGA_UpdateRect(LONG x, LONG y, LONG w, LONG h)
   {
     if(SVGAHDA_trylock(LOCK_FIFO))
     {
-      SVGA_Update(0, 0, wScreenX, wScreenY);
+      VXD_Update(0, 0, wScreenX, wScreenY);
       SVGAHDA_unlock(LOCK_FIFO);
       SVGA_partial_update_cnt = 0;
     }
@@ -402,7 +412,7 @@ extern void __loadds SVGA_UpdateRect(LONG x, LONG y, LONG w, LONG h)
   {
     if(SVGAHDA_trylock(LOCK_FIFO))
     {
-      SVGA_Update(x, y, w, h);
+      VXD_Update(x, y, w, h);
       SVGAHDA_unlock(LOCK_FIFO);
     }
     else
@@ -436,8 +446,11 @@ static int __loadds SVGA_full_init()
     return rc;
   }
   
-  /* get system linear addressed from PM32 RING-0 driver */
+  /* get system linear addresses from PM32 RING-0 driver */
   VXD_get_addr(&gSVGA.fbLinear, &gSVGA.fifoLinear, &gSVGA.fifo.bounceLinear);
+  
+  /* get user flags */
+  VXD_get_flags(&gSVGA.userFlags);
   
   dbg_printf("VXD: received %lX %lX %lX\n",
   	gSVGA.fbLinear,

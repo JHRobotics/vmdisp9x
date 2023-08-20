@@ -9,5 +9,11 @@ DWORD VXD_apiver();
 void CB_start();
 void CB_stop();
 void VXD_get_addr(DWORD __far *lpLinFB, DWORD __far *lpLinFifo, DWORD __far *lpLinFifoBounce);
+void VXD_get_flags(DWORD __far *lpFlags);
+
+BOOL VXD_FIFOCommit(DWORD bytes);
+
+#define VXD_FIFOCommitAll() \
+	if(VXD_FIFOCommit(gSVGA.fifo.reservedSize)){gSVGA.fifo.reservedSize = 0;}else{SVGA_FIFOCommitAll();}
 
 #endif

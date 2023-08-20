@@ -955,9 +955,46 @@ WORD __stdcall VMWS_API_Proc(PCRS_32 state)
 			rc = 1;
 			break;
 		case VMWSVXD_PM16_FIFO_COMMIT:
+		{
+			DWORD cmd_size = state->Client_ECX;
+			if(cb_support && cb_context0) /* command buffer is supported - use CB instead of FIFO */
+			{
+				SVGACBHeader *cb = (SVGACBHeader *)gSVGA.fifo.bounceLinear;
+				memset(cb, 0, sizeof(SVGACBHeader));
+
+				cb->length     = cmd_size;
+				cb->status     = SVGA_CB_STATUS_NONE;
+				cb->ptr.pa.hi  = 0;
+				cb->ptr.pa.low = gSVGA.fifo.bouncePhy + PAGE_SIZE;
+				cb->flags      = SVGA_CB_FLAG_NO_IRQ;
+				
+				cb->id.low     = cmd_buf_next_id.low;
+				cb->id.hi      = cmd_buf_next_id.hi;
+				
+				SVGA_WriteReg(SVGA_REG_COMMAND_HIGH, 0);
+				SVGA_WriteReg(SVGA_REG_COMMAND_LOW, gSVGA.fifo.bouncePhy | SVGA_CB_CONTEXT_0);
+				
+				nextID_CB();
+				
+				/* wait to complete */
+				while(cb->status == SVGA_CB_STATUS_NONE)
+				{
+					SVGA_WriteReg(SVGA_REG_SYNC, 1);
+				}
+			}
+			else /* use FIFO */
+			{
+				gSVGA.fifo.reservedSize = cmd_size;
+				SVGA_FIFOCommit(cmd_size);
+			}
 			
 			rc = 1;
 			break;
+		}
+		case VMWSVXD_PM16_GET_FLAGS:
+			state->Client_ECX = gSVGA.userFlags;
+			break;
+		
 	}
 	
 	if(rc == 0xFFFF)
@@ -1009,6 +1046,19 @@ void Device_Init_proc()
 	
 	if(SVGA_Init(FALSE) == 0)
 	{
+		/* default flags */
+		gSVGA.userFlags |= SVGA_USER_FLAGS_RGB565_BROKEN | SVGA_USER_FLAGS_128MB_MAX;
+		
+		// TODO: read config from registry
+		
+		if(gSVGA.userFlags & SVGA_USER_FLAGS_128MB_MAX)
+		{
+			if(gSVGA.vramSize > 128*1024*1024)
+			{
+				gSVGA.vramSize = 128*1024*1024;
+			}
+		}
+		
 		dbg_printf(dbg_Device_Init_proc_succ);
 		svga_init_success = TRUE;
 		
