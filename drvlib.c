@@ -46,6 +46,21 @@ void __far *drv_malloc(DWORD dwSize, DWORD __far *lpLinear)
 	return NULL;
 }
 
+void drv_free(void __far *ptr, DWORD __far *lpLinear)
+{
+	DWORD sel = ((DWORD)ptr) >> 16;
+	if(*lpLinear != 0)
+	{
+		DPMI_FreeMemBlk(*lpLinear);
+		*lpLinear = 0;
+	}
+	
+	if(sel != 0)
+	{
+		DPMI_FreeLDTDesc(sel);
+	}
+}
+
 /**
  * MEMSET for area larger than one segment. This function is not very effective,
  * I assume it will be called only in few speed non critical situation

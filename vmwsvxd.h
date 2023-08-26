@@ -20,6 +20,7 @@
 #define VMWSVXD_PM16_CB_STOP                      9
 #define VMWSVXD_PM16_GET_ADDR                     10
 #define VMWSVXD_PM16_FIFO_COMMIT                  11
-#define VMWSVXD_PM16_GET_FLAGS                    12
+#define VMWSVXD_PM16_FIFO_COMMIT_SYNC             12
+#define VMWSVXD_PM16_GET_FLAGS                    13
 
 #endif

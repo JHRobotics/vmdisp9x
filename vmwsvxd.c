@@ -814,6 +814,28 @@ void memset(void *dst, int c, unsigned int size)
 	}
 }
 
+void *memcpy(void *dst, const void *src, unsigned int size)
+{
+	unsigned int dw_count;
+	unsigned int dw_size;
+	unsigned int i;
+	
+	dw_count = size >> 2;
+	dw_size = size & 0xFFFFFFFCUL;
+	
+	for(i = 0; i < dw_count; i++)
+	{
+		((unsigned int*)dst)[i] = ((unsigned int*)src)[i];
+	}
+	
+	for(i = dw_size; i < size; i++)
+	{
+		((unsigned char*)dst)[i] = ((unsigned char*)src)[i]; 
+	}
+	
+	return dst;
+}
+
 
 #if 0
 /* I'm using this sometimes for developing, not for end user! */
@@ -920,7 +942,7 @@ WORD __stdcall VMWS_API_Proc(PCRS_32 state)
 				cbe->cmd = SVGA_DC_CMD_START_STOP_CONTEXT;
 				cbe->cbstart.enable  = 1;
 				cbe->cbstart.context = SVGA_CB_CONTEXT_0;
-				submitCB(cbe, SVGA_CB_CONTEXT_DEVICE, TRUE);
+				submitCB(cbe, SVGA_CB_CONTEXT_DEVICE, FALSE);
 
 				dbg_printf(dbg_cb_ena);
 				cb_context0 = TRUE;
@@ -955,6 +977,56 @@ WORD __stdcall VMWS_API_Proc(PCRS_32 state)
 			rc = 1;
 			break;
 		case VMWSVXD_PM16_FIFO_COMMIT:
+		{
+			DWORD cmd_size = state->Client_ECX;
+			if(cb_support && cb_context0) /* command buffer is supported - use CB instead of FIFO */
+			{
+#if 0
+				SVGACBHeader *cb = (SVGACBHeader *)gSVGA.fifo.bounceLinear;
+				memset(cb, 0, sizeof(SVGACBHeader));
+
+				cb->length     = cmd_size;
+				cb->status     = SVGA_CB_STATUS_NONE;
+				cb->ptr.pa.hi  = 0;
+				cb->ptr.pa.low = gSVGA.fifo.bouncePhy + PAGE_SIZE;
+				cb->flags      = SVGA_CB_FLAG_NO_IRQ;
+				
+				cb->id.low     = cmd_buf_next_id.low;
+				cb->id.hi      = cmd_buf_next_id.hi;
+				
+				SVGA_WriteReg(SVGA_REG_COMMAND_HIGH, 0);
+				SVGA_WriteReg(SVGA_REG_COMMAND_LOW, gSVGA.fifo.bouncePhy | SVGA_CB_CONTEXT_0);
+				
+				nextID_CB();
+				
+				/* wait to complete */
+				while(cb->status == SVGA_CB_STATUS_NONE)
+				{
+					SVGA_WriteReg(SVGA_REG_SYNC, 1);
+				}
+#endif
+				SVGACBHeader *cb;
+				
+				do
+				{
+					cb = LockCB();
+				} while(cb == NULL);
+				memset(cb, 0, sizeof(SVGACBHeader));
+				cb->length = cmd_size;
+				memcpy(cb+1, gSVGA.fifo.bounceMem, cmd_size);
+				
+				submitCB(cb, SVGA_CB_CONTEXT_0, TRUE);
+			}
+			else /* use FIFO */
+			{
+				gSVGA.fifo.reservedSize = cmd_size;
+				SVGA_FIFOCommit(cmd_size);
+			}
+			
+			rc = 1;
+			break;
+		}
+		case VMWSVXD_PM16_FIFO_COMMIT_SYNC:
 		{
 			DWORD cmd_size = state->Client_ECX;
 			if(cb_support && cb_context0) /* command buffer is supported - use CB instead of FIFO */
@@ -994,7 +1066,6 @@ WORD __stdcall VMWS_API_Proc(PCRS_32 state)
 		case VMWSVXD_PM16_GET_FLAGS:
 			state->Client_ECX = gSVGA.userFlags;
 			break;
-		
 	}
 	
 	if(rc == 0xFFFF)
@@ -1048,6 +1119,16 @@ void Device_Init_proc()
 	{
 		/* default flags */
 		gSVGA.userFlags |= SVGA_USER_FLAGS_RGB565_BROKEN | SVGA_USER_FLAGS_128MB_MAX;
+		
+		if(SVGA_ReadReg(SVGA_REG_CAPABILITIES) & SVGA_CAP_CURSOR)
+		{
+			gSVGA.userFlags |= SVGA_USER_FLAGS_HWCURSOR;
+		}
+		
+		if(SVGA_ReadReg(SVGA_REG_CAPABILITIES) & SVGA_CAP_ALPHA_CURSOR)
+		{
+			gSVGA.userFlags |= SVGA_USER_FLAGS_ALPHA_CUR;
+		}
 		
 		// TODO: read config from registry
 		

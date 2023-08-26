@@ -303,6 +303,7 @@ UINT WINAPI __loadds Enable( LPVOID lpDevice, UINT style, LPSTR lpDeviceType,
     } else {
         /* Fill out GDIINFO for GDI. */
         LPGDIINFO   lpInfo = lpDevice;
+        _fmemset(lpInfo, 0, sizeof(GDIINFO));
 
         /* Start with passing down to the DIB engine. It will set dpCurves through dpStyleLen. */
         DIB_Enable( lpDevice, style, lpDeviceType, lpOutputFile, lpStuff );
@@ -408,6 +409,9 @@ UINT WINAPI __loadds Enable( LPVOID lpDevice, UINT style, LPSTR lpDeviceType,
             wCount *= 4;
             lpInfo->dpDEVICEsize += sizeof( BITMAPINFOHEADER ) + 8 + wCount;
         }
+        
+        /* apply changes */
+        //DIB_Enable( lpInfo, 1, NULL, NULL, NULL );
         
         dbg_printf( "sizeof(GDIINFO)=%d (%X), dpDEVICEsize=%X\n", sizeof( GDIINFO ), sizeof( GDIINFO ), lpInfo->dpDEVICEsize );
         return( sizeof( GDIINFO ) );

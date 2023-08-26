@@ -56,8 +56,18 @@ extern DWORD DPMI_AllocMemBlk(DWORD Size);
     "alloc_ok:"                 \
     "mov    dx, bx"             \
     "mov    ax, cx"             \
-    parm [cx bx] modify [di si];
-    
+    parm [cx bx] modify [ax di si];
+
+extern WORD DPMI_FreeMemBlk(DWORD ptr);
+#pragma aux DPMI_FreeMemBlk =  \
+    "xchg   di, si"            \
+    "mov    ax, 502h"          \
+    "int    31h"               \
+    "jc     free_error"        \
+    "xor    ax, ax"            \
+    "free_error:"              \
+    parm [di si] modify [ax];
+
 
 static DWORD DPMI_AllocLinBlk_LinAddress = 0;
 static DWORD DPMI_AllocLinBlk_MHandle = 0;

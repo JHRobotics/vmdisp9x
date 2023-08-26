@@ -32,6 +32,7 @@ THE SOFTWARE.
 #ifdef SVGA
 # include "svga_all.h"
 # include <string.h>
+# include "control_vxd.h"
 #endif
 
 /*
@@ -50,13 +51,17 @@ THE SOFTWARE.
  */
 
 /* from DDK98 */
+#pragma pack(push)
+#pragma pack(1)
 typedef struct
 {
    int     xHotSpot, yHotSpot;
    int     cx, cy;
    int     cbWidth;
-   BYTE    Planes, BitsPixel;
+   BYTE    Planes;
+   BYTE    BitsPixel;
 } CURSORSHAPE;
+#pragma pack(pop)
 
 #ifdef SVGA
 BOOL cursorVisible = FALSE;
@@ -65,7 +70,6 @@ BOOL cursorVisible = FALSE;
 #pragma code_seg( _TEXT )
 
 #ifdef SVGA
-# ifndef HWCURSOR
 static LONG cursorX = 0;
 static LONG cursorY = 0;
 static LONG cursorW = 0;
@@ -73,8 +77,85 @@ static LONG cursorH = 0;
 static LONG cursorHX = 0;
 static LONG cursorHY = 0;
 
+
+/*
+	https://learn.microsoft.com/en-us/windows-hardware/drivers/display/drawing-monochrome-pointers
+*/
+static void CursorMonoToAlpha(CURSORSHAPE __far *lpCursor, void __far *data)
+{
+	LONG __far *px = data;
+	BYTE __far *andmask = (BYTE __far *)(lpCursor + 1);
+	BYTE __far *xormask = andmask + lpCursor->cbWidth*lpCursor->cy;
+	int xi, xj, y;
+	
+	for(y = 0; y < lpCursor->cy; y++)
+	{
+		for(xj = 0; xj < (lpCursor->cbWidth); xj++)
+		{
+			BYTE a = andmask[lpCursor->cbWidth*y + xj];
+			BYTE x = xormask[lpCursor->cbWidth*y + xj];
+			for(xi = 7; xi >= 0; xi--)
+			{
+				BYTE mx = (((a >> xi) & 0x1) << 1) | ((x >> xi) & 0x1);
+				
+				switch(mx)
+				{
+					case 0:
+						*px = 0xFF000000; // full black
+						break;
+					case 1:
+						*px = 0xFFFFFFFF; // full white
+						break;
+					case 2:
+						*px = 0x00000000; // transparent
+						break;
+					case 3:
+						*px = 0xFFFFFFFF; // inverse = set as white
+						break;
+				}
+				
+				px++;
+			}
+		}
+	}
+}
+
+static void CursorColor32ToAlpha(CURSORSHAPE __far *lpCursor, void __far *data)
+{
+	LONG __far *px = data;
+	BYTE __far *andmask = (BYTE __far *)(lpCursor + 1);
+	DWORD __far *xormask = (DWORD __far *)(andmask + lpCursor->cbWidth*lpCursor->cy);
+	int xi, xj, y;
+	
+	for(y = 0; y < lpCursor->cy; y++)
+	{
+		for(xj = 0; xj < (lpCursor->cbWidth); xj++)
+		{
+			BYTE a = andmask[lpCursor->cbWidth*y + xj];
+			
+			for(xi = 7; xi >= 0; xi--)
+			{
+				DWORD x = xormask[lpCursor->cx*y + xj*8 + (7-xi)] & 0x00FFFFFFUL;
+				BYTE ab = ((a >> xi) & 0x1);
+				
+				switch(ab)
+				{
+					case 0:
+						*px = 0xFF000000UL | x;
+						break;
+					case 1:
+						*px = 0x00000000UL | x;
+						break;
+				}
+				
+				px++;
+			}
+		}
+	}
+}
+
 void update_cursor()
-{	
+{
 	if(wBpp == 32)
 	{
 		LONG x = cursorX - cursorHX;
@@ -85,7 +166,6 @@ void update_cursor()
 		SVGA_UpdateRect(x, y, w, h);
 	}
 }
-# endif
 #endif
 
 void WINAPI __loadds MoveCursor(WORD absX, WORD absY)
@@ -95,18 +175,21 @@ void WINAPI __loadds MoveCursor(WORD absX, WORD absY)
 #ifdef SVGA
 		if(wBpp == 32)
 		{
-# ifdef HWCURSOR
-			SVGA_MoveCursor(cursorVisible, absX, absY, 0);
-# else
-	    DIB_MoveCursorExt(absX, absY, lpDriverPDevice);
-	    update_cursor();
-	    cursorX = absX;
-	    cursorY = absY;
-	    update_cursor();
-# endif
+			if(gSVGA.userFlags & SVGA_USER_FLAGS_HWCURSOR)
+			{
+				SVGA_MoveCursor(cursorVisible, absX, absY, 0);
+			}
+			else
+			{
+		    DIB_MoveCursorExt(absX, absY, lpDriverPDevice);
+		    update_cursor();
+	  	  cursorX = absX;
+	    	cursorY = absY;
+	    	update_cursor();
+	    }
 			return;
 		}
-#endif
+#endif // SVGA
 		DIB_MoveCursorExt(absX, absY, lpDriverPDevice);
 	}
 }
@@ -118,75 +201,106 @@ WORD WINAPI __loadds SetCursor_driver(CURSORSHAPE __far *lpCursor)
 #ifdef SVGA
 		if(wBpp == 32)
 		{
-# ifdef HWCURSOR
-			void __far* ANDMask = NULL;
-			void __far* XORMask = NULL;
-			SVGAFifoCmdDefineCursor cur;
-			
-			if(lpCursor != NULL)
+			if(gSVGA.userFlags & SVGA_USER_FLAGS_HWCURSOR)
 			{
-				cur.id = 0;
-				cur.hotspotX = lpCursor->xHotSpot;
-				cur.hotspotY = lpCursor->yHotSpot;
-				cur.width    = lpCursor->cx;
-				cur.height   = lpCursor->cy;
-				cur.andMaskDepth = 1;
-				cur.xorMaskDepth = 1;
+				void __far* ANDMask = NULL;
+				void __far* XORMask = NULL;
+				void __far* AData   = NULL;
+				SVGAFifoCmdDefineCursor cur;
+				SVGAFifoCmdDefineAlphaCursor acur;
 				
-				dbg_printf("cx: %d, cy: %d, cbWidth: %d, Planes: %d\n", lpCursor->cx, lpCursor->cy, lpCursor->cbWidth, lpCursor->Planes);
-				
-				SVGA_BeginDefineCursor(&cur, &ANDMask, &XORMask);
-				
-				if(ANDMask)
+				if(lpCursor != NULL)
 				{
-					_fmemcpy(ANDMask, lpCursor+1, lpCursor->cbWidth*lpCursor->cy);
-				}
-				
-				if(XORMask)
-				{
-					BYTE __far *ptr = (BYTE __far *)(lpCursor+1);
-					ptr += lpCursor->cbWidth*lpCursor->cy;
+					dbg_printf("cx: %d, cy: %d, colors: %d\n", lpCursor->cx, lpCursor->cy, lpCursor->BitsPixel);
 					
-					_fmemcpy(XORMask, ptr, lpCursor->cbWidth*lpCursor->cy);
+					if(gSVGA.userFlags & SVGA_USER_FLAGS_ALPHA_CUR)
+					{
+						acur.id = 0;
+						acur.hotspotX = lpCursor->xHotSpot;
+						acur.hotspotY = lpCursor->yHotSpot;
+						acur.width    = lpCursor->cx;
+						acur.height   = lpCursor->cy;
+						
+						SVGA_BeginDefineAlphaCursor(&acur, &AData);
+						if(AData)
+						{
+							switch(lpCursor->BitsPixel)
+							{
+								case 1:
+									CursorMonoToAlpha(lpCursor, AData);
+									break;
+								case 32:
+									CursorColor32ToAlpha(lpCursor, AData);
+									break;
+							}
+						}
+					}
+					else
+					{
+						cur.id = 0;
+						cur.hotspotX = lpCursor->xHotSpot;
+						cur.hotspotY = lpCursor->yHotSpot;
+						cur.width    = lpCursor->cx;
+						cur.height   = lpCursor->cy;
+						cur.andMaskDepth = 1;
+						cur.xorMaskDepth = lpCursor->BitsPixel;
+						
+						SVGA_BeginDefineCursor(&cur, &ANDMask, &XORMask);
+						
+						if(ANDMask)
+						{
+							_fmemcpy(ANDMask, lpCursor+1, lpCursor->cbWidth*lpCursor->cy);
+						}
+						
+						if(XORMask)
+						{
+							BYTE __far *ptr = (BYTE __far *)(lpCursor+1);
+							ptr += lpCursor->cbWidth*lpCursor->cy;
+							
+							_fmemcpy(XORMask, ptr, lpCursor->cx*lpCursor->cy*((lpCursor->BitsPixel+7)/8));
+						}
+					}
+					//SVGA_FIFOCommitAll();
+					VXD_FIFOCommitSync();
+					cursorVisible = TRUE;
+				}
+				else
+				{
+					/* virtual box bug on SVGA_MoveCursor(FALSE, ...)
+					 * so if is cursor NULL, create empty
+					 */
+					cur.id = 0;
+					cur.hotspotX = 0;
+					cur.hotspotY = 0;
+					cur.width    = 32;
+					cur.height   = 32;
+					cur.andMaskDepth = 1;
+					cur.xorMaskDepth = 1;
+					
+					SVGA_BeginDefineCursor(&cur, &ANDMask, &XORMask);
+					
+					if(ANDMask) _fmemset(ANDMask, 0xFF, 4*32);
+					if(XORMask) _fmemset(XORMask, 0, 4*32);
+					
+					//SVGA_FIFOCommitAll();
+					VXD_FIFOCommitSync();
+					
+					SVGA_MoveCursor(FALSE, 0, 0, 0);
+					cursorVisible = FALSE;
 				}
 				
-				SVGA_FIFOCommitAll();
-				cursorVisible = TRUE;
-				return 1;
+				return 1; /* SUCCESS */
 			}
 			else
 			{
-				/* virtual bug on SVGA_MoveCursor(FALSE, ...)
-				 * so if is cursor NULL, create empty
-				 */
-				cur.id = 0;
-				cur.hotspotX = 0;
-				cur.hotspotY = 0;
-				cur.width    = 32;
-				cur.height   = 32;
-				cur.andMaskDepth = 1;
-				cur.xorMaskDepth = 1;
-				
-				SVGA_BeginDefineCursor(&cur, &ANDMask, &XORMask);
-				
-				if(ANDMask) _fmemset(ANDMask, 0xFF, 4*32);
-				if(XORMask) _fmemset(XORMask, 0, 4*32);
-				
-				SVGA_FIFOCommitAll();
-				
-				SVGA_MoveCursor(FALSE, 0, 0, 0);
-				cursorVisible = FALSE;
-				return 1;
+				if(lpCursor != NULL)
+				{
+					cursorW = lpCursor->cx;
+					cursorH = lpCursor->cy;
+					cursorHX = lpCursor->xHotSpot;
+					cursorHY = lpCursor->yHotSpot;
+				}
 			}
-# else
-			if(lpCursor != NULL)
-			{
-				cursorW = lpCursor->cx;
-				cursorH = lpCursor->cy;
-				cursorHX = lpCursor->xHotSpot;
-				cursorHY = lpCursor->yHotSpot;
-			}
-# endif
 		} // 32bpp
 #endif
 		DIB_SetCursorExt(lpCursor, lpDriverPDevice);
@@ -200,15 +314,21 @@ void WINAPI __loadds CheckCursor( void )
 {
 	if( wEnabled ) {
 #ifdef SVGA
-# ifndef HWCURSOR
+	if((gSVGA.userFlags & SVGA_USER_FLAGS_HWCURSOR) == 0)
+	{
 		DIB_CheckCursorExt( lpDriverPDevice );
 		if(wBpp == 32)
 		{
 			update_cursor();
 		}
-# else
-	if(wBpp != 32) DIB_CheckCursorExt( lpDriverPDevice );
-# endif
+	}
+	else
+	{
+		if(wBpp != 32)
+		{
+			DIB_CheckCursorExt( lpDriverPDevice );
+		}
+	}
 #else
 		DIB_CheckCursorExt( lpDriverPDevice );
 #endif

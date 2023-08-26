@@ -14,8 +14,6 @@ FLAGS = -DDRV_VER_BUILD=$(VER_BUILD) -DCAP_R5G6B5_ALWAYS_WRONG
 
 # Define HWBLT if BitBlt can be accelerated.
 #FLAGS += -DHWBLT
-# Define HWCURSOR if you want accelerate cursor (SVGA only)
-#FLAGS += -DHWCURSOR
 # Define VRAM256MB if you want set VRAM limit to 256MB (default is 128MB)
 #FLAGS += -DVRAM256MB
 

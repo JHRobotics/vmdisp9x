@@ -91,8 +91,10 @@ static void SVGAInterruptHandler(int vector);
 #pragma code_seg( _INIT )
 #endif
 
+#ifdef DBGPRINT
 static char dbg_addr[] = "PCI bars: %lx %lx %lx\n";
 static char dbg_siz[] = "Size of gSVGA(1) = %d %d\n";
+#endif
 
 /*
  *-----------------------------------------------------------------------------
@@ -1790,8 +1792,8 @@ SVGA_BeginDefineCursor(const SVGAFifoCmdDefineCursor FARP *cursorInfo,  // IN
    SVGAFifoCmdDefineCursor FARP *cmd = SVGA_FIFOReserveCmd(SVGA_CMD_DEFINE_CURSOR,
                                                       sizeof *cmd + andSize + xorSize);
    *cmd = *cursorInfo;
-   *andMask = (void*) (cmd + 1);
-   *xorMask = (void*) (andSize + (uint8 FARP*) *andMask);
+   *andMask = (void FARP*)(cmd + 1);
+   *xorMask = (void FARP*)(andSize + (uint8 FARP*)(*andMask));
 }
 
 
@@ -1823,7 +1825,7 @@ SVGA_BeginDefineAlphaCursor(const SVGAFifoCmdDefineAlphaCursor FARP *cursorInfo,
    SVGAFifoCmdDefineAlphaCursor FARP *cmd = SVGA_FIFOReserveCmd(SVGA_CMD_DEFINE_ALPHA_CURSOR,
                                                            sizeof *cmd + imageSize);
    *cmd = *cursorInfo;
-   *data = (void*) (cmd + 1);
+   *data = (void FARP*) (cmd + 1);
 }
 
 

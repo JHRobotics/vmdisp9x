@@ -324,9 +324,16 @@ void VXD_get_flags(DWORD __far *lpFlags)
 	*lpFlags = flags;
 }
 
-BOOL VXD_FIFOCommit(DWORD bytes)
+BOOL VXD_FIFOCommit(DWORD bytes, BOOL sync)
 {
 	static DWORD sbytes;
+	static DWORD cmd;
+	
+	cmd = VMWSVXD_PM16_FIFO_COMMIT;
+	if(sync)
+	{
+		cmd = VMWSVXD_PM16_FIFO_COMMIT_SYNC;
+	}
 
 	sbytes = bytes;
 	
@@ -340,7 +347,7 @@ BOOL VXD_FIFOCommit(DWORD bytes)
 			push ecx
 			
 			mov ecx, [sbytes]
-		  mov edx, VMWSVXD_PM16_FIFO_COMMIT
+		  mov edx, [cmd]
 		  call dword ptr [VXD_srv]
 			
 			pop ecx
