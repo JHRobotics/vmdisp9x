@@ -34,7 +34,10 @@ THE SOFTWARE.
 # include <string.h>
 # include "control_vxd.h"
 
+/* from control.c */
 # define LOCK_FIFO 6
+BOOL SVGAHDA_trylock(DWORD lockid);
+void SVGAHDA_unlock(DWORD lockid);
 #endif
 
 /*

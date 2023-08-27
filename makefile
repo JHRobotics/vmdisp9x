@@ -8,7 +8,7 @@ OBJS = dibthunk.obj dibcall.obj enable.obj init.obj palette.obj &
 
 INCS = -I$(%WATCOM)\h\win -Iddk -Ivmware
 
-VER_BUILD = 11
+VER_BUILD = 22
 
 FLAGS = -DDRV_VER_BUILD=$(VER_BUILD) -DCAP_R5G6B5_ALWAYS_WRONG
 
