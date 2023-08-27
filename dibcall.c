@@ -33,6 +33,8 @@ THE SOFTWARE.
 # include "svga_all.h"
 # include <string.h>
 # include "control_vxd.h"
+
+# define LOCK_FIFO 6
 #endif
 
 /*
@@ -110,7 +112,7 @@ static void CursorMonoToAlpha(CURSORSHAPE __far *lpCursor, void __far *data)
 						*px = 0x00000000; // transparent
 						break;
 					case 3:
-						*px = 0xFFFFFFFF; // inverse = set as white
+						*px = 0xFF000000; // inverse = set black (used for example with type cursor)
 						break;
 				}
 				
@@ -177,7 +179,11 @@ void WINAPI __loadds MoveCursor(WORD absX, WORD absY)
 		{
 			if(gSVGA.userFlags & SVGA_USER_FLAGS_HWCURSOR)
 			{
-				SVGA_MoveCursor(cursorVisible, absX, absY, 0);
+				if(SVGAHDA_trylock(LOCK_FIFO))
+				{
+					SVGA_MoveCursor(cursorVisible, absX, absY, 0);
+					SVGAHDA_unlock(LOCK_FIFO);
+				}
 			}
 			else
 			{
@@ -221,18 +227,23 @@ WORD WINAPI __loadds SetCursor_driver(CURSORSHAPE __far *lpCursor)
 						acur.width    = lpCursor->cx;
 						acur.height   = lpCursor->cy;
 						
-						SVGA_BeginDefineAlphaCursor(&acur, &AData);
-						if(AData)
+						if(SVGAHDA_trylock(LOCK_FIFO))
 						{
-							switch(lpCursor->BitsPixel)
+							SVGA_BeginDefineAlphaCursor(&acur, &AData);
+							if(AData)
 							{
-								case 1:
-									CursorMonoToAlpha(lpCursor, AData);
-									break;
-								case 32:
-									CursorColor32ToAlpha(lpCursor, AData);
-									break;
+								switch(lpCursor->BitsPixel)
+								{
+									case 1:
+										CursorMonoToAlpha(lpCursor, AData);
+										break;
+									case 32:
+										CursorColor32ToAlpha(lpCursor, AData);
+										break;
+								}
 							}
+							VXD_FIFOCommitAll();
+							SVGAHDA_unlock(LOCK_FIFO);
 						}
 					}
 					else
@@ -245,23 +256,28 @@ WORD WINAPI __loadds SetCursor_driver(CURSORSHAPE __far *lpCursor)
 						cur.andMaskDepth = 1;
 						cur.xorMaskDepth = lpCursor->BitsPixel;
 						
-						SVGA_BeginDefineCursor(&cur, &ANDMask, &XORMask);
-						
-						if(ANDMask)
+						if(SVGAHDA_trylock(LOCK_FIFO))
 						{
-							_fmemcpy(ANDMask, lpCursor+1, lpCursor->cbWidth*lpCursor->cy);
-						}
-						
-						if(XORMask)
-						{
-							BYTE __far *ptr = (BYTE __far *)(lpCursor+1);
-							ptr += lpCursor->cbWidth*lpCursor->cy;
+							SVGA_BeginDefineCursor(&cur, &ANDMask, &XORMask);
 							
-							_fmemcpy(XORMask, ptr, lpCursor->cx*lpCursor->cy*((lpCursor->BitsPixel+7)/8));
+							if(ANDMask)
+							{
+								_fmemcpy(ANDMask, lpCursor+1, lpCursor->cbWidth*lpCursor->cy);
+							}
+							
+							if(XORMask)
+							{
+								BYTE __far *ptr = (BYTE __far *)(lpCursor+1);
+								ptr += lpCursor->cbWidth*lpCursor->cy;
+								
+								_fmemcpy(XORMask, ptr, lpCursor->cx*lpCursor->cy*((lpCursor->BitsPixel+7)/8));
+							}
+							
+							VXD_FIFOCommitAll();
+							SVGAHDA_unlock(LOCK_FIFO);
 						}
 					}
-					//SVGA_FIFOCommitAll();
-					VXD_FIFOCommitSync();
+					
 					cursorVisible = TRUE;
 				}
 				else
@@ -277,15 +293,20 @@ WORD WINAPI __loadds SetCursor_driver(CURSORSHAPE __far *lpCursor)
 					cur.andMaskDepth = 1;
 					cur.xorMaskDepth = 1;
 					
-					SVGA_BeginDefineCursor(&cur, &ANDMask, &XORMask);
+					if(SVGAHDA_trylock(LOCK_FIFO))
+					{
+						SVGA_BeginDefineCursor(&cur, &ANDMask, &XORMask);
 					
-					if(ANDMask) _fmemset(ANDMask, 0xFF, 4*32);
-					if(XORMask) _fmemset(XORMask, 0, 4*32);
+						if(ANDMask) _fmemset(ANDMask, 0xFF, 4*32);
+						if(XORMask) _fmemset(XORMask, 0, 4*32);
 					
-					//SVGA_FIFOCommitAll();
-					VXD_FIFOCommitSync();
+						//SVGA_FIFOCommitAll();
+						VXD_FIFOCommitAll();
 					
-					SVGA_MoveCursor(FALSE, 0, 0, 0);
+						SVGA_MoveCursor(FALSE, 0, 0, 0);
+						
+						SVGAHDA_unlock(LOCK_FIFO);
+					}
 					cursorVisible = FALSE;
 				}
 				
