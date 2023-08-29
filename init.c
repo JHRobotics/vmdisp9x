@@ -34,7 +34,10 @@ THE SOFTWARE.
 
 #ifdef SVGA
 #include <stdint.h>
-#include "control_vxd.h"
+#endif
+
+#if defined(SVGA) || defined(QEMU)
+# include "vxdcall.h"
 #endif
 
 /* GlobalSmartPageLock is a semi-undocumented function. Not officially
@@ -315,6 +318,12 @@ UINT FAR DriverInit( UINT cbHeap, UINT hModule, LPSTR lpCmdLine )
 
     dbg_printf("DriverInit: LfbBase is %lX\n", LfbBase);
  
+ 		if(!VXD_load())
+		{
+			dbg_printf("VXD load failure!\n");
+			return 0;
+		}
+ 
     /* Return 1 (success) iff we located the physical address of the linear framebuffer. */
     return ( !!LfbBase );
 }
@@ -342,8 +351,6 @@ UINT FAR DriverInit( UINT cbHeap, UINT hModule, LPSTR lpCmdLine )
 			dbg_printf("VXD load failure!\n");
 			return 0;
 		}
-		
-		 dbg_printf("VXD load success\n");
 #endif
 
     return( 1 );    /* Success. */

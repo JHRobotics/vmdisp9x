@@ -37,7 +37,10 @@ THE SOFTWARE.
 
 #ifdef SVGA
 # include "svga_all.h"
-# include "control_vxd.h"
+#endif
+
+#if defined(SVGA) || defined(QEMU)
+# include "vxdcall.h"
 #endif
 
 #include "drvlib.h"

@@ -31,7 +31,7 @@ THE SOFTWARE.
 
 #include "winhack.h"
 #include "vmm.h"
-#include "vmwsvxd.h"
+#include "vxdcodes.h"
 
 #include "svga_all.h"
 
@@ -40,6 +40,10 @@ THE SOFTWARE.
 #include "version.h"
 
 #include "code32.h"
+
+#ifndef ERROR_SUCCESS
+#define ERROR_SUCCESS 0
+#endif
 
 void QEMU_Control();
 void QEMU_API_Entry();
@@ -52,9 +56,9 @@ void QEMU_API_Entry();
 DDB QEMU_DDB = {
 	NULL,                       // must be NULL
 	DDK_VERSION,                // DDK_Version
-	UNDEFINED_DEVICE_ID,        // Device ID
-	VMWSVXD_MAJOR_VER,          // Major Version
-	VMWSVXD_MINOR_VER,          // Minor Version
+	VXD_DEVICE_ID,              // Device ID
+	VXD_MAJOR_VER,              // Major Version
+	VXD_MINOR_VER,              // Minor Version
 	NULL,
 	"QEMU_VXD",
 	VDD_Init_Order, //Undefined_Init_Order,
@@ -82,6 +86,10 @@ char dbg_dic_unknown[] = "DeviceIOControl: Unknown: %d\n";
 char dbg_dic_system[] = "DeviceIOControl: System code: %d\n";
 
 char dbg_str[] = "%s\n";
+
+char dbg_reg_open_suc[] = "_RegKeyOpen Success\n";
+char dbg_reg_open_fail[] = "_RegKeyOpen FAILED\n";
+char dbg_reg_query_fail[] = "_RegQueryValueEx FAILED - %ld\n";
 
 #endif
 
@@ -147,6 +155,21 @@ ULONG __declspec(naked) __cdecl _PageAllocate(ULONG nPages, ULONG pType, ULONG V
 ULONG __declspec(naked) __cdecl _PageFree(PVOID hMem, DWORD flags)
 {
 	VMMJmp(_PageFree);
+}
+
+DWORD __declspec(naked) __cdecl _RegOpenKey(DWORD hKey, char *lpszSubKey, DWORD *lphKey)
+{
+	VMMJmp(_RegOpenKey);
+}
+
+DWORD __declspec(naked) __cdecl _RegCloseKey(DWORD hKey)
+{
+	VMMJmp(_RegCloseKey);
+}
+
+DWORD __declspec(naked) __cdecl _RegQueryValueEx(DWORD hKey, char *lpszValueName, DWORD *lpdwReserved, DWORD *lpdwType, BYTE *lpbData, DWORD *lpcbData)
+{
+	VMMJmp(_RegQueryValueEx);
 }
 
 /* from minivdd.c */
@@ -259,26 +282,77 @@ void __declspec(naked) QEMU_Control()
 	};
 }
 
+char icd_reg_path[] = "Software\\Microsoft\\Windows\\CurrentVersion\\OpenGLdrivers";
+char icd_drv_name[] = "QEMUFX";
+#define icd_reg_result_size 255
+char icd_reg_result[icd_reg_result_size] = {0};
+
+BOOL qemufx_supported()
+{
+	DWORD icd_key = 0;
+	BOOL result = FALSE;
+	
+	if(_RegOpenKey(HKEY_LOCAL_MACHINE, icd_reg_path, &icd_key) == ERROR_SUCCESS)
+	{
+		DWORD cbData = icd_reg_result_size;
+		DWORD t;
+		dbg_printf(dbg_reg_open_suc);
+		t = _RegQueryValueEx(icd_key, icd_drv_name, NULL, NULL, icd_reg_result, &cbData);
+		if(t == ERROR_SUCCESS)
+		{
+			if(cbData > 0)
+			{
+				dbg_printf(dbg_str, icd_reg_result);
+				result = TRUE;
+			}
+		}
+		else
+		{
+			dbg_printf(dbg_reg_query_fail, t);
+		}
+		
+		_RegCloseKey(icd_key);
+	}
+	else
+	{
+		dbg_printf(dbg_reg_open_fail);
+	}
+	
+	return result;
+}
+
 WORD __stdcall QEMU_API_Proc(PCRS_32 state)
 {
 	WORD rc = 0xFFFF;
 	WORD service = state->Client_EDX & 0xFFFF;
 	switch(service)
 	{
-		case VMWSVXD_PM16_VERSION:
-			rc = (VMWSVXD_MAJOR_VER << 8) | VMWSVXD_MINOR_VER;
+		case VXD_PM16_VERSION:
+			rc = (VXD_MAJOR_VER << 8) | VXD_MINOR_VER;
 			break;
-		case VMWSVXD_PM16_VMM_VERSION:
+		case VXD_PM16_VMM_VERSION:
 			rc = Get_VMM_Version();
 			break;
-		/* create region = input: ECX - num_pages; output: EDX - lin. address of descriptor, ECX - PPN of descriptor */
-		case VMWSVXD_PM16_ZEROMEM:
+		case VXD_PM16_ZEROMEM:
 		{
 			ULONG i = 0;
 			unsigned char *ptr = (unsigned char *)state->Client_ESI;
 			for(i = 0; i < state->Client_ECX; i++)
 			{
 				ptr[i] = 0;
+			}
+			rc = 1;
+			break;
+		}
+		case QEMUVXD_QEMUFX:
+		{
+			if(qemufx_supported())
+			{
+				state->Client_ECX = 1;
+			}
+			else
+			{
+				state->Client_ECX = 0;
 			}
 			rc = 1;
 			break;

@@ -569,6 +569,516 @@ typedef struct tagVxD_Desc_Block
 #define VMM___Free_Temp_V86_Data_Area 170
 /*ENDMACROS*/
 
+/*
+ *  Flag bits for _Allocate_Global_V86_Data_Area
+ */
+#define GVDAWordAlign	    0x00000001
+#define GVDADWordAlign	    0x00000002
+#define GVDAParaAlign	    0x00000004
+#define GVDAPageAlign	    0x00000008
+#define GVDAInstance	    0x00000100
+#define GVDAZeroInit	    0x00000200
+#define GVDAReclaim	0x00000400
+#define GVDAInquire	0x00000800
+#define GVDAHighSysCritOK   0x00001000
+#define GVDAOptInstance     0x00002000
+#define GVDAForceLow	    0x00004000
+
+/*
+ *  Flag bits for _Allocate_Temp_V86_Data_Area
+ */
+#define TVDANeedTilInitComplete 0x00000001
+
+// Initialization information calls (win.ini and environment parameters)
+
+/*MACROS*/
+#define VMM__Get_Profile_Decimal_Int 171
+#define VMM__Convert_Decimal_String 172
+#define VMM__Get_Profile_Fixed_Point 173
+#define VMM__Convert_Fixed_Point_String 174
+#define VMM__Get_Profile_Hex_Int 175
+#define VMM__Convert_Hex_String 176
+#define VMM__Get_Profile_Boolean 177
+#define VMM__Convert_Boolean_String 178
+#define VMM__Get_Profile_String 179
+#define VMM__Get_Next_Profile_String 180
+#define VMM__Get_Environment_String 181
+#define VMM__Get_Exec_Path 182
+#define VMM__Get_Config_Directory 183
+#define VMM__OpenFile 184
+/*ENDMACROS*/
+
+// OpenFile, if called after init, must point EDI to a buffer of at least
+// this size.
+
+#define VMM_OPENFILE_BUF_SIZE	    260
+
+/*MACROS*/
+#define VMM__Get_PSP_Segment 185
+#define VMM__GetDOSVectors 186
+#define VMM__Get_Machine_Info 187
+/*ENDMACROS*/
+
+#define GMIF_80486_BIT	0x10
+#define GMIF_80486  (1 << GMIF_80486_BIT)
+#define GMIF_PCXT_BIT	0x11
+#define GMIF_PCXT   (1 << GMIF_PCXT_BIT)
+#define GMIF_MCA_BIT	0x12
+#define GMIF_MCA    (1 << GMIF_MCA_BIT)
+#define GMIF_EISA_BIT	0x13
+#define GMIF_EISA   (1 << GMIF_EISA_BIT)
+#define GMIF_CPUID_BIT	0x14
+#define GMIF_CPUID  (1 << GMIF_CPUID_BIT)
+#define GMIF_80586_BIT  0x15
+#define GMIF_80586  (1 << GMIF_80586_BIT)
+#define GMIF_4MEGPG_BIT 0x16                // cpu supports 4 meg pages
+#define GMIF_4MEGPG (1 << GMIF_4MEGPG_BIT)
+#define GMIF_RDTSC_BIT 0x17
+#define GMIF_RDTSC ( 1 << GMIF_RDTSC_BIT )
+
+// Following service is not restricted to initialization
+
+/*MACROS*/
+#define VMM__GetSet_HMA_Info 188
+#define VMM__Set_System_Exit_Code 189
+
+#define VMM__Fatal_Error_Handler 190
+#define VMM__Fatal_Memory_Error 191
+
+//   Called by VTD only
+
+#define VMM__Update_System_Clock 192
+
+/******************************************************************************
+ *	    D E B U G G I N G	E X T E R N S
+ ******************************************************************************/
+
+#define VMM__Test_Debug_Installed 193	// Valid call in retail also
+
+#define VMM__Out_Debug_String 194
+#define VMM__Out_Debug_Chr 195
+#define VMM__In_Debug_Chr 196
+#define VMM__Debug_Convert_Hex_Binary 197
+#define VMM__Debug_Convert_Hex_Decimal 198
+
+#define VMM__Debug_Test_Valid_Handle 199
+#define VMM__Validate_Client_Ptr 200
+#define VMM__Test_Reenter 201
+#define VMM__Queue_Debug_String 202
+#define VMM__Log_Proc_Call 203
+#define VMM__Debug_Test_Cur_VM 204
+
+#define VMM__Get_PM_Int_Type 205
+#define VMM__Set_PM_Int_Type 206
+
+#define VMM__Get_Last_Updated_System_Time 207
+#define VMM__Get_Last_Updated_VM_Exec_Time 208
+
+#define VMM__Test_DBCS_Lead_Byte 209	// for DBCS Enabling
+/*ENDMACROS*/
+
+/* ASM
+.errnz	@@Test_DBCS_Lead_Byte - 100D1h	 ; VMM service table changed above this service
+*/
+
+/*************************************************************************
+ *************************************************************************
+ * END OF 3.00 SERVICE TABLE MUST NOT SHUFFLE SERVICES BEFORE THIS POINT
+ *  FOR COMPATIBILITY.
+ *************************************************************************
+ *************************************************************************/
+
+/*MACROS*/
+#define VMM___AddFreePhysPage 210
+#define VMM___PageResetHandlePAddr 211
+#define VMM___SetLastV86Page 212
+#define VMM___GetLastV86Page 213
+#define VMM___MapFreePhysReg 214
+#define VMM___UnmapFreePhysReg 215
+#define VMM___XchgFreePhysReg 216
+#define VMM___SetFreePhysRegCalBk 217
+#define VMM__Get_Next_Arena 218
+#define VMM__Get_Name_Of_Ugly_TSR 219
+#define VMM__Get_Debug_Options 220
+/*ENDMACROS*/
+
+/*
+ *  Flags for AddFreePhysPage
+ */
+#define AFPP_SWAPOUT	 0x0001 // physical memory that must be swapped out
+				// and subsequently restored at system exit
+/*
+ *  Flags for PageChangePager
+ */
+#define PCP_CHANGEPAGER     0x1 // change the pager for the page range
+#define PCP_CHANGEPAGERDATA 0x2 // change the pager data dword for the pages
+#define PCP_VIRGINONLY	    0x4 // make the above changes to virgin pages only
+
+
+/*
+ *  Bits for the ECX return of Get_Next_Arena
+ */
+#define GNA_HIDOSLINKED  0x0002 // High DOS arenas linked when WIN386 started
+#define GNA_ISHIGHDOS	 0x0004 // High DOS arenas do exist
+
+/*MACROS*/
+#define VMM__Set_Physical_HMA_Alias 221
+#define VMM___GetGlblRng0V86IntBase 222
+#define VMM___Add_Global_V86_Data_Area 223
+
+#define VMM__GetSetDetailedVMError 224
+/*ENDMACROS*/
+
+/*
+ *  Error code values for the GetSetDetailedVMError service. PLEASE NOTE
+ *  that all of these error code values need to have bits set in the high
+ *  word. This is to prevent collisions with other VMDOSAPP standard errors.
+ *  Also, the low word must be non-zero.
+ *
+ *  First set of errors (high word = 0001) are intended to be used
+ *  when a VM is CRASHED (VNE_Crashed or VNE_Nuked bit set on
+ *  VM_Not_Executeable).
+ *
+ *  PLEASE NOTE that each of these errors (high word == 0001) actually
+ *  has two forms:
+ *
+ *  0001xxxxh
+ *  8001xxxxh
+ *
+ *  The device which sets the error initially always sets the error with
+ *  the high bit CLEAR. The system will then optionally set the high bit
+ *  depending on the result of the attempt to "nicely" crash the VM. This
+ *  bit allows the system to tell the user whether the crash is likely or
+ *  unlikely to destabalize the system.
+ */
+#define GSDVME_PRIVINST     0x00010001	/* Privledged instruction */
+#define GSDVME_INVALINST    0x00010002	/* Invalid instruction */
+#define GSDVME_INVALPGFLT   0x00010003	/* Invalid page fault */
+#define GSDVME_INVALGPFLT   0x00010004	/* Invalid GP fault */
+#define GSDVME_INVALFLT     0x00010005	/* Unspecified invalid fault */
+#define GSDVME_USERNUKE     0x00010006	/* User requested NUKE of VM */
+#define GSDVME_DEVNUKE	    0x00010007	/* Device specific problem */
+#define GSDVME_DEVNUKEHDWR  0x00010008	/* Device specific problem:
+			 *   invalid hardware fiddling
+			 *   by VM (invalid I/O)
+			 */
+#define GSDVME_NUKENOMSG    0x00010009	/* Supress standard messages:
+			 *   SHELL_Message used for
+			 *   custom msg.
+			 */
+#define GSDVME_OKNUKEMASK   0x80000000	/* "Nice nuke" bit */
+
+/*
+ *  Second set of errors (high word = 0002) are intended to be used
+ *  when a VM start up is failed (VNE_CreateFail, VNE_CrInitFail, or
+ *  VNE_InitFail bit set on VM_Not_Executeable).
+ */
+#define GSDVME_INSMEMV86    0x00020001	/* base V86 mem    - V86MMGR */
+#define GSDVME_INSV86SPACE  0x00020002	/* Kb Req too large - V86MMGR */
+#define GSDVME_INSMEMXMS    0x00020003	/* XMS Kb Req	   - V86MMGR */
+#define GSDVME_INSMEMEMS    0x00020004	/* EMS Kb Req	   - V86MMGR */
+#define GSDVME_INSMEMV86HI  0x00020005	/* Hi DOS V86 mem   - DOSMGR
+			 *	     V86MMGR
+			 */
+#define GSDVME_INSMEMVID    0x00020006	/* Base Video mem   - VDD */
+#define GSDVME_INSMEMVM     0x00020007	/* Base VM mem	   - VMM
+			 *   CB, Inst Buffer
+			 */
+#define GSDVME_INSMEMDEV    0x00020008	/* Couldn't alloc base VM
+			 * memory for device.
+			 */
+#define GSDVME_CRTNOMSG     0x00020009	/* Supress standard messages:
+			 *   SHELL_Message used for
+			 *   custom msg.
+			 */
+
+/*MACROS*/
+#define VMM__Is_Debug_Chr 225
+
+//   Mono_Out services
+
+#define VMM__Clear_Mono_Screen 226
+#define VMM__Out_Mono_Chr 227
+#define VMM__Out_Mono_String 228
+#define VMM__Set_Mono_Cur_Pos 229
+#define VMM__Get_Mono_Cur_Pos 230
+#define VMM__Get_Mono_Chr 231
+
+//   Service locates a byte in ROM
+
+#define VMM__Locate_Byte_In_ROM 232
+
+#define VMM__Hook_Invalid_Page_Fault 233
+#define VMM__Unhook_Invalid_Page_Fault 234
+/*ENDMACROS*/
+
+/*
+ *  Flag bits of IPF_Flags
+ */
+#define IPF_PGDIR   0x00000001	/* Page directory entry not-present */
+#define IPF_V86PG   0x00000002	/* Unexpected not present Page in V86 */
+#define IPF_V86PGH  0x00000004	/* Like IPF_V86PG at high linear */
+#define IPF_INVTYP  0x00000008	/* page has invalid not present type */
+#define IPF_PGERR   0x00000010	/* pageswap device failure */
+#define IPF_REFLT   0x00000020	/* re-entrant page fault */
+#define IPF_VMM     0x00000040	/* Page fault caused by a VxD */
+#define IPF_PM	    0x00000080	/* Page fault by VM in Prot Mode */
+#define IPF_V86     0x00000100	/* Page fault by VM in V86 Mode */
+
+/*MACROS*/
+#define VMM__Set_Delete_On_Exit_File 235
+#define VMM__Close_VM 236
+/*ENDMACROS*/
+
+/*
+ *   Flags for Close_VM service
+ */
+
+#define CVF_CONTINUE_EXEC_BIT	0
+#define CVF_CONTINUE_EXEC   (1 << CVF_CONTINUE_EXEC_BIT)
+
+/*MACROS*/
+#define VMM__Enable_Touch_1st_Meg 237
+// Debugging only
+#define VMM__Disable_Touch_1st_Meg 238
+// Debugging only
+
+#define VMM__Install_Exception_Handler 239
+#define VMM__Remove_Exception_Handler 240
+
+#define VMM__Get_Crit_Status_No_Block 241
+/*ENDMACROS*/
+
+/* ASM
+; Check if VMM service table has changed above this service
+.errnz	 @@Get_Crit_Status_No_Block - 100F1h
+*/
+
+#ifdef WIN40SERVICES
+
+/*************************************************************************
+ *************************************************************************
+ *
+ * END OF 3.10 SERVICE TABLE MUST NOT SHUFFLE SERVICES BEFORE THIS POINT
+ *  FOR COMPATIBILITY.
+ *************************************************************************
+ *************************************************************************/
+
+/*MACROS*/
+#define VMM___GetLastUpdatedThreadExecTime 242
+
+#define VMM___Trace_Out_Service 243
+#define VMM___Debug_Out_Service 244
+#define VMM___Debug_Flags_Service 245
+/*ENDMACROS*/
+
+#endif /* WIN40SERVICES */
+
+
+/*
+ *   Flags for _Debug_Flags_Service service.
+ *
+ *   Don't change these unless you really really know what you're doing.
+ *   We need to define these even if we are in WIN31COMPAT mode.
+ */
+
+#define DFS_LOG_BIT	    0
+#define DFS_LOG 	    (1 << DFS_LOG_BIT)
+#define DFS_PROFILE_BIT 	1
+#define DFS_PROFILE	    (1 << DFS_PROFILE_BIT)
+#define DFS_TEST_CLD_BIT	2
+#define DFS_TEST_CLD		(1 << DFS_TEST_CLD_BIT)
+#define DFS_NEVER_REENTER_BIT	    3
+#define DFS_NEVER_REENTER	(1 << DFS_NEVER_REENTER_BIT)
+#define DFS_TEST_REENTER_BIT	    4
+#define DFS_TEST_REENTER	(1 << DFS_TEST_REENTER_BIT)
+#define DFS_NOT_SWAPPING_BIT	    5
+#define DFS_NOT_SWAPPING	(1 << DFS_NOT_SWAPPING_BIT)
+#define DFS_TEST_BLOCK_BIT	6
+#define DFS_TEST_BLOCK		(1 << DFS_TEST_BLOCK_BIT)
+
+#define DFS_RARE_SERVICES   0xFFFFFF80
+
+#define DFS_EXIT_NOBLOCK	(DFS_RARE_SERVICES+0)
+#define DFS_ENTER_NOBLOCK	(DFS_RARE_SERVICES+DFS_TEST_BLOCK)
+
+#define DFS_TEST_NEST_EXEC  (DFS_RARE_SERVICES+1)
+#define DFS_WIMP_DEBUG      (DFS_RARE_SERVICES+2)
+
+
+/*MACROS*/
+#define VMM__VMMAddImportModuleName 246
+
+#define VMM__VMM_Add_DDB 247
+#define VMM__VMM_Remove_DDB 248
+
+#define VMM__Test_VM_Ints_Enabled 249
+#define VMM___BlockOnID 250
+
+#define VMM__Schedule_Thread_Event 251
+#define VMM__Cancel_Thread_Event 252
+#define VMM__Set_Thread_Time_Out 253
+#define VMM__Set_Async_Time_Out 254
+
+#define VMM___AllocateThreadDataSlot 255
+#define VMM___FreeThreadDataSlot 256
+/*ENDMACROS*/
+
+/*
+ *  Flag equates for _CreateMutex
+ */
+#define MUTEX_MUST_COMPLETE	1L
+#define MUTEX_NO_CLEANUP_THREAD_STATE	2L
+
+/*MACROS*/
+#define VMM___CreateMutex 257
+
+#define VMM___DestroyMutex 258
+#define VMM___GetMutexOwner 259
+#define VMM__Call_When_Thread_Switched 260
+
+#define VMM__VMMCreateThread 261
+#define VMM___GetThreadExecTime 262
+#define VMM__VMMTerminateThread 263
+
+#define VMM__Get_Cur_Thread_Handle 264
+#define VMM__Test_Cur_Thread_Handle 265
+#define VMM__Get_Sys_Thread_Handle 266
+#define VMM__Test_Sys_Thread_Handle 267
+#define VMM__Validate_Thread_Handle 268
+#define VMM__Get_Initial_Thread_Handle 269
+#define VMM__Test_Initial_Thread_Handle 270
+#define VMM__Debug_Test_Valid_Thread_Handle 271
+#define VMM__Debug_Test_Cur_Thread 272
+
+#define VMM__VMM_GetSystemInitState 273
+
+#define VMM__Cancel_Call_When_Thread_Switched 274
+#define VMM__Get_Next_Thread_Handle 275
+#define VMM__Adjust_Thread_Exec_Priority 276
+
+#define VMM___Deallocate_Device_CB_Area 277
+#define VMM__Remove_IO_Handler 278
+#define VMM__Remove_Mult_IO_Handlers 279
+#define VMM__Unhook_V86_Int_Chain 280
+#define VMM__Unhook_V86_Fault 281
+#define VMM__Unhook_PM_Fault 282
+#define VMM__Unhook_VMM_Fault 283
+#define VMM__Unhook_Device_Service 284
+
+#define VMM___PageReserve 285
+#define VMM___PageCommit 286
+#define VMM___PageDecommit 287
+#define VMM___PagerRegister 288
+#define VMM___PagerQuery 289
+#define VMM___PagerDeregister 290
+#define VMM___ContextCreate 291
+#define VMM___ContextDestroy 292
+#define VMM___PageAttach 293
+#define VMM___PageFlush 294
+#define VMM___SignalID 295
+#define VMM___PageCommitPhys 296
+
+#define VMM___Register_Win32_Services 297
+
+#define VMM__Cancel_Call_When_Not_Critical 298
+#define VMM__Cancel_Call_When_Idle 299
+#define VMM__Cancel_Call_When_Task_Switched 300
+
+#define VMM___Debug_Printf_Service 301
+#define VMM___EnterMutex 302
+#define VMM___LeaveMutex 303
+#define VMM__Simulate_VM_IO 304
+#define VMM__Signal_Semaphore_No_Switch 305
+
+#define VMM___ContextSwitch 306
+#define VMM___PageModifyPermissions 307
+#define VMM___PageQuery 308
+
+#define VMM___EnterMustComplete 309
+#define VMM___LeaveMustComplete 310
+#define VMM___ResumeExecMustComplete 311
+/*ENDMACROS*/
+
+/*
+ *  Flag equates for _GetThreadTerminationStatus
+ */
+#define THREAD_TERM_STATUS_CRASH_PEND	    1L
+#define THREAD_TERM_STATUS_NUKE_PEND	    2L
+#define THREAD_TERM_STATUS_SUSPEND_PEND     4L
+
+/*MACROS*/
+#define VMM___GetThreadTerminationStatus 312
+#define VMM___GetInstanceInfo 313
+/*ENDMACROS*/
+
+/*
+ *  Return values for _GetInstanceInfo
+ */
+#define INSTINFO_NONE	0	/* no data instanced in range */
+#define INSTINFO_SOME	1	/* some data instanced in range */
+#define INSTINFO_ALL	2	/* all data instanced in range */
+
+/*MACROS*/
+#define VMM___ExecIntMustComplete 314
+#define VMM___ExecVxDIntMustComplete 315
+
+#define VMM__Begin_V86_Serialization 316
+
+#define VMM__Unhook_V86_Page 317
+#define VMM__VMM_GetVxDLocationList 318
+#define VMM__VMM_GetDDBList 319
+#define VMM__Unhook_NMI_Event 320
+
+#define VMM__Get_Instanced_V86_Int_Vector 321
+#define VMM__Get_Set_Real_DOS_PSP 322
+/*ENDMACROS*/
+
+#define GSRDP_Set   0x0001
+
+/*MACROS*/
+#define VMM__Call_Priority_Thread_Event 323
+#define VMM__Get_System_Time_Address 324
+#define VMM__Get_Crit_Status_Thread 325
+
+#define VMM__Get_DDB 326
+#define VMM__Directed_Sys_Control 327
+/*ENDMACROS*/
+
+// Registry APIs for VxDs
+/*MACROS*/
+#define VMM___RegOpenKey 328
+#define VMM___RegCloseKey 329
+#define VMM___RegCreateKey 330
+#define VMM___RegDeleteKey 331
+#define VMM___RegEnumKey 332
+#define VMM___RegQueryValue 333
+#define VMM___RegSetValue 334
+#define VMM___RegDeleteValue 335
+#define VMM___RegEnumValue 336
+#define VMM___RegQueryValueEx 337
+#define VMM___RegSetValueEx 338
+/*ENDMACROS*/
+
+#ifndef REG_SZ	    // define only if not there already
+
+#define REG_SZ	    0x0001
+#define REG_BINARY  0x0003
+
+#endif
+
+#ifndef HKEY_LOCAL_MACHINE  // define only if not there already
+
+#define HKEY_CLASSES_ROOT	0x80000000UL
+#define HKEY_CURRENT_USER	0x80000001UL
+#define HKEY_LOCAL_MACHINE	0x80000002UL
+#define HKEY_USERS		0x80000003UL
+#define HKEY_PERFORMANCE_DATA	0x80000004UL
+#define HKEY_CURRENT_CONFIG	0x80000005UL
+#define HKEY_DYN_DATA		0x80000006UL
+
+#endif
+
 #pragma pack(push)
 #pragma pack(1)
 typedef struct tagCRS_32

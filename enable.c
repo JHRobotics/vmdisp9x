@@ -359,8 +359,9 @@ UINT WINAPI __loadds Enable( LPVOID lpDevice, UINT style, LPSTR lpDeviceType,
          * Realistically, software rendering in a VM on a modern system is going to be a lot
          * faster than most mid-1990s graphics cards.
          */
-        lpInfo->dpCaps1 |= C1_COLORCURSOR | C1_REINIT_ABLE | C1_GLYPH_INDEX | C1_BYTE_PACKED; /* | C1_SLOW_CARD */;
+        lpInfo->dpCaps1 |= C1_COLORCURSOR | C1_REINIT_ABLE; /* | C1_SLOW_CARD */;
         //lpInfo->dpCaps1 &= ~C1_GLYPH_INDEX;
+        lpInfo->dpText |= TC_CP_STROKE | TC_RA_ABLE;
         
         dbg_printf( "lpInfo->dpCaps1: %lX\n", (DWORD)lpInfo->dpCaps1);
 

@@ -37,7 +37,11 @@ THE SOFTWARE.
 
 #ifdef SVGA
 # include "svga_all.h"
-# include "control_vxd.h"
+# include "vxdcall.h"
+#endif
+
+#ifdef QEMU
+# include "vxdcall.h"
 #endif
 
 /*
@@ -133,6 +137,15 @@ const static opengl_icd_t software_icd = {
 	0x1,
 	"SOFTWARE"
 };
+
+#ifdef QEMU
+/* Mesa3D SVGA3D OpengGL */
+const static opengl_icd_t qemu_icd = {
+	0x2,
+	0x1,
+	"QEMUFX"
+};
+#endif
 
 #ifdef SVGA
 /* Mesa3D SVGA3D OpengGL */
@@ -578,7 +591,7 @@ LONG WINAPI __loadds Control(LPVOID lpDevice, UINT function,
   }
   else if(function == OPENGL_GETINFO) /* input: NULL, output: opengl_icd_t */
   {
-#ifdef SVGA  	
+#if defined(SVGA)
   	if(wMesa3DEnabled == 0)
   	{
   		_fmemcpy(lpOutput, &software_icd, OPENGL_ICD_SIZE); /* no 3D use software OPENGL */
@@ -587,6 +600,16 @@ LONG WINAPI __loadds Control(LPVOID lpDevice, UINT function,
   	{
   		_fmemcpy(lpOutput, &vmwsvga_icd, OPENGL_ICD_SIZE); /* accelerated OPENGL */
   	}
+#elif defined(QEMU)
+		if(VXD_QEMUFX_supported())
+		{
+			_fmemcpy(lpOutput, &qemu_icd, OPENGL_ICD_SIZE);
+		}
+		else
+		{
+			_fmemcpy(lpOutput, &software_icd, OPENGL_ICD_SIZE);
+		}
+		
 #else
     _fmemcpy(lpOutput, &software_icd, OPENGL_ICD_SIZE);
 #endif

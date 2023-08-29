@@ -23,7 +23,6 @@ THE SOFTWARE.
 *****************************************************************************/
 #include "winhack.h"
 #include "vmm.h"
-#include "vmwsvxd.h"
 
 #include "minivdd32.h"
 

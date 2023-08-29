@@ -28,8 +28,8 @@ THE SOFTWARE.
 #include <stdint.h>
 #include "winhack.h" /* BOOL */
 
-#include "vmwsvxd.h"
-#include "control_vxd.h"
+#include "vxdcodes.h"
+#include "vxdcall.h"
 
 #ifdef DBGPRINT
 extern void dbg_printf( const char *s, ... );
@@ -58,7 +58,7 @@ BOOL VXD_load()
 		xor di,di
 		mov es,di
 		mov ax, 1684H
-		mov bx, VMWSVXD_DEVICE_ID
+		mov bx, VXD_DEVICE_ID
 		int 2FH
 		mov word ptr [VXD_srv],di
 		mov word ptr [VXD_srv+2],es
@@ -73,6 +73,39 @@ BOOL VXD_load()
 	return VXD_srv != 0;
 }
 
+void VXD_zeromem(DWORD LAddr, DWORD size)
+{
+	static DWORD sLAddr;
+	static DWORD ssize;
+	
+	sLAddr = LAddr;
+	ssize = size;
+	
+	if(VXD_srv != 0)
+	{
+		_asm
+		{
+			.386
+			push eax
+			push edx
+			push ecx
+			push esi
+		  
+		  mov edx, VXD_PM16_ZEROMEM
+		  mov esi, [sLAddr]
+		  mov ecx, [ssize]
+		  call dword ptr [VXD_srv]
+		  
+		  pop esi
+		  pop ecx
+			pop edx
+			pop eax
+		}
+	}
+}
+
+/*** SVGA ***/
+#ifdef SVGA
 BOOL VXD_CreateRegion(DWORD nPages, DWORD __far *lpLAddr, DWORD __far *lpPPN, DWORD __far *lpPGBLKAddr)
 {
 	static DWORD snPages;
@@ -162,37 +195,6 @@ BOOL VXD_FreeRegion(DWORD LAddr, DWORD PGBLKAddr)
 	}
 	
 	return FALSE;
-}
-
-void VXD_zeromem(DWORD LAddr, DWORD size)
-{
-	static DWORD sLAddr;
-	static DWORD ssize;
-	
-	sLAddr = LAddr;
-	ssize = size;
-	
-	if(VXD_srv != 0)
-	{
-		_asm
-		{
-			.386
-			push eax
-			push edx
-			push ecx
-			push esi
-		  
-		  mov edx, VMWSVXD_PM16_ZEROMEM
-		  mov esi, [sLAddr]
-		  mov ecx, [ssize]
-		  call dword ptr [VXD_srv]
-		  
-		  pop esi
-		  pop ecx
-			pop edx
-			pop eax
-		}
-	}
 }
 
 DWORD VXD_apiver()
@@ -356,6 +358,36 @@ BOOL VXD_FIFOCommit(DWORD bytes, BOOL sync)
 		}
 	
 		return TRUE;
+	}
+	
+	return FALSE;
+}
+#endif /* SVGA */
+
+/*** QEMU ***/
+BOOL VXD_QEMUFX_supported()
+{
+	static DWORD result = 0;
+	
+	if(VXD_srv != 0)
+	{
+		_asm
+		{
+			.386
+			push eax
+			push edx
+			push ecx
+			
+		  mov edx, QEMUVXD_QEMUFX
+		  call dword ptr [VXD_srv]
+			mov [result], ecx
+			
+			pop ecx
+			pop edx
+			pop eax
+		}
+	
+		return result == 0 ? FALSE : TRUE;
 	}
 	
 	return FALSE;

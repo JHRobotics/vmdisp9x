@@ -32,7 +32,7 @@ THE SOFTWARE.
 #ifdef SVGA
 # include "svga_all.h"
 # include <string.h>
-# include "control_vxd.h"
+# include "vxdcall.h"
 
 /* from control.c */
 # define LOCK_FIFO 6

@@ -1,10 +1,11 @@
 OBJS = dibthunk.obj dibcall.obj enable.obj init.obj palette.obj &
        scrsw.obj sswhook.obj modes.obj boxv.obj control.obj &
-       drvlib.obj control_vxd.obj minivdd_svga.obj vmwsvxd.obj &
+       drvlib.obj vxdcall_svga.obj minivdd_svga.obj vmwsvxd.obj &
        scrsw_svga.obj control_svga.obj modes_svga.obj palette_svga.obj &
        pci.obj svga.obj svga3d.obj svga32.obj pci32.obj dddrv.obj &
        enable_svga.obj dibcall_svga.obj boxv_qemu.obj modes_qemu.obj &
-       init_qemu.obj init_svga.obj qemuvxd.obj minivdd_qemu.obj
+       init_qemu.obj init_svga.obj qemuvxd.obj minivdd_qemu.obj &
+       vxdcall_qemu.obj control_qemu.obj
 
 INCS = -I$(%WATCOM)\h\win -Iddk -Ivmware
 
@@ -102,8 +103,14 @@ control.obj : control.c .autodepend
 
 control_svga.obj : control_svga.c .autodepend
 	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
+	
+control_qemu.obj : control_qemu.c .autodepend
+	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
 
-control_vxd.obj : control_vxd.c .autodepend
+vxdcall_svga.obj : vxdcall_svga.c .autodepend
+	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
+
+vxdcall_qemu.obj : vxdcall_qemu.c .autodepend
 	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
 
 palette.obj : palette.c .autodepend
@@ -261,7 +268,7 @@ file svga.obj
 file svga3d.obj
 file pci.obj
 file control_svga.obj
-file control_vxd.obj
+file vxdcall_svga.obj
 file dddrv.obj
 name vmwsmini.drv
 option map=vmwsmini.map
@@ -328,7 +335,8 @@ file scrsw.obj
 file sswhook.obj
 file modes_qemu.obj
 file boxv_qemu.obj
-file control.obj
+file control_qemu.obj
+file vxdcall_qemu.obj
 file dddrv.obj
 name qemumini.drv
 option map=qemumini.map

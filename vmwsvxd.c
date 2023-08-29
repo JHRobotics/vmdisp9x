@@ -27,7 +27,7 @@ THE SOFTWARE.
 
 #include "winhack.h"
 #include "vmm.h"
-#include "vmwsvxd.h"
+#include "vxdcodes.h"
 
 #include "svga_all.h"
 
@@ -73,9 +73,9 @@ void VMWS_API_Entry();
 DDB VMWS_DDB = {
 	NULL,                       // must be NULL
 	DDK_VERSION,                // DDK_Version
-	VMWSVXD_DEVICE_ID,         // Device ID
-	VMWSVXD_MAJOR_VER,         // Major Version
-	VMWSVXD_MINOR_VER,         // Minor Version
+	VXD_DEVICE_ID,              // Device ID
+	VXD_MAJOR_VER,              // Major Version
+	VXD_MINOR_VER,              // Minor Version
 	NULL,
 	"VMWSVXD",
 	VDD_Init_Order, //Undefined_Init_Order,
@@ -188,7 +188,7 @@ Bool svga_init_success = FALSE;
  **/
 DWORD Get_VMM_Version()
 {
-	static WORD ver;
+	static WORD ver = 0;
 	
 	_asm push ecx
 	_asm push eax
@@ -874,10 +874,10 @@ WORD __stdcall VMWS_API_Proc(PCRS_32 state)
 	WORD service = state->Client_EDX & 0xFFFF;
 	switch(service)
 	{
-		case VMWSVXD_PM16_VERSION:
-			rc = (VMWSVXD_MAJOR_VER << 8) | VMWSVXD_MINOR_VER;
+		case VXD_PM16_VERSION:
+			rc = (VXD_MAJOR_VER << 8) | VXD_MINOR_VER;
 			break;
-		case VMWSVXD_PM16_VMM_VERSION:
+		case VXD_PM16_VMM_VERSION:
 			rc = Get_VMM_Version();
 			break;
 		/* create region = input: ECX - num_pages; output: EDX - lin. address of descriptor, ECX - PPN of descriptor */
@@ -920,7 +920,7 @@ WORD __stdcall VMWS_API_Proc(PCRS_32 state)
 			break;			
 		}
 		/* clear memory on linear address (ESI) by defined size (ECX) */
-		case VMWSVXD_PM16_ZEROMEM:
+		case VXD_PM16_ZEROMEM:
 			memset((void*)state->Client_ESI, 0, state->Client_ECX);
 			rc = 1;
 			break;
