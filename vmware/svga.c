@@ -122,7 +122,11 @@ static char dbg_siz[] = "Size of gSVGA(1) = %d %d\n";
  */
 
 int
+#ifndef VXD32
 SVGA_Init(Bool enableFIFO)
+#else
+SVGA_Init(Bool enableFIFO, uint32 hwversion)
+#endif
 {
 	 int vga_found = 0;
 	
@@ -189,8 +193,13 @@ SVGA_Init(Bool enableFIFO)
     *      a. If we read back the same value, this ID is supported. We're done.
     *      b. If not, decrement the ID and repeat.
     */
+    
+   if(hwversion == 0)
+   {
+      hwversion = SVGA_VERSION_2;
+   }
 
-   gSVGA.deviceVersionId = SVGA_ID_2;
+   gSVGA.deviceVersionId = SVGA_MAKE_ID(hwversion);
    do {
       SVGA_WriteReg(SVGA_REG_ID, gSVGA.deviceVersionId);
       if (SVGA_ReadReg(SVGA_REG_ID) == gSVGA.deviceVersionId) {

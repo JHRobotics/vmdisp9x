@@ -90,7 +90,7 @@ typedef struct uint64 {
 #define SVGA_MAKE_ID(ver)  (SVGA_MAGIC << 8 | (ver))
 
 #define SVGA_VERSION_3     3
-#define SVGA_ID_3					SVGA_MAKE_ID(SVGA_VERSION_3)
+#define SVGA_ID_3					 SVGA_MAKE_ID(SVGA_VERSION_3)
 
 /* Version 2 let the address of the frame buffer be unsigned on Win32 */
 #define SVGA_VERSION_2     2

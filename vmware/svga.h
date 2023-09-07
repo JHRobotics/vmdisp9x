@@ -128,7 +128,7 @@ extern SVGADevice gSVGA;
 #ifndef VXD32
 int  __loadds SVGA_Init(Bool enableFIFO);
 #else
-int SVGA_Init(Bool enableFIFO);
+int SVGA_Init(Bool enableFIFO, uint32 hwversion);
 #endif
 void SVGA_Enable(void);
 void SVGA_SetMode(uint32 width, uint32 height, uint32 bpp);

@@ -187,6 +187,10 @@ void WINAPI __loadds MoveCursor(WORD absX, WORD absY)
 					SVGA_MoveCursor(cursorVisible, absX, absY, 0);
 					SVGAHDA_unlock(LOCK_FIFO);
 				}
+				
+				/* save last position */
+	  	  cursorX = absX;
+	    	cursorY = absY;
 			}
 			else
 			{
@@ -279,6 +283,13 @@ WORD WINAPI __loadds SetCursor_driver(CURSORSHAPE __far *lpCursor)
 							VXD_FIFOCommitAll();
 							SVGAHDA_unlock(LOCK_FIFO);
 						}
+					}
+					
+					/* move cursor to last known position */
+					if(SVGAHDA_trylock(LOCK_FIFO))
+					{
+						SVGA_MoveCursor(cursorVisible, cursorX, cursorY, 0);
+						SVGAHDA_unlock(LOCK_FIFO);
 					}
 					
 					cursorVisible = TRUE;

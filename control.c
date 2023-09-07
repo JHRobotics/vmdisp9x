@@ -193,6 +193,10 @@ typedef struct _svga_hda_t
 #define ULF_PITCH  4
 #define ULF_LOCK_UL   5
 #define ULF_LOCK_FIFO 6
+#define ULF_LOCK_FB   7
+#define ULF_LOCK_CB   8
+#define ULF_LOCK_GMR  9
+#define ULF_CNT       10
 
 #define GMR_INDEX_CNT 6
 #define CTX_INDEX_CNT 2
@@ -346,8 +350,8 @@ void SVGAHDA_init()
 {
 	_fmemset(&SVGAHDA, 0, sizeof(svga_hda_t));
   
-  SVGAHDA.ul_flags_index = 0; // dirty, width, height, bpp, pitch, fifo_lock, ul_lock, fb_lock
-  SVGAHDA.ul_fence_index = SVGAHDA.ul_flags_index + 8;
+  SVGAHDA.ul_flags_index = 0; // dirty, width, height, bpp, pitch, fifo_lock, ul_lock, fb_lock...
+  SVGAHDA.ul_fence_index = SVGAHDA.ul_flags_index + ULF_CNT;
   SVGAHDA.ul_gmr_start   = SVGAHDA.ul_fence_index + 1;
   SVGAHDA.ul_gmr_count   = SVGA_ReadReg(SVGA_REG_GMR_MAX_IDS);
   //SVGAHDA.ul_gmr_count   = SVGA3D_MAX_MOBS;
@@ -368,6 +372,9 @@ void SVGAHDA_init()
 		
 		SVGAHDA.userlist_pm16[ULF_LOCK_UL] = 0;
 		SVGAHDA.userlist_pm16[ULF_LOCK_FIFO] = 0;
+		SVGAHDA.userlist_pm16[ULF_LOCK_FB] = 0;
+		SVGAHDA.userlist_pm16[ULF_LOCK_CB] = 0;
+		SVGAHDA.userlist_pm16[ULF_LOCK_GMR] = 0;
 	}
 	
 	dbg_printf("SVGAHDA_init: %ld\n", SVGAHDA.userlist_length * sizeof(uint32_t));

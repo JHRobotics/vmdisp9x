@@ -35,6 +35,10 @@ THE SOFTWARE.
 
 #include "version.h"
 
+#ifndef ERROR_SUCCESS
+#define ERROR_SUCCESS 0
+#endif
+
 #ifndef PAGE_SIZE
 #define PAGE_SIZE 4096
 #endif
@@ -125,6 +129,7 @@ char dbg_region_info_2[] = "Region address = %lX, PPN = %lX, GMRBLK = %lX\n";
 
 char dbg_mapping[] = "Memory mapping:\n";
 char dbg_mapping_map[] = "  %X -> %X\n";
+char dbg_destroy[] = "Driver destroyed\n";
 
 static char dbg_siz[] = "Size of gSVGA(2) = %d %d\n";
 
@@ -180,6 +185,7 @@ otinfo_entry_t otable[SVGA_OTABLE_DX_MAX] = {
 
 DWORD *DispatchTable = 0;
 DWORD DispatchTableLength = 0;
+DWORD ThisVM = 0;
 
 Bool svga_init_success = FALSE;
 
@@ -231,6 +237,32 @@ ULONG __declspec(naked) __cdecl _MapPhysToLinear(ULONG PhysAddr, ULONG nBytes, U
 	VMMJmp(_MapPhysToLinear);
 }
 
+ULONG __declspec(naked) __cdecl GetNulPageHandle()
+{
+	VMMJmp(_MapPhysToLinear);
+}
+
+ULONG __declspec(naked) __cdecl _PhysIntoV86(ULONG PhysPage, ULONG VM, ULONG VMLinPgNum, ULONG nPages, ULONG flags)
+{
+	VMMJmp(_PhysIntoV86);
+}
+
+DWORD __declspec(naked) __cdecl _RegOpenKey(DWORD hKey, char *lpszSubKey, DWORD *lphKey)
+{
+	VMMJmp(_RegOpenKey);
+}
+
+DWORD __declspec(naked) __cdecl _RegCloseKey(DWORD hKey)
+{
+	VMMJmp(_RegCloseKey);
+}
+
+DWORD __declspec(naked) __cdecl _RegQueryValueEx(DWORD hKey, char *lpszValueName, DWORD *lpdwReserved, DWORD *lpdwType, BYTE *lpbData, DWORD *lpcbData)
+{
+	VMMJmp(_RegQueryValueEx);
+}
+
+
 /**
  * VDD calls wrapers
  **/
@@ -280,6 +312,8 @@ void __declspec(naked) Device_IO_Control_proc()
 }
 
 void Device_Init_proc();
+void __stdcall Device_Dynamic_Init_proc(DWORD VM);
+void __stdcall Device_Exit_proc(DWORD VM);
 
 /*
  * service module calls (init, exit, deviceIoControl, ...)
@@ -304,7 +338,6 @@ void __declspec(naked) VMWS_Control()
 		control_1: 
 		cmp eax,Device_Init
 		jnz control_2
-			pushad
 		  call Device_Init_proc
 			popad
 			clc
@@ -313,7 +346,8 @@ void __declspec(naked) VMWS_Control()
 		cmp eax,0x1B
 		jnz control_3
 			pushad
-		  call Device_Init_proc
+			push ebx ; VM handle
+		  call Device_Dynamic_Init_proc
 		  popad
 			clc
 			ret
@@ -322,6 +356,15 @@ void __declspec(naked) VMWS_Control()
 		jnz control_4
 			jmp Device_IO_Control_proc
 		control_4:
+		cmp eax,System_Exit
+		jnz control_5
+			pushad
+			push ebx ; VM handle
+		  call Device_Exit_proc
+			popad
+			clc
+			ret
+		control_5:	
 		clc
 	  ret
 	};
@@ -436,7 +479,8 @@ static BOOL GMRAlloc(ULONG nPages, ULONG *outDataAddr, ULONG *outGMRAddr, ULONG 
 			// add extra descriptors for pages edge
 			blk_pages = ((blocks+blk_pages+1)/(P_SIZE/sizeof(SVGAGuestMemDescriptor))) + 1;
 			
-			pgblk = _PageAllocate(blk_pages, PG_SYS, 0, 0, 0x0, 0x100000, &pgblk_phy, PAGECONTIG | PAGEUSEALIGN | PAGEFIXED);
+			//pgblk = _PageAllocate(blk_pages, PG_SYS, 0, 0, 0x0, 0x100000, &pgblk_phy, PAGECONTIG | PAGEUSEALIGN | PAGEFIXED);
+			pgblk = _PageAllocate(blk_pages, PG_SYS, 0, 0, 0x0, 0x100000, NULL, PAGEFIXED);
 			if(pgblk)
 			{
 				desc = (SVGAGuestMemDescriptor*)pgblk;
@@ -478,37 +522,45 @@ static BOOL GMRAlloc(ULONG nPages, ULONG *outDataAddr, ULONG *outGMRAddr, ULONG 
 				
 				*outDataAddr = laddr;
 				*outGMRAddr = pgblk;
-				*outPPN = (pgblk_phy/P_SIZE);
+				*outPPN = getPPN(pgblk); //(pgblk_phy/P_SIZE);
 				
 				if(outMobAddr)
 				{
-					DWORD mobphy;
-					/* for simplicity we're always creating table of depth 2, first page is page of PPN pages */
-					DWORD *mob = (DWORD *)_PageAllocate(1 + (nPages + PTONPAGE - 1)/PTONPAGE, PG_SYS, 0, 0, 0x0, 0x100000, &mobphy,
-						PAGECONTIG | PAGEUSEALIGN | PAGEFIXED);
-					
-					if(mob)
+					if(gb_support) /* don't create MOBs for Gen9 */
 					{
-						int i;
-						/* dim 1 */
-						for(i = 0; i < (nPages + PTONPAGE - 1)/PTONPAGE; i++)
-						{
-							mob[i] = (mobphy/PAGE_SIZE) + i + 1;
-						}
+						DWORD mobphy;
+						/* for simplicity we're always creating table of depth 2, first page is page of PPN pages */
+						DWORD *mob = (DWORD *)_PageAllocate(1 + (nPages + PTONPAGE - 1)/PTONPAGE, PG_SYS, 0, 0, 0x0, 0x100000, &mobphy,
+							PAGECONTIG | PAGEUSEALIGN | PAGEFIXED);
 						
-						/* dim 2 */
-						for(i = 0; i < nPages; i++)
+						if(mob)
 						{
-							mob[PTONPAGE + i] = getPPN(laddr + i*PAGE_SIZE);
+							int i;
+							/* dim 1 */
+							for(i = 0; i < (nPages + PTONPAGE - 1)/PTONPAGE; i++)
+							{
+								mob[i] = (mobphy/PAGE_SIZE) + i + 1;
+							}
+							
+							/* dim 2 */
+							for(i = 0; i < nPages; i++)
+							{
+								mob[PTONPAGE + i] = getPPN(laddr + i*PAGE_SIZE);
+							}
+							
+							*outMobAddr = (DWORD)mob;
+							if(outMobPPN) *outMobPPN = mobphy/PAGE_SIZE;
 						}
-						
-						*outMobAddr = (DWORD)mob;
-						if(outMobPPN) *outMobPPN = mobphy/PAGE_SIZE;
+						else
+						{
+							*outMobAddr = NULL;
+							if(outMobPPN) *outMobPPN = getPPN(laddr);
+						}
 					}
 					else
 					{
 						*outMobAddr = NULL;
-						if(outMobPPN) *outMobPPN = getPPN(laddr);
+						if(outMobPPN) *outMobPPN = NULL;
 					}
 				}
 				
@@ -965,7 +1017,7 @@ WORD __stdcall VMWS_API_Proc(PCRS_32 state)
 				cbe->cmd = SVGA_DC_CMD_START_STOP_CONTEXT;
 				cbe->cbstart.enable  = 0;
 				cbe->cbstart.context = SVGA_CB_CONTEXT_0;
-				submitCB(cbe, SVGA_CB_CONTEXT_DEVICE, FALSE); // FALSE?
+				submitCB(cbe, SVGA_CB_CONTEXT_DEVICE, TRUE);
 			}
 			rc = 1;
 			break;
@@ -1108,29 +1160,112 @@ void __declspec(naked) VMWS_API_Entry()
 
 #define VDDFUNC(id, procname) DispatchTable[id] = (DWORD)(procname ## _entry);
 
-/* init device and fill dispatch table */
-void Device_Init_proc()
+union
 {
+	DWORD dw;
+	char str[64];
+} RegReadConfBuf = {0};
+
+char SVGA_conf_path[] = "Software\\SVGA";
+
+char SVGA_conf_hw_cursor[]  = "hwcursor";
+char SVGA_conf_vram256[]    = "vram256";
+char SVGA_conf_rgb565bug[]  = "rgb565bug";
+char SVGA_conf_cb[]         = "commandbuffers";
+char SVGA_conf_hw_version[] = "hwversion";
+
+BOOL RegReadConf(const char *value, DWORD *out)
+{
+	DWORD hKey;
+	DWORD type;
+	DWORD cbData = sizeof(RegReadConfBuf);
+	BOOL rv = FALSE;
+	
+	if(_RegOpenKey(HKEY_LOCAL_MACHINE, SVGA_conf_path, &hKey) == ERROR_SUCCESS)
+	{
+		if(_RegQueryValueEx(hKey, (char*)value, 0, &type, &(RegReadConfBuf.str), &cbData) == ERROR_SUCCESS)
+		{
+			if(type == REG_SZ)
+			{
+				DWORD cdw = 0;
+				char *ptr = &(RegReadConfBuf.str);
+				
+				while(*ptr == ' '){ptr++;}
+				
+				while(*ptr >= '0' && *ptr <= '9')
+				{
+					cdw *= 10;
+					cdw += *ptr - '0';
+					ptr++;
+				}
+				
+				*out = cdw;
+			}
+			else
+			{
+				*out = RegReadConfBuf.dw;
+			}
+			
+			rv = TRUE;
+		}
+		
+		_RegCloseKey(hKey);
+	}
+	
+	return rv;
+}
+
+/* init device and fill dispatch table */
+void Device_Dynamic_Init_proc(DWORD VM)
+{
+	DWORD conf_hw_cursor = 0;
+	DWORD conf_vram256 = 0;
+	DWORD conf_rgb565bug = 1;
+	DWORD conf_cb = 1;
+	DWORD conf_hw_version = SVGA_VERSION_2;
+	
 	dbg_printf(dbg_Device_Init_proc);
-	
+
 	// VMMCall _Allocate_Device_CB_Area
-	
-	if(SVGA_Init(FALSE) == 0)
+ 	ThisVM = VM;
+ 	
+ 	RegReadConf(SVGA_conf_hw_cursor,  &conf_hw_cursor);
+ 	RegReadConf(SVGA_conf_vram256,    &conf_vram256);
+ 	RegReadConf(SVGA_conf_rgb565bug,  &conf_rgb565bug);
+ 	RegReadConf(SVGA_conf_cb,         &conf_cb); 
+ 	RegReadConf(SVGA_conf_hw_version, &conf_hw_version);
+ 	
+ 	
+	if(SVGA_Init(FALSE, conf_hw_version) == 0)
 	{
 		/* default flags */
-		gSVGA.userFlags |= SVGA_USER_FLAGS_RGB565_BROKEN | SVGA_USER_FLAGS_128MB_MAX;
+		gSVGA.userFlags = 0;
+		
+		if(conf_rgb565bug)
+		{
+			gSVGA.userFlags |= SVGA_USER_FLAGS_RGB565_BROKEN;
+		}
+		
+		if(SVGA_conf_vram256)
+		{
+			gSVGA.userFlags |= SVGA_USER_FLAGS_128MB_MAX;
+		}
 		
 		if(SVGA_ReadReg(SVGA_REG_CAPABILITIES) & SVGA_CAP_CURSOR)
 		{
-			gSVGA.userFlags |= SVGA_USER_FLAGS_HWCURSOR;
+			if(conf_hw_cursor)
+			{
+				gSVGA.userFlags |= SVGA_USER_FLAGS_HWCURSOR;
+			}
 		}
 		
 		if(SVGA_ReadReg(SVGA_REG_CAPABILITIES) & SVGA_CAP_ALPHA_CURSOR)
 		{
-			gSVGA.userFlags |= SVGA_USER_FLAGS_ALPHA_CUR;
+			if(conf_hw_cursor)
+			{
+				gSVGA.userFlags |= SVGA_USER_FLAGS_ALPHA_CUR;
+			}
 		}
-		
-		// TODO: read config from registry
 		
 		if(gSVGA.userFlags & SVGA_USER_FLAGS_128MB_MAX)
 		{
@@ -1184,9 +1319,12 @@ void Device_Init_proc()
 		/* allocate command buffers if supported */
 		if(SVGA_ReadReg(SVGA_REG_CAPABILITIES) & (SVGA_CAP_COMMAND_BUFFERS | SVGA_CAP_CMD_BUFFERS_2))
 		{
-			AllocateCB();
-			cb_support = TRUE;
-			dbg_printf(dbg_cb_on);
+			if(conf_cb)
+			{
+				AllocateCB();
+				cb_support = TRUE;
+				dbg_printf(dbg_cb_on);
+			}
 		}
 		
 		/* register miniVDD functions */
@@ -1419,4 +1557,40 @@ DWORD __stdcall Device_IO_Control_entry(struct DIOCParams *params)
 	dbg_printf(dbg_dic_unknown, params->dwIoControlCode);
 	
 	return 1;
+}
+
+void Device_Init_proc()
+{
+	/* nop */
+}
+
+/* shutdown procedure */
+void Device_Exit_proc(DWORD VM)
+{
+	uint32 *screen_id;
+	
+	dbg_printf(dbg_destroy);
+	
+	/* stop context 0 */
+	if(cb_context0)
+	{
+		cb_enable_t *cbe;
+		cb_context0 = FALSE;
+		
+		syncCB();
+		do
+		{
+			cbe = LockCB();
+		} while(cbe == NULL);
+		memset(cbe, 0, sizeof(cb_enable_t));
+		cbe->cbheader.length = sizeof(SVGADCCmdStartStop) + sizeof(uint32);
+		cbe->cmd = SVGA_DC_CMD_START_STOP_CONTEXT;
+		cbe->cbstart.enable  = 0;
+		cbe->cbstart.context = SVGA_CB_CONTEXT_0;
+		submitCB(cbe, SVGA_CB_CONTEXT_DEVICE, TRUE);
+	}
+	
+	SVGA_Disable();
+	
+	// TODO: free memory
 }
