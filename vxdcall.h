@@ -15,7 +15,9 @@ void VXD_get_flags(DWORD __far *lpFlags);
 BOOL VXD_FIFOCommit(DWORD bytes, BOOL sync);
 
 #define VXD_FIFOCommitAll() \
-	if(VXD_FIFOCommit(gSVGA.fifo.reservedSize, FALSE)){gSVGA.fifo.reservedSize = 0;}else{SVGA_FIFOCommitAll();}
+	if(VXD_FIFOCommit(gSVGA.fifo.reservedSize, FALSE)){gSVGA.fifo.reservedSize = 0;}
+
+//	if(VXD_FIFOCommit(gSVGA.fifo.reservedSize, FALSE)){gSVGA.fifo.reservedSize = 0;}else{SVGA_FIFOCommitAll();}
 
 #define VXD_FIFOCommitSync() \
 	VXD_FIFOCommit(gSVGA.fifo.reservedSize, TRUE);gSVGA.fifo.reservedSize = 0

@@ -130,8 +130,17 @@ SVGA_Init(Bool enableFIFO, uint32 hwversion)
 {
 	 int vga_found = 0;
 	
-   if (PCI_FindDevice(PCI_VENDOR_ID_VMWARE, PCI_DEVICE_ID_VMWARE_SVGA2,
-                       &gSVGA.pciAddr)) {
+   if (PCI_FindDevice(PCI_VENDOR_ID_VMWARE, PCI_DEVICE_ID_VMWARE_SVGA3, &gSVGA.pciAddr)) {
+      gSVGA.vendorId = PCI_VENDOR_ID_VMWARE;
+      gSVGA.deviceId = PCI_DEVICE_ID_VMWARE_SVGA3;
+#ifndef VXD32
+      dbg_printf("PCI VMWare SVGA-III: %X:%X\n", gSVGA.vendorId, gSVGA.deviceId);
+#endif
+      
+      vga_found = 1;
+   }
+	
+   if (PCI_FindDevice(PCI_VENDOR_ID_VMWARE, PCI_DEVICE_ID_VMWARE_SVGA2, &gSVGA.pciAddr)) {
       gSVGA.vendorId = PCI_VENDOR_ID_VMWARE;
       gSVGA.deviceId = PCI_DEVICE_ID_VMWARE_SVGA2;
 #ifndef VXD32
@@ -172,17 +181,40 @@ SVGA_Init(Bool enableFIFO, uint32 hwversion)
     */
 
    PCI_SetMemEnable(&gSVGA.pciAddr, TRUE);
-   if(gSVGA.deviceId == PCI_DEVICE_ID_VBOX_VGA) {
+   
+   if(gSVGA.deviceId == PCI_DEVICE_ID_VBOX_VGA) { /* VBOX SVGA */
    	  /* VBox SVGA have swapped IO and VRAM in PCI BAR */
       gSVGA.fbPhy  = PCI_GetBARAddr(&gSVGA.pciAddr, 0);
+      gSVGA.vramSize = PCI_GetBARSize(&gSVGA.pciAddr, 0);
       gSVGA.ioBase = PCI_GetBARAddr(&gSVGA.pciAddr, 1);
+      gSVGA.fifoPhy = PCI_GetBARAddr(&gSVGA.pciAddr, 2);
+      
    } else {
-      gSVGA.ioBase = PCI_GetBARAddr(&gSVGA.pciAddr, 0);
-      gSVGA.fbPhy  = PCI_GetBARAddr(&gSVGA.pciAddr, 1);
+   	  if(SVGA_IsSVGA3()) /* VMware SVGA2 */
+   	  {
+      	gSVGA.rmmio_start = PCI_GetBARAddr(&gSVGA.pciAddr, 0);
+      	gSVGA.rmmio_size  = PCI_GetBARSize(&gSVGA.pciAddr, 0);
+   	  	
+      	gSVGA.fbPhy  = PCI_GetBARAddr(&gSVGA.pciAddr, 2);
+      	gSVGA.vramSize = PCI_GetBARSize(&gSVGA.pciAddr, 2);
+      	
+      	gSVGA.fifoPhy = 0;
+      	gSVGA.ioBase = 0;
+   	  }
+   	  else /* VMware SVGA3 */
+   	  {
+      	gSVGA.ioBase = PCI_GetBARAddr(&gSVGA.pciAddr, 0);
+      	
+      	gSVGA.fbPhy  = PCI_GetBARAddr(&gSVGA.pciAddr, 1);
+      	gSVGA.vramSize = PCI_GetBARSize(&gSVGA.pciAddr, 1);
+      	
+      	gSVGA.fifoPhy = PCI_GetBARAddr(&gSVGA.pciAddr, 2);
+      }
    }
-   gSVGA.fifoPhy = PCI_GetBARAddr(&gSVGA.pciAddr, 2);
+   
    
    dbg_printf(dbg_addr, gSVGA.ioBase, gSVGA.fbPhy, gSVGA.fifoPhy);
+   SVGA_MapIO();
 
 #ifdef VXD32 /* version negotiation is done in PM32 driver now */
    /*
@@ -196,7 +228,14 @@ SVGA_Init(Bool enableFIFO, uint32 hwversion)
     
    if(hwversion == 0)
    {
-      hwversion = SVGA_VERSION_2;
+   		if(gSVGA.deviceId == PCI_DEVICE_ID_VMWARE_SVGA3)
+   		{
+   			hwversion = SVGA_VERSION_3;
+   		}
+      else
+      {
+      	hwversion = SVGA_VERSION_2;
+      }
    }
 
    gSVGA.deviceVersionId = SVGA_MAKE_ID(hwversion);
@@ -226,9 +265,12 @@ SVGA_Init(Bool enableFIFO, uint32 hwversion)
     * does not support the FIFO buffer at all.
     */
 
+/*
    gSVGA.vramSize = SVGA_ReadReg(SVGA_REG_VRAM_SIZE);
    gSVGA.fbSize = SVGA_ReadReg(SVGA_REG_FB_SIZE);
+*/
    gSVGA.fifoSize = SVGA_ReadReg(SVGA_REG_MEM_SIZE);
+   gSVGA.fbSize = SVGA_ReadReg(SVGA_REG_FB_SIZE);
 
    /*
     * Sanity-check the FIFO and framebuffer sizes.
@@ -241,8 +283,11 @@ SVGA_Init(Bool enableFIFO, uint32 hwversion)
    }
 #endif
 
-   if (gSVGA.fifoSize < 0x20000) {
-      SVGA_Panic("FIFO size very small, probably incorrect.");
+   if(SVGA_IsSVGA3())
+   {
+      if (gSVGA.fifoSize < 0x20000) {
+         SVGA_Panic("FIFO size very small, probably incorrect.");
+      }
    }
 
    /*
@@ -279,9 +324,9 @@ SVGA_Init(Bool enableFIFO, uint32 hwversion)
       Intr_SetMask(irq, TRUE);
    }
 #endif
-   gSVGA.fifoLinear = 0;
+   /*gSVGA.fifoLinear = 0;
    gSVGA.fifoSel    = 0;
-   gSVGA.fifoAct    = 0;
+   gSGA.fifoAct    = 0;*/
    
 #ifdef VXD32
 	gSVGA.userFlags = 0;
@@ -307,6 +352,11 @@ SVGA_Init(Bool enableFIFO, uint32 hwversion)
    dbg_printf(dbg_siz, sizeof(gSVGA), sizeof(uint8 FARP *));
    
    return 0;
+}
+
+Bool SVGA_IsSVGA3()
+{
+	return gSVGA.deviceId == PCI_DEVICE_ID_VMWARE_SVGA3;
 }
 
 /*
@@ -533,8 +583,16 @@ SVGA_DefaultFaultHandler(int vector)  // IN
 uint32
 SVGA_ReadReg(uint32 index)  // IN
 {
-   outpd(gSVGA.ioBase + SVGA_INDEX_PORT, index);
-   return inpd(gSVGA.ioBase + SVGA_VALUE_PORT);
+   if(SVGA_IsSVGA3())
+   {
+      return gSVGA.rmmio[index];
+   }
+   else
+   {
+   	  /* locking? */
+      outpd(gSVGA.ioBase + SVGA_INDEX_PORT, index);
+      return inpd(gSVGA.ioBase + SVGA_VALUE_PORT);
+   }
 }
 
 
@@ -559,8 +617,15 @@ void
 SVGA_WriteReg(uint32 index,  // IN
               uint32 value)  // IN
 {
-   outpd(gSVGA.ioBase + SVGA_INDEX_PORT, index);
-   outpd(gSVGA.ioBase + SVGA_VALUE_PORT, value);
+   if(SVGA_IsSVGA3())
+   {
+      gSVGA.rmmio[index] = value;
+   }
+   else
+   {
+   	outpd(gSVGA.ioBase + SVGA_INDEX_PORT, index);
+   	outpd(gSVGA.ioBase + SVGA_VALUE_PORT, value);
+   }
 }
 
 

@@ -238,6 +238,25 @@ PCI_GetBARAddr(const PCIAddress FARP *addr, int index)
    return bar & ~mask;
 }
 
+/* from https://wiki.osdev.org/PCI#Address_and_size_of_the_BAR */
+uint32
+PCI_GetBARSize(const PCIAddress FARP *addr, int index)
+{
+	uint32 bar_size = 0;
+	uint32 bar_orig = PCI_ConfigRead32(addr, 16+4*index);
+	uint32 mask = (bar_orig & PCI_CONF_BAR_IO) ? 0x3 : 0xf;
+	
+	PCI_ConfigWrite32(addr, 16+4*index, 0xFFFFFFFFUL);
+	bar_size = PCI_ConfigRead32(addr, 16+4*index);
+	
+	/* restore original value */
+	PCI_ConfigWrite32(addr, 16+4*index, bar_orig);
+	
+	bar_size &= ~mask;
+	
+	return (~bar_size) + 1;
+}
+
 uint32
 PCI_GetSubsystem(const PCIAddress FARP *addr)
 {

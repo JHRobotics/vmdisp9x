@@ -433,50 +433,60 @@ extern void __loadds SVGA_UpdateRect(LONG x, LONG y, LONG w, LONG h)
   }
 }
 
-/* Initialize SVGA structure and map FIFO to memory */
-static int __loadds SVGA_full_init()
+void SVGA_MapIO()
 {
-  int rc = 0;
   DWORD bounce_sel = 0;
   DWORD fifo_base_sel = 0;
-  
-  dbg_printf("VMWare SVGA-II init\n");
-  
-  rc = SVGA_Init(FALSE);
-  
-  if(rc != 0)
-  {
-    return rc;
-  }
-  
+  DWORD rmmio_sel = 0;
+	
   /* get system linear addresses from PM32 RING-0 driver */
-  VXD_get_addr(&gSVGA.fbLinear, &gSVGA.fifoLinear, &gSVGA.fifo.bounceLinear);
-  
-  /* get user flags */
-  VXD_get_flags(&gSVGA.userFlags);
-  
-  dbg_printf("VXD: received %lX %lX %lX\n",
-  	gSVGA.fbLinear,
-  	gSVGA.fifoLinear, 
-  	gSVGA.fifo.bounceLinear);
-  
-  /* map fifo to PM16 memory */
-  fifo_base_sel = DPMI_AllocLDTDesc(1);
-  if(fifo_base_sel)
+  if(SVGA_IsSvga3())
   {
-    DPMI_SetSegLimit(fifo_base_sel, 0xFFFF);
-    DPMI_SetSegBase(fifo_base_sel, gSVGA.fifoLinear);
-    gSVGA.fifoMem = fifo_base_sel :> 0x0;
+  	VXD_get_addr(&gSVGA.fbLinear, &gSVGA.rmmio_linear, &gSVGA.fifo.bounceLinear);
+  	
+ 		dbg_printf("VXD (SVGA3): received %lX %lX (%lX) %lX\n",
+  		gSVGA.fbLinear,
+ 		 	gSVGA.rmmio_linear, 
+ 		 	gSVGA.rmmio_size,
+  		gSVGA.fifo.bounceLinear);
+  	
+	  rmmio_sel = DPMI_AllocLDTDesc(1);
+	  if(rmmio_sel)
+	  {
+			DPMI_SetSegLimit(rmmio_sel, gSVGA.rmmio_size);
+			DPMI_SetSegBase(rmmio_sel,  gSVGA.rmmio_linear);
+			
+			gSVGA.rmmio = rmmio_sel :> 0x0;
+	  }
+  	
   }
-  
-   /* from PM16 cannot be accesed full fifo buffer properly, so allocate selector to maping as 64K sector */
-  gSVGA.fifoSel = DPMI_AllocLDTDesc(1);
-  if(gSVGA.fifoSel)
+  else
   {
-    DPMI_SetSegLimit(gSVGA.fifoSel, 0xFFFF);
-    DPMI_SetSegBase(gSVGA.fifoSel, gSVGA.fifoLinear);
-    
-    gSVGA.fifoAct = 0;
+  	VXD_get_addr(&gSVGA.fbLinear, &gSVGA.fifoLinear, &gSVGA.fifo.bounceLinear);
+  	
+	 dbg_printf("VXD: received %lX %lX %lX\n",
+	  	gSVGA.fbLinear,
+	  	gSVGA.fifoLinear, 
+	  	gSVGA.fifo.bounceLinear);
+	  	
+	  /* map fifo to PM16 memory */
+	  fifo_base_sel = DPMI_AllocLDTDesc(1);
+	  if(fifo_base_sel)
+	  {
+	    DPMI_SetSegLimit(fifo_base_sel, 0xFFFF);
+	    DPMI_SetSegBase(fifo_base_sel, gSVGA.fifoLinear);
+	    gSVGA.fifoMem = fifo_base_sel :> 0x0;
+	  }
+	  
+	   /* from PM16 cannot be accesed full fifo buffer properly, so allocate selector to maping as 64K sector */
+	  gSVGA.fifoSel = DPMI_AllocLDTDesc(1);
+	  if(gSVGA.fifoSel)
+	  {
+	    DPMI_SetSegLimit(gSVGA.fifoSel, 0xFFFF);
+	    DPMI_SetSegBase(gSVGA.fifoSel, gSVGA.fifoLinear);
+	    
+	    gSVGA.fifoAct = 0;
+	  }
   }
   
   bounce_sel = DPMI_AllocLDTDesc(1);
@@ -487,7 +497,24 @@ static int __loadds SVGA_full_init()
 		
 		gSVGA.fifo.bounceMem = bounce_sel :> 0x0;
   }
+}
+
+/* Initialize SVGA structure and map FIFO to memory */
+static int __loadds SVGA_full_init()
+{
+  int rc = 0;
+  dbg_printf("VMWare SVGA-II init\n");
   
+  rc = SVGA_Init(FALSE);
+  
+  if(rc != 0)
+  {
+    return rc;
+  }
+  
+  /* get user flags */
+  VXD_get_flags(&gSVGA.userFlags);
+   
   //SVGA_Enable();
     
   return 0;

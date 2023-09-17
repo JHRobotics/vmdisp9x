@@ -93,6 +93,12 @@ typedef struct SVGADevice {
    uint16 deviceId;
    /* adapter in QEMU works only on 32bit */
    uint32 userFlags;
+   
+   /* SVGA3 */
+   uint32 rmmio_start;
+   uint32 rmmio_size;
+   uint32 rmmio_linear;
+   volatile uint32 FARP *rmmio;
 
 #ifndef REALLY_TINY
    volatile struct {
@@ -135,6 +141,9 @@ void SVGA_SetMode(uint32 width, uint32 height, uint32 bpp);
 void SVGA_Disable(void);
 void SVGA_Panic(const char *err);
 void SVGA_DefaultFaultHandler(int vector);
+
+Bool SVGA_IsSVGA3();
+void SVGA_MapIO();
 
 void SVGA_Flush(void);
 

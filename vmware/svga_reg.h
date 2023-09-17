@@ -45,6 +45,7 @@ typedef struct uint64 {
  */
 #define PCI_VENDOR_ID_VMWARE            0x15AD
 #define PCI_DEVICE_ID_VMWARE_SVGA2      0x0405
+#define PCI_DEVICE_ID_VMWARE_SVGA3      0x0406
 
 #define PCI_VENDOR_ID_INNOTEK           0x80EE
 #define PCI_DEVICE_ID_VBOX_VGA          0xBEEF

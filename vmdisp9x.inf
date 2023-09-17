@@ -51,7 +51,8 @@ qemumini.vxd=1
 [Mfg.VM]
 %VBoxVideoVGA.DeviceDesc%=VBox, PCI\VEN_80EE&DEV_BEEF&SUBSYS_00000000
 %VBoxVideoSVGA.DeviceDesc%=VBoxSvga, PCI\VEN_80EE&DEV_BEEF&SUBSYS_040515AD
-%VBoxVideoVM.DeviceDesc%=VMSvga, PCI\VEN_15AD&DEV_0405&SUBSYS_040515AD
+%VBoxVideoVM2.DeviceDesc%=VMSvga, PCI\VEN_15AD&DEV_0405&SUBSYS_040515AD
+;svga3:%VBoxVideoVM3.DeviceDesc%=VMSvga, PCI\VEN_15AD&DEV_0406&SUBSYS_040615AD
 %QemuStd.DeviceDesc%=Qemu, PCI\VEN_1234&DEV_1111
 
 [VBox]
@@ -344,5 +345,6 @@ HKR,"MODES\32\5120,4096"
 Mfg="VirtualBox"
 VBoxVideoVGA.DeviceDesc="VBox VGA PCI Adapter"
 VBoxVideoSVGA.DeviceDesc="VBox SVGA PCI Adapter"
-VBoxVideoVM.DeviceDesc="VMWare SVGA-II PCI Adapter"
+VBoxVideoVM2.DeviceDesc="VMWare SVGA-II PCI Adapter"
+VBoxVideoVM3.DeviceDesc="VMWare SVGA-III PCI Adapter"
 QemuStd.DeviceDesc="QEMU STD VGA PCI Adapter"

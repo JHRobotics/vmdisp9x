@@ -1023,7 +1023,14 @@ WORD __stdcall VMWS_API_Proc(PCRS_32 state)
 			break;
 		case VMWSVXD_PM16_GET_ADDR:
 			state->Client_ECX = gSVGA.fbLinear;
-			state->Client_EDI = gSVGA.fifoLinear;
+			if(SVGA_IsSVGA3())
+			{
+				state->Client_EDI = gSVGA.rmmio_linear;
+			}
+			else
+			{
+				state->Client_EDI = gSVGA.fifoLinear;
+			}
 			state->Client_ESI = gSVGA.fifo.bounceLinear + PAGE_SIZE; /* first page is for CB header (if CB supported) */
 			
 			rc = 1;
@@ -1215,6 +1222,15 @@ BOOL RegReadConf(const char *value, DWORD *out)
 	return rv;
 }
 
+void SVGA_MapIO()
+{
+	if(SVGA_IsSVGA3)
+	{
+		gSVGA.rmmio_linear = _MapPhysToLinear(gSVGA.fifoPhy, gSVGA.vramSize, 0);
+		gSVGA.rmmio = (uint32 FARP*)gSVGA.rmmio_linear;
+	}
+}
+
 /* init device and fill dispatch table */
 void Device_Dynamic_Init_proc(DWORD VM)
 {
@@ -1284,7 +1300,8 @@ void Device_Dynamic_Init_proc(DWORD VM)
 		gSVGA.fbLinear = _MapPhysToLinear(gSVGA.fbPhy, gSVGA.vramSize, 0);
 		
 		/* map phys FIFO to linear */
-		gSVGA.fifoLinear = _MapPhysToLinear(gSVGA.fifoPhy, gSVGA.fifoSize, 0);
+		if(!SVGA_IsSVGA3())
+			gSVGA.fifoLinear = _MapPhysToLinear(gSVGA.fifoPhy, gSVGA.fifoSize, 0);
 		
 		/* allocate fifo bounce buffer */
 		gSVGA.fifo.bounceLinear =
@@ -1295,7 +1312,9 @@ void Device_Dynamic_Init_proc(DWORD VM)
 		
 		/* system linear addres == PM32 address */
 		gSVGA.fbMem = (uint8 *)gSVGA.fbLinear;
-		gSVGA.fifoMem = (uint32 *)gSVGA.fifoLinear;
+		if(!SVGA_IsSVGA3())
+			gSVGA.fifoMem = (uint32 *)gSVGA.fifoLinear;
+		
 		gSVGA.fifo.bounceMem = (uint8 *)(gSVGA.fifo.bounceLinear + PAGE_SIZE); /* first page is for CB header (if CB supported) */
 		
 		
@@ -1567,8 +1586,6 @@ void Device_Init_proc()
 /* shutdown procedure */
 void Device_Exit_proc(DWORD VM)
 {
-	uint32 *screen_id;
-	
 	dbg_printf(dbg_destroy);
 	
 	/* stop context 0 */

@@ -96,6 +96,7 @@ Bool PCI_ScanBus(PCIScanState  FARP *state);
 Bool PCI_FindDevice(uint16 vendorId, uint16 deviceId, PCIAddress FARP *addrOut);
 void PCI_SetBAR(const PCIAddress FARP *addr, int index, uint32 value);
 uint32 PCI_GetBARAddr(const PCIAddress FARP *addr, int index);
+uint32 PCI_GetBARSize(const PCIAddress FARP *addr, int index);
 void PCI_SetMemEnable(const PCIAddress FARP *addr, Bool enable);
 uint32 PCI_GetSubsystem(const PCIAddress FARP *addr);
 
