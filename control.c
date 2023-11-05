@@ -34,10 +34,13 @@ THE SOFTWARE.
 #include <string.h> /* _fmemset */
 
 #include "version.h"
+#include "swcursor.h"
 
 #ifdef SVGA
 # include "svga_all.h"
 # include "vxdcall.h"
+#else
+# include "boxv.h"
 #endif
 
 #ifdef QEMU
@@ -80,6 +83,15 @@ THE SOFTWARE.
 /* update buffer if 'need_call_update' is set */
 #define FBHDA_UPDATE         0x110C
 
+/* move framebuffer */
+#define FBHDA_FLIP           0x110D
+
+/* cursor swap */
+#define FBHDA_CTRL           0x110E
+
+#define FBHDA_CTRL_CUR_SHOW  1UL
+#define FBHDA_CTRL_CUR_HIDE  2UL
+
 /* check for drv <-> vxd <-> dll match */
 #define SVGA_API             0x110F
 
@@ -94,13 +106,6 @@ THE SOFTWARE.
 #define SVGA_HWINFO_REGS   0x1121
 #define SVGA_HWINFO_FIFO   0x1122
 #define SVGA_HWINFO_CAPS   0x1123
-
-typedef struct _longRECT {
-  LONG left;
-  LONG top;
-  LONG right;
-  LONG bottom;
-} longRECT;
 
 /**
  * OpenGL ICD driver name (0x1101):
@@ -204,6 +209,10 @@ typedef struct _svga_hda_t
 static svga_hda_t SVGAHDA;
 
 #endif /* SVGA only */
+
+/* from dibcall.c */
+extern LONG cursorX;
+extern LONG cursorY;
 
 #pragma code_seg( _INIT )
 
@@ -517,6 +526,50 @@ void SVGAHDA_update(DWORD width, DWORD height, DWORD bpp, DWORD pitch)
 	}
 }
 
+BOOL SVGA_hasAccelScreen();
+
+/* working only in VB and only on 32 bit,
+ * ...
+ */
+uint32 SVGA_Flip(uint32 offset)
+{
+	if(SVGA_hasAccelScreen)
+	{
+	  SVGAFifoCmdDefineScreen __far *screen;
+	  
+	  dbg_printf("SVGA_Flip\n");
+	  
+  	screen = SVGA_FIFOReserveCmd(SVGA_CMD_DEFINE_SCREEN, sizeof(SVGAFifoCmdDefineScreen));
+	  
+		if(screen)
+		{
+			_fmemset(screen, 0, sizeof(SVGAFifoCmdDefineScreen));
+			screen->screen.structSize = sizeof(SVGAScreenObject);
+			screen->screen.id = 0;
+			screen->screen.flags = SVGA_SCREEN_MUST_BE_SET | SVGA_SCREEN_IS_PRIMARY;
+			screen->screen.size.width = wScrX;
+			screen->screen.size.height = wScrY;
+			screen->screen.root.x = 0;
+			screen->screen.root.y = offset/wScreenPitchBytes;
+			screen->screen.cloneCount = 0;
+		    
+			screen->screen.backingStore.pitch = wScreenPitchBytes;
+			screen->screen.backingStore.ptr.offset = offset;
+			screen->screen.backingStore.ptr.gmrId = SVGA_GMR_FRAMEBUFFER;
+		    
+			SVGA_FIFOCommitAll();
+		}
+		
+		SVGA_WriteReg(SVGA_SYNC, 1);
+		
+	  dbg_printf("SVGA_Flip done\n");
+		
+		return offset;
+	}
+	
+	return 0;
+}
+
 #endif /* SVGA only */
 
 /**
@@ -559,6 +612,9 @@ LONG WINAPI __loadds Control(LPVOID lpDevice, UINT function,
   		case OPENGL_GETINFO:
   		case FBHDA_REQ:
   		case FBHDA_UPDATE:
+  		case FBHDA_FLIP:
+  		case FBHDA_CTRL:
+  		case MOUSETRAILS:
 #ifdef SVGA
   		case SVGA_API:	
   		/*
@@ -697,10 +753,13 @@ LONG WINAPI __loadds Control(LPVOID lpDevice, UINT function,
   }
   else if(function == MOUSETRAILS)
   {
-  	if(lpOutput)
+  	if(lpInput)
   	{
-  		//...
+  		int trails = *((int __far *)lpInput);
+  		dbg_printf("MOUSETRAILS: %d\n", trails);
   	}
+  	//JH: mouse trails are disabled!
+  	//DIB_Control(lpDevice, MOUSETRAILS, lpInput, lpOutput);
   	rc = 1;
   }
   else if(function == FBHDA_REQ) /* input: NULL, output: uint32  */
@@ -717,6 +776,46 @@ LONG WINAPI __loadds Control(LPVOID lpDevice, UINT function,
 		longRECT __far *lpRECT = lpInput;
 		SVGA_UpdateRect(lpRECT->left, lpRECT->top, lpRECT->right - lpRECT->left, lpRECT->bottom - lpRECT->top);
 #endif
+		rc = 1;
+  }
+  else if(function == FBHDA_FLIP) /* input - offset from vram begin */
+  {
+  	uint32_t __far *lpOffset = lpInput;
+  	uint32_t realOffset = 0;
+#ifdef SVGA
+#if 0
+  	realOffset = SVGA_Flip(*lpOffset);
+  	SVGA_UpdateRect(0, 0, wScrX, wScrY);
+#else
+  	(void)lpOffset;
+#endif
+#else
+  	realOffset = BOXV_set_offset(0, *lpOffset, wBpp, wScreenPitchBytes);
+#endif
+  	
+  	FBHDA_ptr->fb_pm32 = dwScreenFlatAddr + realOffset;
+
+  	rc = 1;
+  }
+  else if(function == FBHDA_CTRL)
+  {
+  	uint32_t code = *((uint32_t __far *)lpInput);
+
+  	switch(code)
+  	{
+  		case FBHDA_CTRL_CUR_SHOW:
+  			cursor_unlock();
+  			cursor_blit(NULL);
+  			dbg_printf("FBHDA_CTRL_CUR_SHOW\n");
+  			break;
+  		case FBHDA_CTRL_CUR_HIDE:
+  			cursor_erase(NULL);
+  			cursor_lock();
+  			dbg_printf("FBHDA_CTRL_CUR_HIDE\n");
+  			break;
+  	}
+
+  	rc = 1;
   }
 #ifdef SVGA
   else if(function == SVGA_READ_REG) /* input: uint32_t, output: uint32_t */

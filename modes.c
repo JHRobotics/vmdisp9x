@@ -73,11 +73,12 @@ WORD wMesa3DEnabled = 0; /* 3D is enabled (by hypervisor) */
 
 /* FBHDA structure pointers */
 FBHDA __far * FBHDA_ptr = NULL;
+
 DWORD FBHDA_linear = 0;
 
        DWORD    dwScreenFlatAddr = 0;   /* 32-bit flat address of VRAM. */
        DWORD    dwVideoMemorySize = 0;  /* Installed VRAM in bytes. */
-static WORD     wScreenPitchBytes = 0;  /* Current scanline pitch. */
+        WORD    wScreenPitchBytes = 0;  /* Current scanline pitch. */
 #ifndef SVGA
 static DWORD    dwPhysVRAM = 0;         /* Physical LFB base address. */
 #endif
@@ -319,28 +320,36 @@ static void SVGA_defineScreen(unsigned wXRes, unsigned wYRes, unsigned wBpp)
   SVGAFifoCmdDefineScreen __far *screen;
   SVGAFifoCmdDefineGMRFB __far *fbgmr;
    
-  /* create screen 0 */
+ 	/* create screen 0 */
   screen = SVGA_FIFOReserveCmd(SVGA_CMD_DEFINE_SCREEN, sizeof(SVGAFifoCmdDefineScreen));
   
-  if(screen)
-  {
-    _fmemset(screen, 0, sizeof(SVGAFifoCmdDefineScreen));
-    screen->screen.structSize = sizeof(SVGAScreenObject);
-    screen->screen.id = 0;
-    screen->screen.flags = SVGA_SCREEN_MUST_BE_SET | SVGA_SCREEN_IS_PRIMARY;
-    screen->screen.size.width = wXRes;
-    screen->screen.size.height = wYRes;
-    screen->screen.root.x = 0;
-    screen->screen.root.y = 0;
-    screen->screen.cloneCount = 0;
-    
-    screen->screen.backingStore.pitch = CalcPitch(wXRes, wBpp);
-    
-    VXD_FIFOCommitAll();
-  }
-  
+	if(screen)
+	{
+	  _fmemset(screen, 0, sizeof(SVGAFifoCmdDefineScreen));
+	  screen->screen.structSize = sizeof(SVGAScreenObject);
+	  screen->screen.id = 0;
+	  screen->screen.flags = SVGA_SCREEN_MUST_BE_SET | SVGA_SCREEN_IS_PRIMARY;
+	  screen->screen.size.width = wXRes;
+	  screen->screen.size.height = wYRes;
+	  screen->screen.root.x = 0;
+	  screen->screen.root.y = 0;
+	  screen->screen.cloneCount = 0;
+	  
+	  if(wBpp < 32)
+	  {
+	  	screen->screen.backingStore.pitch = CalcPitch(wXRes, wBpp);
+	  }
+	  
+	  screen->screen.backingStore.ptr.offset = 0;
+	  screen->screen.backingStore.ptr.gmrId = SVGA_GMR_FRAMEBUFFER;
+	    
+	   //screen->screen.backingStore.pitch = CalcPitch(wXRes, wBpp);
+	    
+	  VXD_FIFOCommitAll();
+	}
+
   /* set GMR to same location as screen */
-  if(wBpp >= 15)
+  if(wBpp >= 15/* || wBpp < 32*/)
   {
 	  fbgmr = SVGA_FIFOReserveCmd(SVGA_CMD_DEFINE_GMRFB, sizeof(SVGAFifoCmdDefineGMRFB));
 	  
@@ -353,18 +362,23 @@ static void SVGA_defineScreen(unsigned wXRes, unsigned wYRes, unsigned wBpp)
 	  	if(wBpp >= 24)
 	  	{
 	  		fbgmr->format.bitsPerPixel = 32;
+	  		fbgmr->format.colorDepth   = 24;
+	  		fbgmr->format.reserved     = 0;
 	  	}
 	  	else
 	  	{
 	  		fbgmr->format.bitsPerPixel = 16;
+	  		fbgmr->format.colorDepth   = 16;
+	  		fbgmr->format.reserved     = 0;
 	  	}
+	  	
+	  	VXD_FIFOCommitAll();
 	  }
-	  VXD_FIFOCommitAll();
 	}
 }
 
 /* Check if screen acceleration is available */
-static BOOL SVGA_hasAccelScreen()
+BOOL SVGA_hasAccelScreen()
 {
   if(SVGA_HasFIFOCap(SVGA_FIFO_CAP_SCREEN_OBJECT | SVGA_FIFO_CAP_SCREEN_OBJECT_2))
   {
@@ -440,7 +454,7 @@ void SVGA_MapIO()
   DWORD rmmio_sel = 0;
 	
   /* get system linear addresses from PM32 RING-0 driver */
-  if(SVGA_IsSvga3())
+  if(SVGA_IsSVGA3())
   {
   	VXD_get_addr(&gSVGA.fbLinear, &gSVGA.rmmio_linear, &gSVGA.fifo.bounceLinear);
   	
@@ -543,7 +557,7 @@ static int SetDisplayMode( WORD wXRes, WORD wYRes, int bFullSet )
       
       /* stop command buffer context 0 */
       CB_stop();
-      
+            
       SVGA_SetMode(wXRes, wYRes, wBpp); /* setup by legacy registry */
       SVGA_Flush(); /* make sure, that is really set */
       wMesa3DEnabled = 0;
@@ -599,12 +613,22 @@ static int SetDisplayMode( WORD wXRes, WORD wYRes, int bFullSet )
         FBHDA_ptr->width  = wScrX;
         FBHDA_ptr->height = wScrY;
         FBHDA_ptr->bpp    = wBpp;
+        FBHDA_ptr->flags  = FBHDA_LOCKING | FBHDA_SW_CURSOR;
+        FBHDA_ptr->fb_pm32 = dwScreenFlatAddr; /* change mode reset FB offset */
 #ifdef SVGA
         FBHDA_ptr->pitch = SVGA_ReadReg(SVGA_REG_BYTES_PER_LINE);
-        FBHDA_ptr->flags = FBHDA_NEED_UPDATE;
+        if(wBpp == 32)
+        {
+        	FBHDA_ptr->flags |= FBHDA_NEED_UPDATE;
+        	
+        	if(gSVGA.userFlags & SVGA_USER_FLAGS_HWCURSOR)
+        	{
+        		FBHDA_ptr->flags ^= FBHDA_SW_CURSOR;
+        	}
+        }
 #else
         FBHDA_ptr->pitch  = CalcPitch( wScrX, wBpp );
-        FBHDA_ptr->flags = 0;
+        FBHDA_ptr->flags  |= FBHDA_FLIPING;
 #endif
     }
     
@@ -738,16 +762,36 @@ int PhysicalEnable( void )
     /* allocate and fill FBHDA */
     if(FBHDA_ptr == NULL)
     {
-      FBHDA_ptr = drv_malloc(sizeof(FBHDA), &FBHDA_linear);
+      FBHDA_ptr = drv_malloc(FBHDA_SIZE, &FBHDA_linear);
       if(FBHDA_ptr)
       {
         FBHDA_ptr->width  = wScrX;
         FBHDA_ptr->height = wScrY;
         FBHDA_ptr->bpp    = wBpp;
         FBHDA_ptr->pitch  = wScreenPitchBytes;
+        FBHDA_ptr->flags  = FBHDA_LOCKING | FBHDA_SW_CURSOR;
         
         FBHDA_ptr->fb_pm32 = dwScreenFlatAddr;
         FBHDA_ptr->fb_pm16 = ScreenSelector :> 0;
+        	
+        FBHDA_ptr->lock = 0;
+        
+        FBHDA_ptr->vram_pm32 = dwScreenFlatAddr;
+        FBHDA_ptr->vram_pm16 = ScreenSelector :> 0;
+        FBHDA_ptr->vram_size = dwVideoMemorySize;
+        
+#ifdef SVGA
+        if(wBpp == 32)
+        {
+        	FBHDA_ptr->flags |= FBHDA_NEED_UPDATE;
+        	if(gSVGA.userFlags & SVGA_USER_FLAGS_HWCURSOR)
+        	{
+        		FBHDA_ptr->flags ^= FBHDA_SW_CURSOR;
+        	}
+        }
+#else
+        FBHDA_ptr->flags  |= FBHDA_FLIPING;
+#endif
       }
       else
       {

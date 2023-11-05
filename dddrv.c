@@ -32,6 +32,7 @@ THE SOFTWARE.
 #include "ddrawi.h"
 #include <wchar.h> /* wchar_t */
 #include <string.h> /* _fmemset */
+#include <stddef.h>
 
 #include "vmdahal.h"
 
@@ -290,7 +291,7 @@ static void buildDDHALInfo(VMDAHAL_t __far *hal, int modeidx)
 	 */
 	hal->ddHALInfo.vmiData.dwNumHeaps  = 0;
 	heap = 0;
-	can_flip = FALSE;
+	can_flip = TRUE;
 
 	screenSize = hal->ddHALInfo.vmiData.lDisplayPitch * hal->ddHALInfo.vmiData.dwDisplayHeight;
 
@@ -305,7 +306,7 @@ static void buildDDHALInfo(VMDAHAL_t __far *hal, int modeidx)
 	 * capabilities supported
 	 */
 	 
-	hal->ddHALInfo.ddCaps.dwCaps = DDCAPS_GDI;
+	//! hal->ddHALInfo.ddCaps.dwCaps = DDCAPS_GDI;
 /*
 	hal->ddHALInfo.ddCaps.dwCaps         = DDCAPS_GDI |
                                       DDCAPS_BLT |
@@ -366,6 +367,31 @@ static void buildDDHALInfo(VMDAHAL_t __far *hal, int modeidx)
                     DDFXCAPS_OVERLAYSTRETCHX |
                     DDFXCAPS_OVERLAYSTRETCHY;
         }*/
+	hal->ddHALInfo.ddCaps.dwCaps = DDCAPS_GDI | /* HW is shared with GDI */
+	                               DDCAPS_BLT | /* BLT is supported */
+	                               DDCAPS_BLTDEPTHFILL | /* depth fill */
+                                 DDCAPS_BLTCOLORFILL | /* color fill */
+                                 DDCAPS_COLORKEY; /* transparentBlt */
+
+	hal->ddHALInfo.ddCaps.dwCKeyCaps     = DDCKEYCAPS_SRCBLT;
+	hal->ddHALInfo.ddCaps.dwFXCaps       = DDFXCAPS_BLTARITHSTRETCHY |
+	                                       DDFXCAPS_BLTARITHSTRETCHYN |
+	                                       DDFXCAPS_BLTMIRRORLEFTRIGHT |
+	                                       DDFXCAPS_BLTMIRRORUPDOWN |
+	                                       DDFXCAPS_BLTSHRINKX |
+	                                       DDFXCAPS_BLTSHRINKXN |
+	                                       DDFXCAPS_BLTSHRINKY |
+	                                       DDFXCAPS_BLTSHRINKYN |
+	                                       DDFXCAPS_BLTSTRETCHX | 
+	                                       DDFXCAPS_BLTSTRETCHXN |
+	                                       DDFXCAPS_BLTSTRETCHY |
+	                                       DDFXCAPS_BLTSTRETCHYN;
+	                                       // DDFXCAPS_BLTROTATION
+	                                       // DDFXCAPS_BLTROTATION90
+
+	hal->ddHALInfo.ddCaps.ddsCaps.dwCaps = DDSCAPS_OFFSCREENPLAIN |
+	                                       DDSCAPS_PRIMARYSURFACE |
+	                                       DDSCAPS_ALPHA;
 
 	if(can_flip)
 	{
@@ -381,7 +407,7 @@ static void buildDDHALInfo(VMDAHAL_t __far *hal, int modeidx)
    */
 	for(ii=0; ii<DD_ROP_SPACE; ii++)
 	{
-		hal->ddHALInfo.ddCaps.dwRops[ii] = 0;//ropsSupported[ii];
+		hal->ddHALInfo.ddCaps.dwRops[ii] = 0xFFFFFFFFUL;// JH: we have all ROP3s :-)
 	}
 
 	/*
@@ -473,7 +499,6 @@ BOOL DDCreateDriverObject(int bReset)
   /*
    * get addresses of 32-bit routines
    */
-  //dbg_printf("CanCreateSurface: %lX\n", hal->cb32.CanCreateSurface);
 	cbDDCallbacks.CanCreateSurface = hal->cb32.CanCreateSurface;
 	if(cbDDCallbacks.CanCreateSurface) cbDDCallbacks.dwFlags |= DDHAL_CB32_CANCREATESURFACE;
 	
@@ -484,7 +509,7 @@ BOOL DDCreateDriverObject(int bReset)
 	if(cbDDSurfaceCallbacks.Blt) cbDDSurfaceCallbacks.dwFlags |= DDHAL_SURFCB32_BLT;
 		
 	cbDDSurfaceCallbacks.Flip = hal->cb32.Flip;
-	if(cbDDSurfaceCallbacks.Flip) cbDDSurfaceCallbacks.dwFlags |= DDHAL_SURFCB32_FLIP;
+	if(cbDDSurfaceCallbacks.Flip)	cbDDSurfaceCallbacks.dwFlags |= DDHAL_SURFCB32_FLIP;
 	
 	cbDDSurfaceCallbacks.Lock = hal->cb32.Lock;
 	if(cbDDSurfaceCallbacks.Lock) cbDDSurfaceCallbacks.dwFlags |= DDHAL_SURFCB32_LOCK;
@@ -503,8 +528,33 @@ BOOL DDCreateDriverObject(int bReset)
 	
 	hal->ddHALInfo.GetDriverInfo = hal->cb32.GetDriverInfo;
 	if(hal->ddHALInfo.GetDriverInfo) hal->ddHALInfo.dwFlags |= DDHALINFO_GETDRIVERINFOSET;
-
+		
+	cbDDCallbacks.WaitForVerticalBlank = hal->cb32.WaitForVerticalBlank;
+	if(cbDDCallbacks.WaitForVerticalBlank) cbDDCallbacks.dwFlags |= DDHAL_CB32_WAITFORVERTICALBLANK;
 	
+	cbDDCallbacks.SetMode = hal->cb32.SetMode;
+	if(cbDDCallbacks.SetMode) cbDDCallbacks.dwFlags |= DDHAL_CB32_SETMODE;
+		
+	cbDDCallbacks.SetExclusiveMode = hal->cb32.SetExclusiveMode;
+	if(cbDDCallbacks.SetExclusiveMode) cbDDCallbacks.dwFlags |= DDHAL_CB32_SETEXCLUSIVEMODE;
+	
+	dbg_printf("Dup DD32 calls\n");
+	dbg_printf("  CanCreateSurface = %lX\n", cbDDCallbacks.CanCreateSurface);
+	dbg_printf("  CreateSurface = %lX\n", cbDDCallbacks.CreateSurface);
+	dbg_printf("  Blt = %lX\n", cbDDSurfaceCallbacks.Blt);
+	dbg_printf("  Flip = %lX\n", cbDDSurfaceCallbacks.Flip);
+	dbg_printf("  Lock = %lX\n", cbDDSurfaceCallbacks.Lock);
+	dbg_printf("  Unlock = %lX\n", cbDDSurfaceCallbacks.Unlock);
+	dbg_printf("  GetBltStatus = %lX\n", cbDDSurfaceCallbacks.GetBltStatus);
+	dbg_printf("  GetFlipStatus = %lX\n", cbDDSurfaceCallbacks.GetFlipStatus);
+	dbg_printf("  DestroySurface = %lX\n", cbDDSurfaceCallbacks.DestroySurface);
+	dbg_printf("  GetDriverInfo = %lX\n", hal->ddHALInfo.GetDriverInfo);
+	dbg_printf("  WaitForVerticalBlank = %lX\n\n", cbDDCallbacks.WaitForVerticalBlank);
+	
+	hal->pFBHDA32 = FBHDA_linear;
+	hal->pFBHDA16 = FBHDA_ptr;
+  hal->FBHDA_version = 2;
+  
 	return lpDDHAL_SetInfo(&(hal->ddHALInfo), bReset);
 }
 
@@ -544,7 +594,13 @@ void DDGetVersion(DDVERSIONDATA_t __far *lpVer)
 	_fmemset(lpVer, 0, sizeof(DDVERSIONDATA_t));
 	lpVer->dwHALVersion = DD_RUNTIME_VERSION;
 	
-	dbg_printf("struct size: %d\n", sizeof(VMDAHAL_t));
+	dbg_printf("struct size: %d (%d %d %d %d)\n",
+		sizeof(VMDAHAL_t),
+		offsetof(VMDAHAL_t, ddpf),
+		offsetof(VMDAHAL_t, ddHALInfo),
+		offsetof(VMDAHAL_t, cb32),
+		offsetof(VMDAHAL_t, FBHDA_version)
+	);
 }
 
 DWORD DDHinstance(void)

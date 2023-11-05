@@ -47,6 +47,7 @@ extern int  BOXV_mode_set( void *cx, int mode_no );
 extern int  BOXV_dac_set( void *cx, unsigned start, unsigned count, void *pal );
 extern int  BOXV_ext_disable( void *cx );
 extern unsigned long BOXV_get_lfb_base( void *cx );
+extern unsigned long BOXV_set_offset(void *cx, unsigned long bytes, unsigned int bpp, unsigned int pitch);
 
 #define PCI_VENDOR_ID_VMWARE            0x15AD
 #define PCI_DEVICE_ID_VMWARE_SVGA2      0x0405

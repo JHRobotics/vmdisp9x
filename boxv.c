@@ -188,3 +188,17 @@ unsigned long BOXV_get_lfb_base( void *cx )
 
     return( fb_base );
 }
+
+unsigned long BOXV_set_offset(void *cx, unsigned long bytes, unsigned int bpp, unsigned int pitch)
+{
+	unsigned int ps = ((bpp+7)/8);
+	unsigned int offset_y = bytes/pitch;
+	unsigned int offset_x = (bytes % pitch)/ps;
+	
+	vid_outw( cx, VBE_DISPI_IOPORT_INDEX, VBE_DISPI_INDEX_Y_OFFSET );
+	vid_outw( cx, VBE_DISPI_IOPORT_DATA, offset_y );
+	vid_outw( cx, VBE_DISPI_IOPORT_INDEX, VBE_DISPI_INDEX_X_OFFSET );
+	vid_outw( cx, VBE_DISPI_IOPORT_DATA, offset_x );
+	
+	return (unsigned long)offset_y*pitch + offset_x*ps;
+}

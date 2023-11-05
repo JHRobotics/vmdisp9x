@@ -82,6 +82,7 @@ extern RGBQUAD FAR *lpColorTable;   /* Current color table. */
 
 extern DWORD    dwScreenFlatAddr;   /* Linear address of frame buffer */
 extern DWORD    dwVideoMemorySize;  /* Installed VRAM in bytes. */
+extern  WORD    wScreenPitchBytes;  /* screen pitch */
 
 extern DWORD    VDDEntryPoint;
 extern WORD     OurVMHandle;
@@ -95,6 +96,13 @@ WORD CalcPitch(WORD x, WORD bpp);
 
 typedef void (__far * FastBitBlt_t) (unsigned dx, unsigned dy, unsigned sx, unsigned sy, unsigned w, unsigned h);
 extern FastBitBlt_t FastBitBlt;
+
+typedef struct _longRECT {
+  LONG left;
+  LONG top;
+  LONG right;
+  LONG bottom;
+} longRECT;
 
 /*
  * frame buffer direct hadrware access, allow user space programs/drivers write
@@ -111,10 +119,21 @@ typedef struct _FBHDA
 	DWORD        fb_pm32; /* eq. linear address, mapped to shared or kernel space*/
 	void __far * fb_pm16; /* usable in this driver */
 	DWORD flags;
+	volatile DWORD lock; /* lock for framebuffer operations */
+	DWORD        vram_pm32;
+	void __far * vram_pm16;
+	DWORD        vram_size;
 } FBHDA;
+
 #pragma pack(pop)
 
+#define FBHDA_SIZE 4096 /* alloc whole page */
+
 #define FBHDA_NEED_UPDATE 1
+#define FBHDA_LOCKING     2
+#define FBHDA_FLIPING     4
+#define FBHDA_SW_CURSOR   8
+//#define FBHDA_NO_CURSOR  16
 
 extern FBHDA __far * FBHDA_ptr;
 extern DWORD FBHDA_linear;

@@ -21,6 +21,9 @@ typedef struct VMDAHALCB32
 	LPDDHALSURFCB_UPDATEOVERLAY       UpdateOverlay;
 	LPDDHALSURFCB_SETOVERLAYPOSITION  SetOverlayPosition;
 	LPDDHAL_GETDRIVERINFO             GetDriverInfo;
+	LPDDHAL_WAITFORVERTICALBLANK      WaitForVerticalBlank;
+	LPDDHAL_SETMODE		                SetMode;
+	LPDDHAL_SETEXCLUSIVEMODE          SetExclusiveMode;
 } VMDAHALCB32_t;
 
 typedef struct VMDAHAL
@@ -41,6 +44,11 @@ typedef struct VMDAHAL
   
   DWORD hInstance;
   
+  DWORD pFBHDA32;
+  void __far *pFBHDA16;
+  DWORD FBHDA_version;
+  
+  DWORD hDC;
 } VMDAHAL_t;
 #pragma pack(pop)
 

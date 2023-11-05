@@ -5,7 +5,7 @@ OBJS = dibthunk.obj dibcall.obj enable.obj init.obj palette.obj &
        pci.obj svga.obj svga3d.obj svga32.obj pci32.obj dddrv.obj &
        enable_svga.obj dibcall_svga.obj boxv_qemu.obj modes_qemu.obj &
        init_qemu.obj init_svga.obj qemuvxd.obj minivdd_qemu.obj &
-       vxdcall_qemu.obj control_qemu.obj
+       vxdcall_qemu.obj control_qemu.obj swcursor.obj hwcursor.obj
 
 INCS = -I$(%WATCOM)\h\win -Iddk -Ivmware
 
@@ -152,6 +152,12 @@ minivdd_qemu.obj : minivdd_qemu.c .autodepend
 dddrv.obj : dddrv.c .autodepend
 	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
 
+swcursor.obj: swcursor.c .autodepend
+	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
+
+hwcursor.obj: hwcursor.c .autodepend
+	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
+
 # Resources
 boxvmini.res : res/boxvmini.rc res/colortab.bin res/config.bin res/fonts.bin res/fonts120.bin .autodepend
 	wrc -q -r -ad -bt=windows -fo=$@ -Ires -I$(%WATCOM)/h/win $(FLAGS) res/boxvmini.rc
@@ -200,6 +206,7 @@ file modes.obj
 file boxv.obj
 file control.obj
 file dddrv.obj
+file swcursor.obj
 name boxvmini.drv
 option map=boxvmini.map
 library dibeng.lib
@@ -270,6 +277,8 @@ file pci.obj
 file control_svga.obj
 file vxdcall_svga.obj
 file dddrv.obj
+file swcursor.obj
+file hwcursor.obj
 name vmwsmini.drv
 option map=vmwsmini.map
 library dibeng.lib
@@ -338,6 +347,7 @@ file boxv_qemu.obj
 file control_qemu.obj
 file vxdcall_qemu.obj
 file dddrv.obj
+file swcursor.obj
 name qemumini.drv
 option map=qemumini.map
 library dibeng.lib

@@ -15,6 +15,8 @@
 #define HRESULT DWORD
 #endif
 
+#define DDUNSUPPORTEDMODE		((DWORD) -1)
+
 /*
  * maximum size of a driver name
  */
@@ -861,6 +863,165 @@ typedef struct DDSCAPS __far* LPDDSCAPS;
  */
 #define DDPF_ZPIXELS				0x00002000l
 
+/****************************************************************************
+ *
+ * DIRECTDRAW FX CAPABILITY FLAGS
+ *
+ ****************************************************************************/
+
+/*
+ * Uses arithmetic operations to stretch and shrink surfaces during blt
+ * rather than pixel doubling techniques.  Along the Y axis.
+ */
+#define DDFXCAPS_BLTARITHSTRETCHY	0x00000020l
+
+/*
+ * Uses arithmetic operations to stretch during blt
+ * rather than pixel doubling techniques.  Along the Y axis. Only
+ * works for x1, x2, etc.
+ */
+#define DDFXCAPS_BLTARITHSTRETCHYN	0x00000010l
+
+/*
+ * Supports mirroring left to right in blt.
+ */
+#define DDFXCAPS_BLTMIRRORLEFTRIGHT	0x00000040l
+
+/*
+ * Supports mirroring top to bottom in blt.
+ */
+#define DDFXCAPS_BLTMIRRORUPDOWN	0x00000080l
+
+/*
+ * Supports arbitrary rotation for blts.
+ */
+#define DDFXCAPS_BLTROTATION		0x00000100l
+
+/*
+ * Supports 90 degree rotations for blts.
+ */
+#define DDFXCAPS_BLTROTATION90		0x00000200l
+
+/*
+ * DirectDraw supports arbitrary shrinking of a surface along the
+ * x axis (horizontal direction) for blts.
+ */
+#define DDFXCAPS_BLTSHRINKX		0x00000400l
+
+/*
+ * DirectDraw supports integer shrinking (1x,2x,) of a surface
+ * along the x axis (horizontal direction) for blts.
+ */
+#define DDFXCAPS_BLTSHRINKXN		0x00000800l
+
+/*
+ * DirectDraw supports arbitrary shrinking of a surface along the
+ * y axis (horizontal direction) for blts.
+ */
+#define DDFXCAPS_BLTSHRINKY		0x00001000l
+
+/*
+ * DirectDraw supports integer shrinking (1x,2x,) of a surface
+ * along the y axis (vertical direction) for blts.
+ */
+#define DDFXCAPS_BLTSHRINKYN		0x00002000l
+
+/*
+ * DirectDraw supports arbitrary stretching of a surface along the
+ * x axis (horizontal direction) for blts.
+ */
+#define DDFXCAPS_BLTSTRETCHX		0x00004000l
+
+/*
+ * DirectDraw supports integer stretching (1x,2x,) of a surface
+ * along the x axis (horizontal direction) for blts.
+ */
+#define DDFXCAPS_BLTSTRETCHXN		0x00008000l
+
+/*
+ * DirectDraw supports arbitrary stretching of a surface along the
+ * y axis (horizontal direction) for blts.
+ */
+#define DDFXCAPS_BLTSTRETCHY		0x00010000l
+
+/*
+ * DirectDraw supports integer stretching (1x,2x,) of a surface
+ * along the y axis (vertical direction) for blts.
+ */
+#define DDFXCAPS_BLTSTRETCHYN		0x00020000l
+
+/*
+ * Uses arithmetic operations to stretch and shrink surfaces during
+ * overlay rather than pixel doubling techniques.  Along the Y axis
+ * for overlays.
+ */
+#define DDFXCAPS_OVERLAYARITHSTRETCHY	0x00040000l
+
+/*
+ * Uses arithmetic operations to stretch surfaces during
+ * overlay rather than pixel doubling techniques.  Along the Y axis
+ * for overlays. Only works for x1, x2, etc.
+ */
+#define DDFXCAPS_OVERLAYARITHSTRETCHYN	0x00000008l
+
+/*
+ * DirectDraw supports arbitrary shrinking of a surface along the
+ * x axis (horizontal direction) for overlays.
+ */
+#define DDFXCAPS_OVERLAYSHRINKX		0x00080000l
+
+/*
+ * DirectDraw supports integer shrinking (1x,2x,) of a surface
+ * along the x axis (horizontal direction) for overlays.
+ */
+#define DDFXCAPS_OVERLAYSHRINKXN	0x00100000l
+
+/*
+ * DirectDraw supports arbitrary shrinking of a surface along the
+ * y axis (horizontal direction) for overlays.
+ */
+#define DDFXCAPS_OVERLAYSHRINKY		0x00200000l
+
+/*
+ * DirectDraw supports integer shrinking (1x,2x,) of a surface
+ * along the y axis (vertical direction) for overlays.
+ */
+#define DDFXCAPS_OVERLAYSHRINKYN	0x00400000l
+
+/*
+ * DirectDraw supports arbitrary stretching of a surface along the
+ * x axis (horizontal direction) for overlays.
+ */
+#define DDFXCAPS_OVERLAYSTRETCHX	0x00800000l
+
+/*
+ * DirectDraw supports integer stretching (1x,2x,) of a surface
+ * along the x axis (horizontal direction) for overlays.
+ */
+#define DDFXCAPS_OVERLAYSTRETCHXN	0x01000000l
+
+/*
+ * DirectDraw supports arbitrary stretching of a surface along the
+ * y axis (horizontal direction) for overlays.
+ */
+#define DDFXCAPS_OVERLAYSTRETCHY	0x02000000l
+
+/*
+ * DirectDraw supports integer stretching (1x,2x,) of a surface
+ * along the y axis (vertical direction) for overlays.
+ */
+#define DDFXCAPS_OVERLAYSTRETCHYN	0x04000000l
+
+/*
+ * DirectDraw supports mirroring of overlays across the vertical axis
+ */
+#define DDFXCAPS_OVERLAYMIRRORLEFTRIGHT	0x08000000l
+
+/*
+ * DirectDraw supports mirroring of overlays across the horizontal axis
+ */
+#define DDFXCAPS_OVERLAYMIRRORUPDOWN	0x10000000l
+
 /*
  * DDPIXELFORMAT
  */
@@ -1226,20 +1387,20 @@ typedef DDHAL_DDSURFACECALLBACKS_t __far *LPDDHAL_DDSURFACECALLBACKS;
 
 #define DDSURFACECALLBACKSSIZE sizeof( DDHAL_DDSURFACECALLBACKS_t )
 
-#define DDHAL_SURFCB32_DESTROYSURFACE       0x00000001l
-#define DDHAL_SURFCB32_FLIP         0x00000002l
-#define DDHAL_SURFCB32_SETCLIPLIST      0x00000004l
-#define DDHAL_SURFCB32_LOCK         0x00000008l
-#define DDHAL_SURFCB32_UNLOCK           0x00000010l
-#define DDHAL_SURFCB32_BLT          0x00000020l
-#define DDHAL_SURFCB32_SETCOLORKEY      0x00000040l
-#define DDHAL_SURFCB32_ADDATTACHEDSURFACE   0x00000080l
-#define DDHAL_SURFCB32_GETBLTSTATUS         0x00000100l
-#define DDHAL_SURFCB32_GETFLIPSTATUS        0x00000200l
-#define DDHAL_SURFCB32_UPDATEOVERLAY        0x00000400l
-#define DDHAL_SURFCB32_SETOVERLAYPOSITION   0x00000800l
-#define DDHAL_SURFCB32_RESERVED4        0x00001000l
-#define DDHAL_SURFCB32_SETPALETTE       0x00002000l
+#define DDHAL_SURFCB32_DESTROYSURFACE       0x00000001UL
+#define DDHAL_SURFCB32_FLIP         0x00000002UL
+#define DDHAL_SURFCB32_SETCLIPLIST      0x00000004UL
+#define DDHAL_SURFCB32_LOCK         0x00000008UL
+#define DDHAL_SURFCB32_UNLOCK           0x00000010UL
+#define DDHAL_SURFCB32_BLT          0x00000020UL
+#define DDHAL_SURFCB32_SETCOLORKEY      0x00000040UL
+#define DDHAL_SURFCB32_ADDATTACHEDSURFACE   0x00000080UL
+#define DDHAL_SURFCB32_GETBLTSTATUS         0x00000100UL
+#define DDHAL_SURFCB32_GETFLIPSTATUS        0x00000200UL
+#define DDHAL_SURFCB32_UPDATEOVERLAY        0x00000400UL
+#define DDHAL_SURFCB32_SETOVERLAYPOSITION   0x00000800UL
+#define DDHAL_SURFCB32_RESERVED4        0x00001000UL
+#define DDHAL_SURFCB32_SETPALETTE       0x00002000UL
 
 // This structure can be queried from the driver from DX5 onward
 // using GetDriverInfo with GUID_MiscellaneousCallbacks

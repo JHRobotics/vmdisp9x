@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2022  Michal Necasek
+              2023  Jaroslav Hensl
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -26,19 +27,12 @@ THE SOFTWARE.
 #include <gdidefs.h>
 #include <dibeng.h>
 #include <minivdd.h>
+#include <string.h>
 
 #include "minidrv.h"
+#include "swcursor.h"
+#include "hwcursor.h"
 
-#ifdef SVGA
-# include "svga_all.h"
-# include <string.h>
-# include "vxdcall.h"
-
-/* from control.c */
-# define LOCK_FIFO 6
-BOOL SVGAHDA_trylock(DWORD lockid);
-void SVGAHDA_unlock(DWORD lockid);
-#endif
 
 /*
  * What's this all about? Most of the required exported driver functions can
@@ -55,290 +49,60 @@ void SVGAHDA_unlock(DWORD lockid);
  * are not hardware specific.
  */
 
-/* from DDK98 */
-#pragma pack(push)
-#pragma pack(1)
-typedef struct
-{
-   int     xHotSpot, yHotSpot;
-   int     cx, cy;
-   int     cbWidth;
-   BYTE    Planes;
-   BYTE    BitsPixel;
-} CURSORSHAPE;
-#pragma pack(pop)
-
-#ifdef SVGA
-BOOL cursorVisible = FALSE;
-#endif
+LONG cursorX = 0;
+LONG cursorY = 0;
 
 #pragma code_seg( _TEXT )
 
-#ifdef SVGA
-static LONG cursorX = 0;
-static LONG cursorY = 0;
-static LONG cursorW = 0;
-static LONG cursorH = 0;
-static LONG cursorHX = 0;
-static LONG cursorHY = 0;
-
-
-/*
-	https://learn.microsoft.com/en-us/windows-hardware/drivers/display/drawing-monochrome-pointers
-*/
-static void CursorMonoToAlpha(CURSORSHAPE __far *lpCursor, void __far *data)
-{
-	LONG __far *px = data;
-	BYTE __far *andmask = (BYTE __far *)(lpCursor + 1);
-	BYTE __far *xormask = andmask + lpCursor->cbWidth*lpCursor->cy;
-	int xi, xj, y;
-	
-	for(y = 0; y < lpCursor->cy; y++)
-	{
-		for(xj = 0; xj < (lpCursor->cbWidth); xj++)
-		{
-			BYTE a = andmask[lpCursor->cbWidth*y + xj];
-			BYTE x = xormask[lpCursor->cbWidth*y + xj];
-			for(xi = 7; xi >= 0; xi--)
-			{
-				BYTE mx = (((a >> xi) & 0x1) << 1) | ((x >> xi) & 0x1);
-				
-				switch(mx)
-				{
-					case 0:
-						*px = 0xFF000000; // full black
-						break;
-					case 1:
-						*px = 0xFFFFFFFF; // full white
-						break;
-					case 2:
-						*px = 0x00000000; // transparent
-						break;
-					case 3:
-						*px = 0xFF000000; // inverse = set black (used for example with type cursor)
-						break;
-				}
-				
-				px++;
-			}
-		}
-	}
-}
-
-static void CursorColor32ToAlpha(CURSORSHAPE __far *lpCursor, void __far *data)
-{
-	LONG __far *px = data;
-	BYTE __far *andmask = (BYTE __far *)(lpCursor + 1);
-	DWORD __far *xormask = (DWORD __far *)(andmask + lpCursor->cbWidth*lpCursor->cy);
-	int xi, xj, y;
-	
-	for(y = 0; y < lpCursor->cy; y++)
-	{
-		for(xj = 0; xj < (lpCursor->cbWidth); xj++)
-		{
-			BYTE a = andmask[lpCursor->cbWidth*y + xj];
-			
-			for(xi = 7; xi >= 0; xi--)
-			{
-				DWORD x = xormask[lpCursor->cx*y + xj*8 + (7-xi)] & 0x00FFFFFFUL;
-				BYTE ab = ((a >> xi) & 0x1);
-				
-				switch(ab)
-				{
-					case 0:
-						*px = 0xFF000000UL | x;
-						break;
-					case 1:
-						*px = 0x00000000UL | x;
-						break;
-				}
-				
-				px++;
-			}
-		}
-	}
-}
-
-void update_cursor()
-{
-	if(wBpp == 32)
-	{
-		LONG x = cursorX - cursorHX;
-		LONG y = cursorY - cursorHY;
-		LONG w = cursorW;
-		LONG h = cursorH;
-		
-		SVGA_UpdateRect(x, y, w, h);
-	}
-}
-#endif
-
 void WINAPI __loadds MoveCursor(WORD absX, WORD absY)
-{
+{	
 	if(wEnabled)
 	{
 #ifdef SVGA
-		if(wBpp == 32)
+		if(!hwcursor_move(absX, absY))
 		{
-			if(gSVGA.userFlags & SVGA_USER_FLAGS_HWCURSOR)
-			{
-				if(SVGAHDA_trylock(LOCK_FIFO))
-				{
-					SVGA_MoveCursor(cursorVisible, absX, absY, 0);
-					SVGAHDA_unlock(LOCK_FIFO);
-				}
-				
-				/* save last position */
-	  	  cursorX = absX;
-	    	cursorY = absY;
-			}
-			else
-			{
-		    DIB_MoveCursorExt(absX, absY, lpDriverPDevice);
-		    update_cursor();
-	  	  cursorX = absX;
-	    	cursorY = absY;
-	    	update_cursor();
-	    }
-			return;
+#endif // SVGA
+			longRECT changes = {0,0,0,0};
+	  	cursorX = absX;
+	  	cursorY = absY;
+	  	cursor_move(&changes);
+#ifdef SVGA
+			SVGA_UpdateLongRect(&changes);
 		}
 #endif // SVGA
-		DIB_MoveCursorExt(absX, absY, lpDriverPDevice);
 	}
+	
+	//DIB_MoveCursorExt(absX, absY, lpDriverPDevice);
 }
 
 WORD WINAPI __loadds SetCursor_driver(CURSORSHAPE __far *lpCursor)
 {
+	if(!sw_cursor)
+	{
+		cursor_init();
+	}
+	
 	if(wEnabled)
 	{
 #ifdef SVGA
-		if(wBpp == 32)
+		if(!hwcursor_load(lpCursor))
 		{
-			if(gSVGA.userFlags & SVGA_USER_FLAGS_HWCURSOR)
+#endif // SVGA
+			longRECT changes = {0,0,0,0};
+
+			if(lpCursor)
 			{
-				void __far* ANDMask = NULL;
-				void __far* XORMask = NULL;
-				void __far* AData   = NULL;
-				SVGAFifoCmdDefineCursor cur;
-				SVGAFifoCmdDefineAlphaCursor acur;
-				
-				if(lpCursor != NULL)
-				{
-					dbg_printf("cx: %d, cy: %d, colors: %d\n", lpCursor->cx, lpCursor->cy, lpCursor->BitsPixel);
-					
-					if(gSVGA.userFlags & SVGA_USER_FLAGS_ALPHA_CUR)
-					{
-						acur.id = 0;
-						acur.hotspotX = lpCursor->xHotSpot;
-						acur.hotspotY = lpCursor->yHotSpot;
-						acur.width    = lpCursor->cx;
-						acur.height   = lpCursor->cy;
-						
-						if(SVGAHDA_trylock(LOCK_FIFO))
-						{
-							SVGA_BeginDefineAlphaCursor(&acur, &AData);
-							if(AData)
-							{
-								switch(lpCursor->BitsPixel)
-								{
-									case 1:
-										CursorMonoToAlpha(lpCursor, AData);
-										break;
-									case 32:
-										CursorColor32ToAlpha(lpCursor, AData);
-										break;
-								}
-							}
-							VXD_FIFOCommitAll();
-							SVGAHDA_unlock(LOCK_FIFO);
-						}
-					}
-					else
-					{
-						cur.id = 0;
-						cur.hotspotX = lpCursor->xHotSpot;
-						cur.hotspotY = lpCursor->yHotSpot;
-						cur.width    = lpCursor->cx;
-						cur.height   = lpCursor->cy;
-						cur.andMaskDepth = 1;
-						cur.xorMaskDepth = lpCursor->BitsPixel;
-						
-						if(SVGAHDA_trylock(LOCK_FIFO))
-						{
-							SVGA_BeginDefineCursor(&cur, &ANDMask, &XORMask);
-							
-							if(ANDMask)
-							{
-								_fmemcpy(ANDMask, lpCursor+1, lpCursor->cbWidth*lpCursor->cy);
-							}
-							
-							if(XORMask)
-							{
-								BYTE __far *ptr = (BYTE __far *)(lpCursor+1);
-								ptr += lpCursor->cbWidth*lpCursor->cy;
-								
-								_fmemcpy(XORMask, ptr, lpCursor->cx*lpCursor->cy*((lpCursor->BitsPixel+7)/8));
-							}
-							
-							VXD_FIFOCommitAll();
-							SVGAHDA_unlock(LOCK_FIFO);
-						}
-					}
-					
-					/* move cursor to last known position */
-					if(SVGAHDA_trylock(LOCK_FIFO))
-					{
-						SVGA_MoveCursor(cursorVisible, cursorX, cursorY, 0);
-						SVGAHDA_unlock(LOCK_FIFO);
-					}
-					
-					cursorVisible = TRUE;
-				}
-				else
-				{
-					/* virtual box bug on SVGA_MoveCursor(FALSE, ...)
-					 * so if is cursor NULL, create empty
-					 */
-					cur.id = 0;
-					cur.hotspotX = 0;
-					cur.hotspotY = 0;
-					cur.width    = 32;
-					cur.height   = 32;
-					cur.andMaskDepth = 1;
-					cur.xorMaskDepth = 1;
-					
-					if(SVGAHDA_trylock(LOCK_FIFO))
-					{
-						SVGA_BeginDefineCursor(&cur, &ANDMask, &XORMask);
-					
-						if(ANDMask) _fmemset(ANDMask, 0xFF, 4*32);
-						if(XORMask) _fmemset(XORMask, 0, 4*32);
-					
-						//SVGA_FIFOCommitAll();
-						VXD_FIFOCommitAll();
-					
-						SVGA_MoveCursor(FALSE, 0, 0, 0);
-						
-						SVGAHDA_unlock(LOCK_FIFO);
-					}
-					cursorVisible = FALSE;
-				}
-				
-				return 1; /* SUCCESS */
+				cursor_load(lpCursor, &changes);
 			}
 			else
 			{
-				if(lpCursor != NULL)
-				{
-					cursorW = lpCursor->cx;
-					cursorH = lpCursor->cy;
-					cursorHX = lpCursor->xHotSpot;
-					cursorHY = lpCursor->yHotSpot;
-				}
+				cursor_unload(&changes);
 			}
-		} // 32bpp
-#endif
-		DIB_SetCursorExt(lpCursor, lpDriverPDevice);
+#ifdef SVGA
+    	SVGA_UpdateLongRect(&changes);
+  	}
+#endif // SVGA
+		
 		return 1;
 	}
 	return 0;
@@ -347,27 +111,14 @@ WORD WINAPI __loadds SetCursor_driver(CURSORSHAPE __far *lpCursor)
 /* Exported as DISPLAY.104 */
 void WINAPI __loadds CheckCursor( void )
 {
-	if( wEnabled ) {
+	if( wEnabled )
+	{
 #ifdef SVGA
-	if((gSVGA.userFlags & SVGA_USER_FLAGS_HWCURSOR) == 0)
-	{
-		DIB_CheckCursorExt( lpDriverPDevice );
-		if(wBpp == 32)
-		{
-			update_cursor();
-		}
+		hwcursor_update();
+#endif // SVGA
 	}
-	else
-	{
-		if(wBpp != 32)
-		{
-			DIB_CheckCursorExt( lpDriverPDevice );
-		}
-	}
-#else
-		DIB_CheckCursorExt( lpDriverPDevice );
-#endif
-	}
+	
+	//DIB_CheckCursorExt( lpDriverPDevice );
 }
 
 /* If there is no hardware screen-to-screen BitBlt, there's no point in

@@ -30,6 +30,9 @@ THE SOFTWARE.
 #include <minivdd.h>
 #include "minidrv.h"
 
+#include "swcursor.h"
+#include "hwcursor.h"
+
 #include <string.h>
 
 #ifdef SVGA
@@ -143,32 +146,52 @@ DWORD PASCAL CreateDIBPDeviceX( LPBITMAPINFO lpInfo, LPPDEVICE lpDevice, LPVOID 
     "shr    eax, 16"            \
     "xchg   ax, dx"
 
-#ifdef SVGA
-static uint32 updateX = 0;
-static uint32 updateY = 0;
-static uint32 updateW = 0;
-static uint32 updateH = 0;
-#endif
+
+static longRECT updateRect = {0, 0, 0, 0};
 
 #pragma code_seg( _INIT )
 
-#ifdef SVGA
-VOID WINAPI __loadds SVGA_DIB_BeginAccess( LPPDEVICE lpDevice, WORD wLeft, WORD wTop, WORD wRight, WORD wBottom, WORD wFlags )
+VOID WINAPI __loadds BeginAccess_DIB( LPPDEVICE lpDevice, WORD wLeft, WORD wTop, WORD wRight, WORD wBottom, WORD wFlags )
 {
-	updateX = wLeft;
-	updateY = wTop;
-	updateW = wRight - wLeft;
-	updateH = wBottom - wTop;
+	longRECT r;
+
+#ifdef SVGA
+	if(!hwcursor_available())
+	{
+#endif	
+		updateRect.left = wLeft;
+		updateRect.top  = wTop;
+		updateRect.right = wRight;
+		updateRect.bottom = wBottom;
+		
+		cursor_erase(&r);
+		cursor_lock();
+		cursor_merge_rect(&updateRect, &r);
+#ifdef SVGA
+	}
+#endif
 	
 	DIB_BeginAccess(lpDevice, wLeft, wTop, wRight, wBottom, wFlags);
 }
 
-VOID WINAPI __loadds SVGA_DIB_EndAccess( LPPDEVICE lpDevice, WORD wFlags )
+VOID WINAPI __loadds EndAccess_DIB( LPPDEVICE lpDevice, WORD wFlags )
 {
+	longRECT r;
 	DIB_EndAccess(lpDevice, wFlags);
-	SVGA_UpdateRect(updateX, updateY, updateW, updateH);
-}
+
+#ifdef SVGA
+	if(!hwcursor_available())
+	{
 #endif
+	cursor_unlock();	
+	cursor_blit(&r);
+	cursor_merge_rect(&updateRect, &r);
+#ifdef SVGA
+	}
+	SVGA_UpdateRect(updateRect.left, updateRect.top,
+		updateRect.right-updateRect.left, updateRect.bottom-updateRect.top);
+#endif
+}
 
 
 /* GDI calls Enable twice at startup, first to query the GDIINFO structure
@@ -267,13 +290,8 @@ UINT WINAPI __loadds Enable( LPVOID lpDevice, UINT style, LPSTR lpDeviceType,
         dbg_printf( "Enable: CreateDIBPDevice returned %lX\n", dwRet );
 
         /* Now fill out the begin/end access callbacks. */
-#ifdef SVGA
-        lpEng->deBeginAccess = SVGA_DIB_BeginAccess;
-        lpEng->deEndAccess   = SVGA_DIB_EndAccess;
-#else
-        lpEng->deBeginAccess = DIB_BeginAccess;
-        lpEng->deEndAccess   = DIB_EndAccess;
-#endif
+        lpEng->deBeginAccess = BeginAccess_DIB;
+        lpEng->deEndAccess   = EndAccess_DIB;
 
         /* Program the DAC in non-direct color modes. */
         if( wBpp <= 8 ) {
