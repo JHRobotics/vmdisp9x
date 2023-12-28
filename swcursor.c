@@ -191,6 +191,8 @@ BOOL cursor_load(CURSORSHAPE __far *lpCursor, longRECT __far *changes)
 		longRECT r1 = {0, 0, 0, 0};
 		longRECT r2 = {0, 0, 0, 0};
 		BOOL is_blitted = FALSE;
+
+		int xi, xj, y;
 		
 		/* maximum cursor size in 32bit mode is 64x64 px */
 		if(data_size * 3 + sizeof(SWCURSOR) > CURSOR_MAX_SIZE)
@@ -205,67 +207,74 @@ BOOL cursor_load(CURSORSHAPE __far *lpCursor, longRECT __far *changes)
 		}
 		
 		cursor_cs_enter();
-	
-		if(lpCursor->BitsPixel == 1)
-		{
-			int xi, xj, y;
 			
-			for(y = 0; y < lpCursor->cy; y++)
+		for(y = 0; y < lpCursor->cy; y++)
+		{
+			for(xj = 0; xj < lpCursor->cbWidth; xj++)
 			{
-				for(xj = 0; xj < lpCursor->cbWidth; xj++)
-				{
-					BYTE a = andmask[lpCursor->cbWidth*y + xj];
-					BYTE x = xormask[lpCursor->cbWidth*y + xj];
+				BYTE a = andmask[lpCursor->cbWidth*y + xj];
+				BYTE x = xormask[lpCursor->cbWidth*y + xj];
 					
-					for(xi = 7; xi >= 0; xi--)
+				for(xi = 7; xi >= 0; xi--)
+				{
+					switch(wBpp)
 					{
-						switch(wBpp)
+						case 8:
 						{
-							case 8:
+							DstAndMask[lpCursor->cx * y + xj*8 + (7-xi)] = EXPAND_BIT(BYTE, ((a >> xi) & 0x1));
+							if(lpCursor->BitsPixel == 1)
 							{
-								DstAndMask[lpCursor->cx * y + xj*8 + (7-xi)] = EXPAND_BIT(BYTE, ((a >> xi) & 0x1));
 								DstXorMask[lpCursor->cx * y + xj*8 + (7-xi)] = EXPAND_BIT(BYTE, ((x >> xi) & 0x1));
-								break;
 							}
-							case 16:
+							break;
+						}
+						case 16:
+						{
+							((WORD __far*)DstAndMask)[lpCursor->cx * y + xj*8 + (7-xi)] = EXPAND_BIT(WORD, ((a >> xi) & 0x1));
+							if(lpCursor->BitsPixel == 1)
 							{
-								((WORD __far*)DstAndMask)[lpCursor->cx * y + xj*8 + (7-xi)] = EXPAND_BIT(WORD, ((a >> xi) & 0x1));
 								((WORD __far*)DstXorMask)[lpCursor->cx * y + xj*8 + (7-xi)] = EXPAND_BIT(WORD, ((x >> xi) & 0x1));
-								break;
 							}
-							case 24:
+							break;
+						}
+						case 24:
+						{
+							DWORD am = EXPAND_BIT(DWORD, ((a >> xi) & 0x1));
+							DWORD xm = EXPAND_BIT(DWORD, ((x >> xi) & 0x1));
+							WORD pos = (lpCursor->cx * y + xj*8 + (7-xi))*3;
+							
+							DstAndMask[pos]   =  am & 0xFF;
+							DstAndMask[pos+1] = (am >> 8) & 0xFF;
+							DstAndMask[pos+2] = (am >> 16) & 0xFF;
+							
+							if(lpCursor->BitsPixel == 1)
 							{
-								DWORD am = EXPAND_BIT(DWORD, ((a >> xi) & 0x1));
-								DWORD xm = EXPAND_BIT(DWORD, ((x >> xi) & 0x1));
-								WORD pos = (lpCursor->cx * y + xj*8 + (7-xi))*3;
-								
-								DstAndMask[pos]   =  am & 0xFF;
-								DstAndMask[pos+1] = (am >> 8) & 0xFF;
-								DstAndMask[pos+2] = (am >> 16) & 0xFF;
-								
 								DstXorMask[pos]   =  xm & 0xFF;
 								DstXorMask[pos+1] = (xm >> 8) & 0xFF;
 								DstXorMask[pos+2] = (xm >> 16) & 0xFF;
-								
-								break;
 							}
-							case 32:
+							
+							break;
+						}
+						case 32:
+						{
+							((DWORD __far*)DstAndMask)[lpCursor->cx * y + xj*8 + (7-xi)] = EXPAND_BIT(DWORD, ((a >> xi) & 0x1));
+							if(lpCursor->BitsPixel == 1)
 							{
-								((DWORD __far*)DstAndMask)[lpCursor->cx * y + xj*8 + (7-xi)] = EXPAND_BIT(DWORD, ((a >> xi) & 0x1));
 								((DWORD __far*)DstXorMask)[lpCursor->cx * y + xj*8 + (7-xi)] = EXPAND_BIT(DWORD, ((x >> xi) & 0x1));
-								break;
 							}
+							break;
 						}
 					}
 				}
 			}
 		}
-		else if(lpCursor->BitsPixel == wBpp)
+		
+		if(lpCursor->BitsPixel == wBpp)
 		{
-			_fmemcpy(DstAndMask, andmask, ps * lpCursor->cx * lpCursor->cy);
 			_fmemcpy(DstXorMask, xormask, ps * lpCursor->cx * lpCursor->cy);
 		}
-		else
+		else if(lpCursor->BitsPixel != 1)
 		{
 			cursor_cs_leave();
 			return FALSE;

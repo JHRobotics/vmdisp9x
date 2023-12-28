@@ -753,11 +753,13 @@ LONG WINAPI __loadds Control(LPVOID lpDevice, UINT function,
   }
   else if(function == MOUSETRAILS)
   {
+#ifdef DBGPRINT
   	if(lpInput)
   	{
   		int trails = *((int __far *)lpInput);
   		dbg_printf("MOUSETRAILS: %d\n", trails);
   	}
+#endif
   	//JH: mouse trails are disabled!
   	//DIB_Control(lpDevice, MOUSETRAILS, lpInput, lpOutput);
   	rc = 1;

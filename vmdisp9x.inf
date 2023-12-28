@@ -43,7 +43,7 @@ qemumini.vxd=1
 ;3dfx:3dfxSpl3.dll=1,vgw9x
 ;wined3d:ddr95.dll=1,dx
 ;wined3d:ddr98.dll=1,dx
-;bridge:bridge99.dll=1
+;vmhal:vmhal9x.dll=1
 
 [Manufacturer]
 %Mfg%=Mfg.VM
@@ -78,20 +78,20 @@ AddReg=VMSvga.AddReg,VM.AddReg,DX.addReg
 [VBox.Copy]
 boxvmini.drv,,,0x00000004
 ;mesa:mesa3d.dll,,,0x00000004
-;bridge:bridge99.dll,,,0x00000004
+;vmhal:vmhal9x.dll,,,0x00000004
 
 [Qemu.Copy]
 qemumini.drv,,,0x00000004
 qemumini.vxd,,,0x00000004
 ;mesa:mesa3d.dll,,,0x00000004
-;bridge:bridge99.dll,,,0x00000004
+;vmhal:vmhal9x.dll,,,0x00000004
 
 [VMSvga.Copy]
 vmwsmini.drv,,,0x00000004
 vmwsmini.vxd,,,0x00000004
 ;mesa:vmwsgl32.dll,,,0x00000004
 ;mesa:mesa3d.dll,,,0x00000004
-;bridge:bridge99.dll,,,0x00000004
+;vmhal:vmhal9x.dll,,,0x00000004
 
 [Voodoo.Copy]
 ;3dfx:3dfxspl2.dll,,,0x00000010

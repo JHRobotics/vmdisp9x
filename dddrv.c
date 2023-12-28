@@ -37,7 +37,7 @@ THE SOFTWARE.
 #include "vmdahal.h"
 
 const static DD32BITDRIVERDATA_t drv_bridge99 = {
-	"bridge99.dll",
+	"vmhal9x.dll",
 	"DriverInit",
 	0
 };
