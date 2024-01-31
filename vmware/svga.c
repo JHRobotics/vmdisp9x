@@ -37,6 +37,10 @@
 #include "svga_all.h"
 
 #ifdef VXD32
+#include "code32.h"
+#endif
+
+#ifdef VXD32
 #define IO_IN32
 #define IO_OUT32
 #include "io32.h"
@@ -63,11 +67,6 @@ void dbg_printf( const char *s, ... );
 #ifndef MAX
 #define MAX(a, b) (((b) > (a)) ? (b) : (a))
 #endif
-
-#ifdef VXD32
-#include "code32.h"
-#endif
-
 
 SVGADevice gSVGA = {0};
 
@@ -190,7 +189,7 @@ SVGA_Init(Bool enableFIFO, uint32 hwversion)
       gSVGA.fifoPhy = PCI_GetBARAddr(&gSVGA.pciAddr, 2);
       
    } else {
-   	  if(SVGA_IsSVGA3()) /* VMware SVGA2 */
+   	  if(SVGA_IsSVGA3()) /* VMware SVGA3 */
    	  {
       	gSVGA.rmmio_start = PCI_GetBARAddr(&gSVGA.pciAddr, 0);
       	gSVGA.rmmio_size  = PCI_GetBARSize(&gSVGA.pciAddr, 0);
@@ -201,7 +200,7 @@ SVGA_Init(Bool enableFIFO, uint32 hwversion)
       	gSVGA.fifoPhy = 0;
       	gSVGA.ioBase = 0;
    	  }
-   	  else /* VMware SVGA3 */
+   	  else /* VMware SVGA2 */
    	  {
       	gSVGA.ioBase = PCI_GetBARAddr(&gSVGA.pciAddr, 0);
       	
@@ -280,6 +279,7 @@ SVGA_Init(Bool enableFIFO, uint32 hwversion)
 #ifdef VXD32
    if (gSVGA.fbSize < 0x100000) {
       SVGA_Panic("FB size very small, probably incorrect.");
+      return 4;
    }
 #endif
 
@@ -287,6 +287,7 @@ SVGA_Init(Bool enableFIFO, uint32 hwversion)
    {
       if (gSVGA.fifoSize < 0x20000) {
          SVGA_Panic("FIFO size very small, probably incorrect.");
+         return 5;
       }
    }
 
@@ -489,7 +490,7 @@ SVGA_Disable(void)
  */
 
 void
-SVGA_SetMode(uint32 width,   // IN
+SVGA_SetModeLegacy(uint32 width,   // IN
              uint32 height,  // IN
              uint32 bpp)     // IN
 {
@@ -681,6 +682,110 @@ SVGA_HasFIFOCap(unsigned long cap)
    return (gSVGA.fifoMem[SVGA_FIFO_CAPABILITIES] & cap) != 0;
 }
 
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * SVGA_RingDoorbell --
+ *
+ *      FIFO fences are fundamentally a host-to-guest notification
+ *      mechanism.  This is the opposite: we can explicitly wake up
+ *      the host when we know there is work for it to do.
+ *
+ *      Background: The host processes the SVGA command FIFO in a
+ *      separate thread which runs asynchronously with the virtual
+ *      machine's CPU and other I/O devices. When the SVGA device is
+ *      idle, this thread is sleeping. It periodically wakes up to
+ *      poll for new commands. This polling must occur for various
+ *      reasons, but it's mostly related to the historical way in
+ *      which the SVGA device processes 2D updates.
+ *
+ *      This polling introduces significant latency between when the
+ *      first new command is placed in an empty FIFO, and when the
+ *      host begins processing it. Normally this isn't a huge problem
+ *      since the host and guest run fairly asynchronously, but in
+ *      a synchronization-heavy workload this can be a bottleneck.
+ *
+ *      For example, imagine an application with a worst-case
+ *      synchronization bottleneck: The guest enqueues a single FIFO
+ *      command, then waits for that command to finish using
+ *      SyncToFence, then the guest spends a little time doing
+ *      CPU-intensive processing before the cycle repeats. The
+ *      workload may be latency-bound if the host-to-guest or
+ *      guest-to-host notifications ever block.
+ *
+ *      One solution would be for the guest to explicitly wake up the
+ *      SVGA3D device any time a command is enqueued. This would solve
+ *      the latency bottleneck above, but it would be inefficient on
+ *      single-CPU host machines. One could easily imagine a situation
+ *      in which we wake up the host after enqueueing one FIFO
+ *      command, the physical CPU context switches to the SVGA
+ *      device's thread, the single command is processed, then we
+ *      context switch back to running guest code.
+ *
+ *      Our recommended solution is to wake up the host only either:
+ *
+ *         - After a "significant" amount of work has been enqueued into
+ *           the FIFO. For example, at least one 3D drawing command.
+ *
+ *         - After a complete frame has been rendered.
+ *
+ *         - Just before the guest sleeps for any reason.
+ *
+ *      This function implements the above guest wakeups. It uses the
+ *      SVGA_FIFO_BUSY register to quickly assess whether the SVGA
+ *      device may be idle. If so, it asynchronously wakes up the host
+ *      by writing to SVGA_REG_SYNC.
+ *
+ * Results:
+ *      None.
+ *
+ * Side effects:
+ *      May wake up the SVGA3D device.
+ *
+ *-----------------------------------------------------------------------------
+ */
+
+void
+SVGA_RingDoorbell(void)
+{
+   if (SVGA_IsFIFORegValid(SVGA_FIFO_BUSY) &&
+       gSVGA.fifoMem[SVGA_FIFO_BUSY] == FALSE) {
+
+      /* Remember that we already rang the doorbell. */
+      gSVGA.fifoMem[SVGA_FIFO_BUSY] = TRUE;
+
+      /*
+       * Asynchronously wake up the SVGA3D device.  The second
+       * parameter is an arbitrary nonzero 'sync reason' which can be
+       * used for debugging, but which isn't part of the SVGA3D
+       * protocol proper and which isn't used by release builds of
+       * VMware products.
+       */
+      SVGA_WriteReg(SVGA_REG_SYNC, 1);
+   }
+}
+
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * SVGA_Flush --
+ *
+ *      Force to apply all register changes. Useful if registry changes
+ *      needs be applyed immediately
+ *
+ *-----------------------------------------------------------------------------
+ */
+void SVGA_Flush(void)
+{
+		SVGA_WriteReg(SVGA_REG_SYNC, 1);
+		while (SVGA_ReadReg(SVGA_REG_BUSY) != FALSE);
+#ifndef VXD32
+    dbg_printf("SVGA_Flush\n");
+#endif
+}
+
+#if 0 /* JH: all commands using bounce buffer and fifo, better write them myself */
 
 /*
  *-----------------------------------------------------------------------------
@@ -1455,110 +1560,6 @@ SVGA_HasFencePassed(uint32 fence)  // IN
 /*
  *-----------------------------------------------------------------------------
  *
- * SVGA_RingDoorbell --
- *
- *      FIFO fences are fundamentally a host-to-guest notification
- *      mechanism.  This is the opposite: we can explicitly wake up
- *      the host when we know there is work for it to do.
- *
- *      Background: The host processes the SVGA command FIFO in a
- *      separate thread which runs asynchronously with the virtual
- *      machine's CPU and other I/O devices. When the SVGA device is
- *      idle, this thread is sleeping. It periodically wakes up to
- *      poll for new commands. This polling must occur for various
- *      reasons, but it's mostly related to the historical way in
- *      which the SVGA device processes 2D updates.
- *
- *      This polling introduces significant latency between when the
- *      first new command is placed in an empty FIFO, and when the
- *      host begins processing it. Normally this isn't a huge problem
- *      since the host and guest run fairly asynchronously, but in
- *      a synchronization-heavy workload this can be a bottleneck.
- *
- *      For example, imagine an application with a worst-case
- *      synchronization bottleneck: The guest enqueues a single FIFO
- *      command, then waits for that command to finish using
- *      SyncToFence, then the guest spends a little time doing
- *      CPU-intensive processing before the cycle repeats. The
- *      workload may be latency-bound if the host-to-guest or
- *      guest-to-host notifications ever block.
- *
- *      One solution would be for the guest to explicitly wake up the
- *      SVGA3D device any time a command is enqueued. This would solve
- *      the latency bottleneck above, but it would be inefficient on
- *      single-CPU host machines. One could easily imagine a situation
- *      in which we wake up the host after enqueueing one FIFO
- *      command, the physical CPU context switches to the SVGA
- *      device's thread, the single command is processed, then we
- *      context switch back to running guest code.
- *
- *      Our recommended solution is to wake up the host only either:
- *
- *         - After a "significant" amount of work has been enqueued into
- *           the FIFO. For example, at least one 3D drawing command.
- *
- *         - After a complete frame has been rendered.
- *
- *         - Just before the guest sleeps for any reason.
- *
- *      This function implements the above guest wakeups. It uses the
- *      SVGA_FIFO_BUSY register to quickly assess whether the SVGA
- *      device may be idle. If so, it asynchronously wakes up the host
- *      by writing to SVGA_REG_SYNC.
- *
- * Results:
- *      None.
- *
- * Side effects:
- *      May wake up the SVGA3D device.
- *
- *-----------------------------------------------------------------------------
- */
-
-void
-SVGA_RingDoorbell(void)
-{
-   if (SVGA_IsFIFORegValid(SVGA_FIFO_BUSY) &&
-       gSVGA.fifoMem[SVGA_FIFO_BUSY] == FALSE) {
-
-      /* Remember that we already rang the doorbell. */
-      gSVGA.fifoMem[SVGA_FIFO_BUSY] = TRUE;
-
-      /*
-       * Asynchronously wake up the SVGA3D device.  The second
-       * parameter is an arbitrary nonzero 'sync reason' which can be
-       * used for debugging, but which isn't part of the SVGA3D
-       * protocol proper and which isn't used by release builds of
-       * VMware products.
-       */
-      SVGA_WriteReg(SVGA_REG_SYNC, 1);
-   }
-}
-
-
-/*
- *-----------------------------------------------------------------------------
- *
- * SVGA_Flush --
- *
- *      Force to apply all register changes. Useful if registry changes
- *      needs be applyed immediately
- *
- *-----------------------------------------------------------------------------
- */
-void SVGA_Flush(void)
-{
-		SVGA_WriteReg(SVGA_REG_SYNC, 1);
-		while (SVGA_ReadReg(SVGA_REG_BUSY) != FALSE);
-#ifndef VXD32
-    dbg_printf("SVGA_Flush\n");
-#endif
-}
-
-
-/*
- *-----------------------------------------------------------------------------
- *
  * SVGA_ClearIRQ --
  *
  *      Clear all pending IRQs. Any IRQs which occurred prior to this
@@ -2091,3 +2092,5 @@ SVGA_VideoFlush(uint32 streamId)  // IN
    cmd->streamId = streamId;
    SVGA_FIFOCommitAll();
 }
+
+#endif /* 0 */

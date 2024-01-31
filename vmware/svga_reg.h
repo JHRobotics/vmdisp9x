@@ -460,6 +460,8 @@ typedef enum {
 typedef enum {
    SVGA_CB_FLAG_NONE       = 0,
    SVGA_CB_FLAG_NO_IRQ     = 1 << 0,
+   SVGA_CB_FLAG_DX_CONTEXT = 1 << 1,
+   SVGA_CB_FLAG_MOB        = 1 << 2,
    SVGA_CB_FLAG_FORCE_UINT = MAX_UINT32,
 } SVGACBFlags;
 
@@ -473,7 +475,9 @@ struct {
    union {
       uint64 pa; // PA
    } ptr;
-   uint32 mustBeZero[8];
+	uint32 offset; /* Valid if CMD_BUFFERS_2 cap set, must be zero otherwise, modified by device. */
+	uint32 dxContext; /* Valid if DX_CONTEXT flag set, must be zero otherwise */
+	uint32 mustBeZero[6];
 } SVGACBHeader;
 
 typedef enum {

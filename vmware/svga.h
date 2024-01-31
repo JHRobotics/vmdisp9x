@@ -137,7 +137,7 @@ int  __loadds SVGA_Init(Bool enableFIFO);
 int SVGA_Init(Bool enableFIFO, uint32 hwversion);
 #endif
 void SVGA_Enable(void);
-void SVGA_SetMode(uint32 width, uint32 height, uint32 bpp);
+void SVGA_SetModeLegacy(uint32 width, uint32 height, uint32 bpp);
 void SVGA_Disable(void);
 void SVGA_Panic(const char *err);
 void SVGA_DefaultFaultHandler(int vector);

@@ -34,6 +34,7 @@ THE SOFTWARE.
 #include <string.h> /* _fmemset */
 #include <stddef.h>
 
+#include "3d_accel.h"
 #include "vmdahal.h"
 
 const static DD32BITDRIVERDATA_t drv_bridge99 = {
@@ -551,8 +552,8 @@ BOOL DDCreateDriverObject(int bReset)
 	dbg_printf("  GetDriverInfo = %lX\n", hal->ddHALInfo.GetDriverInfo);
 	dbg_printf("  WaitForVerticalBlank = %lX\n\n", cbDDCallbacks.WaitForVerticalBlank);
 	
-	hal->pFBHDA32 = FBHDA_linear;
-	hal->pFBHDA16 = FBHDA_ptr;
+	hal->pFBHDA32 = hda_linear;
+	hal->pFBHDA16 = hda;
   hal->FBHDA_version = 2;
   
 	return lpDDHAL_SetInfo(&(hal->ddHALInfo), bReset);

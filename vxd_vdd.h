@@ -1,5 +1,5 @@
-#ifndef __MINIVDD32_H__INCLUDED__
-#define __MINIVDD32_H__INCLUDED__
+#ifndef __VXD_VDD_H__INCLUDED__
+#define __VXD_VDD_H__INCLUDED__
 
 #ifdef DBGPRINT
 void dbg_printf( const char *s, ... );
@@ -101,7 +101,7 @@ void dbg_printf( const char *s, ... );
 
 /* generate prototypes */
 #define VDDFUNC(_fnname, _procname) void __stdcall _procname ## _proc(PCRS_32 state);
-#include "minivdd_func.h"
+#include "vxd_vdd_list.h"
 #undef VDDFUNC
 
 #define VDDPROC(_fnname, _procname) void __stdcall _procname ## _proc(PCRS_32 state)
@@ -109,4 +109,4 @@ void dbg_printf( const char *s, ... );
 #define VDD_CY state->Client_EFlags |= 0x1
 #define VDD_NC state->Client_EFlags &= 0xFFFFFFFEUL
 
-#endif /* __MINIVDD32_H__INCLUDED__ */
+#endif /* __VXD_VDD_H__INCLUDED__ */

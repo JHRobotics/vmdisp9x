@@ -24,7 +24,8 @@ THE SOFTWARE.
 #include "winhack.h"
 #include "vmm.h"
 
-#include "minivdd32.h"
+#include "vxd_vdd.h"
+#include "3d_accel.h"
 
 #ifdef SVGA
 #include "svga_all.h"
@@ -32,10 +33,6 @@ THE SOFTWARE.
 
 /* code and data is same segment */
 #include "code32.h"
-
-#ifdef SVGA
-extern Bool svga_init_success;
-#endif
 
 /*
 You can implement all the VESA support entirely in your mini-VDD. Doing so will
@@ -111,7 +108,7 @@ hardware detection to re-detect the video card.
 VDDPROC(GET_CHIP_ID, get_chip_id)
 {
 #ifdef SVGA
-	if(svga_init_success)
+	if(SVGA_valid())
 	{
 		uint32 chip_id = (((uint32)gSVGA.vendorId) << 16) || ((uint32)gSVGA.deviceId);
 		state->Client_EAX = chip_id;
@@ -214,7 +211,7 @@ For performance reasons, you should implement this function.
 VDDPROC(GET_TOTAL_VRAM_SIZE, get_total_vram_size)
 {
 #ifdef SVGA
-	if(svga_init_success)
+	if(SVGA_valid())
 	{
 		uint32 vram_size = SVGA_ReadReg(SVGA_REG_VRAM_SIZE);
 		state->Client_ECX = vram_size;

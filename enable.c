@@ -30,14 +30,9 @@ THE SOFTWARE.
 #include <minivdd.h>
 #include "minidrv.h"
 
-#include "swcursor.h"
-#include "hwcursor.h"
-
 #include <string.h>
 
-#ifdef SVGA
-# include "svga_all.h"
-#endif
+#include "3d_accel.h"
 
 /* Pretend we have a 208 by 156 mm screen. */
 #define DISPLAY_HORZ_MM     208
@@ -146,51 +141,30 @@ DWORD PASCAL CreateDIBPDeviceX( LPBITMAPINFO lpInfo, LPPDEVICE lpDevice, LPVOID 
     "shr    eax, 16"            \
     "xchg   ax, dx"
 
-
-static longRECT updateRect = {0, 0, 0, 0};
-
 #pragma code_seg( _INIT )
 
-VOID WINAPI __loadds BeginAccess_DIB( LPPDEVICE lpDevice, WORD wLeft, WORD wTop, WORD wRight, WORD wBottom, WORD wFlags )
+VOID WINAPI __loadds BeginAccess_VXD( LPPDEVICE lpDevice, WORD wLeft, WORD wTop, WORD wRight, WORD wBottom, WORD wFlags )
 {
-	longRECT r;
-
-#ifdef SVGA
-	if(!hwcursor_available())
+	DWORD dflags = 0;
+	if(!(wFlags & CURSOREXCLUDE))
 	{
-#endif	
-		updateRect.left = wLeft;
-		updateRect.top  = wTop;
-		updateRect.right = wRight;
-		updateRect.bottom = wBottom;
-		
-		cursor_erase(&r);
-		cursor_lock();
-		cursor_merge_rect(&updateRect, &r);
-#ifdef SVGA
+		dflags |= FBHDA_IGNORE_CURSOR;
 	}
-#endif
 	
+	FBHDA_access_begin(dflags);
 	DIB_BeginAccess(lpDevice, wLeft, wTop, wRight, wBottom, wFlags);
 }
 
-VOID WINAPI __loadds EndAccess_DIB( LPPDEVICE lpDevice, WORD wFlags )
+VOID WINAPI __loadds EndAccess_VXD( LPPDEVICE lpDevice, WORD wFlags )
 {
-	longRECT r;
-	DIB_EndAccess(lpDevice, wFlags);
-
-#ifdef SVGA
-	if(!hwcursor_available())
+	DWORD dflags = 0;
+	if(!(wFlags & CURSOREXCLUDE))
 	{
-#endif
-	cursor_unlock();	
-	cursor_blit(&r);
-	cursor_merge_rect(&updateRect, &r);
-#ifdef SVGA
+		dflags |= FBHDA_IGNORE_CURSOR;
 	}
-	SVGA_UpdateRect(updateRect.left, updateRect.top,
-		updateRect.right-updateRect.left, updateRect.bottom-updateRect.top);
-#endif
+	
+	DIB_EndAccess(lpDevice, wFlags);
+	FBHDA_access_end(dflags);
 }
 
 
@@ -290,8 +264,8 @@ UINT WINAPI __loadds Enable( LPVOID lpDevice, UINT style, LPSTR lpDeviceType,
         dbg_printf( "Enable: CreateDIBPDevice returned %lX\n", dwRet );
 
         /* Now fill out the begin/end access callbacks. */
-        lpEng->deBeginAccess = BeginAccess_DIB;
-        lpEng->deEndAccess   = EndAccess_DIB;
+        lpEng->deBeginAccess = BeginAccess_VXD;
+        lpEng->deEndAccess   = EndAccess_VXD;
 
         /* Program the DAC in non-direct color modes. */
         if( wBpp <= 8 ) {

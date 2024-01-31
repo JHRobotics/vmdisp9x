@@ -32,13 +32,8 @@ THE SOFTWARE.
 #include "minidrv.h"
 #include <configmg.h>
 
-#ifdef SVGA
-#include <stdint.h>
-#endif
-
-#if defined(SVGA) || defined(QEMU)
-# include "vxdcall.h"
-#endif
+#include "pm16_calls.h"
+#include "3d_accel.h"
 
 /* GlobalSmartPageLock is a semi-undocumented function. Not officially
  * documented but described in KB Article Q180586. */
@@ -318,9 +313,19 @@ UINT FAR DriverInit( UINT cbHeap, UINT hModule, LPSTR lpCmdLine )
 
     dbg_printf("DriverInit: LfbBase is %lX\n", LfbBase);
  
- 		if(!VXD_load())
+		/* connect to 32bit RING-0 driver */
+		if(!VXD_VM_connect())
 		{
-			dbg_printf("VXD load failure!\n");
+			dbg_printf("VXD connect failure!\n");
+			return 0;
+		}
+		
+		dbg_printf("VXD connect success!\n");
+		FBHDA_setup(&hda, &hda_linear);
+		
+		if(hda == NULL)
+		{
+			dbg_printf("DriverInit: failed to get FBHDA!\n");
 			return 0;
 		}
  
@@ -344,14 +349,21 @@ UINT FAR DriverInit( UINT cbHeap, UINT hModule, LPSTR lpCmdLine )
     /* Read the display configuration before doing anything else. */
     ReadDisplayConfig();
 
-#ifdef SVGA
 		/* connect to 32bit RING-0 driver */
-		if(!VXD_load())
+		if(!VXD_VM_connect())
 		{
-			dbg_printf("VXD load failure!\n");
+			dbg_printf("VXD connect failure!\n");
 			return 0;
 		}
-#endif
+		
+		dbg_printf("VXD connect success!\n");
+		FBHDA_setup(&hda, &hda_linear);
+		
+		if(hda == NULL)
+		{
+			dbg_printf("DriverInit: failed to get FBHDA!\n");
+			return 0;
+		}
 
     return( 1 );    /* Success. */
 }

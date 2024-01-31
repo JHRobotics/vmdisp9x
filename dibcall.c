@@ -30,9 +30,7 @@ THE SOFTWARE.
 #include <string.h>
 
 #include "minidrv.h"
-#include "swcursor.h"
-#include "hwcursor.h"
-
+#include "cursor.h"
 
 /*
  * What's this all about? Most of the required exported driver functions can
@@ -49,76 +47,33 @@ THE SOFTWARE.
  * are not hardware specific.
  */
 
-LONG cursorX = 0;
-LONG cursorY = 0;
-
 #pragma code_seg( _TEXT )
 
 void WINAPI __loadds MoveCursor(WORD absX, WORD absY)
 {	
 	if(wEnabled)
 	{
-#ifdef SVGA
-		if(!hwcursor_move(absX, absY))
-		{
-#endif // SVGA
-			longRECT changes = {0,0,0,0};
-	  	cursorX = absX;
-	  	cursorY = absY;
-	  	cursor_move(&changes);
-#ifdef SVGA
-			SVGA_UpdateLongRect(&changes);
-		}
-#endif // SVGA
+		DIB_MoveCursorExt(absX, absY, lpDriverPDevice);
 	}
-	
-	//DIB_MoveCursorExt(absX, absY, lpDriverPDevice);
 }
 
 WORD WINAPI __loadds SetCursor_driver(CURSORSHAPE __far *lpCursor)
 {
-	if(!sw_cursor)
-	{
-		cursor_init();
-	}
-	
 	if(wEnabled)
 	{
-#ifdef SVGA
-		if(!hwcursor_load(lpCursor))
-		{
-#endif // SVGA
-			longRECT changes = {0,0,0,0};
-
-			if(lpCursor)
-			{
-				cursor_load(lpCursor, &changes);
-			}
-			else
-			{
-				cursor_unload(&changes);
-			}
-#ifdef SVGA
-    	SVGA_UpdateLongRect(&changes);
-  	}
-#endif // SVGA
-		
-		return 1;
+		DIB_SetCursorExt(lpCursor, lpDriverPDevice);
 	}
+	
 	return 0;
 }
 
 /* Exported as DISPLAY.104 */
 void WINAPI __loadds CheckCursor( void )
 {
-	if( wEnabled )
+	if(wEnabled)
 	{
-#ifdef SVGA
-		hwcursor_update();
-#endif // SVGA
+		DIB_CheckCursorExt(lpDriverPDevice);
 	}
-	
-	//DIB_CheckCursorExt( lpDriverPDevice );
 }
 
 /* If there is no hardware screen-to-screen BitBlt, there's no point in

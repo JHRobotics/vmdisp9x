@@ -1,11 +1,13 @@
-OBJS = dibthunk.obj dibcall.obj enable.obj init.obj palette.obj &
-       scrsw.obj sswhook.obj modes.obj boxv.obj control.obj &
-       drvlib.obj vxdcall_svga.obj minivdd_svga.obj vmwsvxd.obj &
-       scrsw_svga.obj control_svga.obj modes_svga.obj palette_svga.obj &
-       pci.obj svga.obj svga3d.obj svga32.obj pci32.obj dddrv.obj &
-       enable_svga.obj dibcall_svga.obj boxv_qemu.obj modes_qemu.obj &
-       init_qemu.obj init_svga.obj qemuvxd.obj minivdd_qemu.obj &
-       vxdcall_qemu.obj control_qemu.obj swcursor.obj hwcursor.obj
+OBJS = &
+  boxv.obj boxv_qemu.obj dbgprint.obj dibcall.obj &
+  dibthunk.obj dddrv.obj drvlib.obj enable.obj init.obj init_qemu.obj init_svga.obj &
+  control.obj pm16_calls.obj pm16_calls_svga.obj pm16_calls_qemu.obj &
+  palette.obj sswhook.obj modes.obj modes_svga.obj modes_qemu.obj scrsw.obj scrsw_svga.obj &
+
+OBJS += &
+  dbgprint32.obj svga.obj pci.obj vxd_fbhda.obj vxd_lib.obj vxd_main.obj &
+  vxd_main_qemu.obj vxd_main_svga.obj vxd_svga.obj vxd_vdd.obj vxd_vdd_qemu.obj &
+  vxd_vdd_svga.obj
 
 INCS = -I$(%WATCOM)\h\win -Iddk -Ivmware
 
@@ -19,7 +21,7 @@ FLAGS = -DDRV_VER_BUILD=$(VER_BUILD)
 #FLAGS += -DVRAM256MB
 
 # Set DBGPRINT to add debug printf logging.
-#DBGPRINT = 1
+DBGPRINT = 1
 
 !ifdef DBGPRINT
 FLAGS += -DDBGPRINT
@@ -32,7 +34,7 @@ DBGFILE =
 DBGFILE32 =
 !endif
 CFLAGS = -q -wx -s -zu -zls -6 -fp6
-CFLAGS32 = -q -wx -s -zls -6s -fp6 -mf
+CFLAGS32 = -q -wx -s -zls -6s -fp6 -mf -DVXD32
 CC = wcc
 CC32 = wcc386
 
@@ -41,52 +43,32 @@ CC32 = wcc386
 CFLAGS32 += -DCOM2
 !endif
 
-all : boxvmini.drv vmwsmini.drv qemumini.drv vmwsmini.vxd qemumini.vxd
+#all : boxvmini.drv vmwsmini.drv qemumini.drv vmwsmini.vxd qemumini.vxd
+all : vmwsmini.drv vmwsmini.vxd
 
-# Object files
-drvlib.obj : drvlib.c .autodepend
-	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
-
+# Object files: PM16 RING-3
 boxv.obj : boxv.c .autodepend
 	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
 	
 boxv_qemu.obj : boxv_qemu.c .autodepend
 	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
 
-pci.obj : vmware/pci.c .autodepend
-	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
-
-pci32.obj : vmware/pci32.c .autodepend
-	$(CC32) $(CFLAGS32) $(INCS) $(FLAGS) $<
-
-svga.obj : vmware/svga.c .autodepend
-	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
-
-svga32.obj : vmware/svga32.c .autodepend
-	$(CC32) $(CFLAGS32) $(INCS) $(FLAGS) $<
-
-svga3d.obj : vmware/svga3d.c .autodepend
-	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
-
 dbgprint.obj : dbgprint.c .autodepend
 	$(CC) $(CFLAGS) -zW $(FLAGS) $<
 
-dbgprint32.obj : dbgprint32.c .autodepend
-	$(CC32) $(CFLAGS32) $(FLAGS) $<
-
 dibcall.obj : dibcall.c .autodepend
-	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
-	
-dibcall_svga.obj : dibcall_svga.c .autodepend
 	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
 
 dibthunk.obj : dibthunk.asm
 	wasm -q $(FLAGS) $<
 
-enable.obj : enable.c .autodepend
+dddrv.obj : dddrv.c .autodepend
 	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
 
-enable_svga.obj : enable_svga.c .autodepend
+drvlib.obj: drvlib.c .autodepend
+	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
+
+enable.obj : enable.c .autodepend
 	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
 
 init.obj : init.c .autodepend
@@ -101,24 +83,18 @@ init_svga.obj : init_svga.c .autodepend
 control.obj : control.c .autodepend
 	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
 
-control_svga.obj : control_svga.c .autodepend
-	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
-	
-control_qemu.obj : control_qemu.c .autodepend
+pm16_calls.obj : pm16_calls.c .autodepend
 	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
 
-vxdcall_svga.obj : vxdcall_svga.c .autodepend
+pm16_calls_svga.obj : pm16_calls_svga.c .autodepend
 	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
 
-vxdcall_qemu.obj : vxdcall_qemu.c .autodepend
+pm16_calls_qemu.obj : pm16_calls_qemu.c .autodepend
 	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
 
 palette.obj : palette.c .autodepend
 	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
 	
-palette_svga.obj : palette_svga.c .autodepend
-	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
-
 sswhook.obj : sswhook.asm
 	wasm -q $(FLAGS) $<
 
@@ -137,26 +113,43 @@ scrsw.obj : scrsw.c .autodepend
 scrsw_svga.obj : scrsw_svga.c .autodepend
 	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
 
-vmwsvxd.obj : vmwsvxd.c .autodepend
-	$(CC32) $(CFLAGS32) $(INCS) $(FLAGS) $<
+# Object files: PM32 RING-0
+
+dbgprint32.obj : dbgprint32.c .autodepend
+	$(CC32) $(CFLAGS32) $(FLAGS) $<
 	
-qemuvxd.obj : qemuvxd.c .autodepend
+svga.obj : vmware/svga.c .autodepend
 	$(CC32) $(CFLAGS32) $(INCS) $(FLAGS) $<
 
-minivdd_svga.obj : minivdd_svga.c .autodepend
+pci.obj : vmware/pci.c .autodepend
 	$(CC32) $(CFLAGS32) $(INCS) $(FLAGS) $<
 
-minivdd_qemu.obj : minivdd_qemu.c .autodepend
+vxd_fbhda.obj : vxd_fbhda.c .autodepend
 	$(CC32) $(CFLAGS32) $(INCS) $(FLAGS) $<
 
-dddrv.obj : dddrv.c .autodepend
-	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
+vxd_lib.obj : vxd_lib.c .autodepend
+	$(CC32) $(CFLAGS32) $(INCS) $(FLAGS) $<
 
-swcursor.obj: swcursor.c .autodepend
-	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
+vxd_main.obj : vxd_main.c .autodepend
+	$(CC32) $(CFLAGS32) $(INCS) $(FLAGS) $<
 
-hwcursor.obj: hwcursor.c .autodepend
-	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
+vxd_main_qemu.obj : vxd_main_qemu.c .autodepend
+	$(CC32) $(CFLAGS32) $(INCS) $(FLAGS) $<
+
+vxd_main_svga.obj : vxd_main_svga.c .autodepend
+	$(CC32) $(CFLAGS32) $(INCS) $(FLAGS) $<
+
+vxd_svga.obj : vxd_svga.c .autodepend
+	$(CC32) $(CFLAGS32) $(INCS) $(FLAGS) $<
+
+vxd_vdd.obj : vxd_vdd.c .autodepend
+	$(CC32) $(CFLAGS32) $(INCS) $(FLAGS) $<
+
+vxd_vdd_qemu.obj : vxd_vdd_qemu.c .autodepend
+	$(CC32) $(CFLAGS32) $(INCS) $(FLAGS) $<
+
+vxd_vdd_svga.obj : vxd_vdd_svga.c .autodepend
+	$(CC32) $(CFLAGS32) $(INCS) $(FLAGS) $<
 
 # Resources
 boxvmini.res : res/boxvmini.rc res/colortab.bin res/config.bin res/fonts.bin res/fonts120.bin .autodepend
@@ -262,23 +255,18 @@ import GlobalSmartPageLock  KERNEL.230
 vmwsmini.drv : $(OBJS) vmwsmini.res dibeng.lib
 	wlink op quiet, start=DriverInit_ disable 2055 $(DBGFILE) @<<vmwsmini.lnk
 system windows dll initglobal
+file dibcall.obj
 file dibthunk.obj
-file dibcall_svga.obj
+file dddrv.obj 
 file drvlib.obj
-file enable_svga.obj
+file enable.obj 
 file init_svga.obj
-file palette_svga.obj
-file scrsw_svga.obj
+file control.obj
+file pm16_calls_svga.obj
+file palette.obj
 file sswhook.obj
 file modes_svga.obj
-file svga.obj
-file svga3d.obj
-file pci.obj
-file control_svga.obj
-file vxdcall_svga.obj
-file dddrv.obj
-file swcursor.obj
-file hwcursor.obj
+file scrsw_svga.obj
 name vmwsmini.drv
 option map=vmwsmini.map
 library dibeng.lib
@@ -406,10 +394,13 @@ system win_vxd dynamic
 option map=vmwsvxd.map
 option nodefaultlibs
 name vmwsmini.vxd
-file vmwsvxd.obj
-file minivdd_svga.obj
-file pci32.obj
-file svga32.obj
+file vxd_main_svga.obj
+file svga.obj
+file pci.obj
+file vxd_fbhda.obj
+file vxd_lib.obj
+file vxd_svga.obj
+file vxd_vdd_svga.obj
 segment '_LTEXT' PRELOAD NONDISCARDABLE 
 segment '_TEXT'  PRELOAD NONDISCARDABLE
 segment '_DATA'  PRELOAD NONDISCARDABLE

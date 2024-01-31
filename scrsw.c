@@ -28,9 +28,7 @@ THE SOFTWARE.
 #include <gdidefs.h>
 #include <dibeng.h>
 #include "minidrv.h"
-#ifdef SVGA
-#include "svga_all.h"
-#endif
+#include "3d_accel.h"
 
 /* SwitchFlags bits. */
 #define PREVENT_SWITCH  0x80    /* Don't allow screen switching. */
@@ -127,12 +125,12 @@ void UnhookInt2Fh( void )
 #ifdef SVGA
 static void __far __loadds SVGA_background()
 {
-	SVGA_WriteReg(SVGA_REG_ENABLE, FALSE);
+	SVGA_HW_disable();
 }
 
 static void __far __loadds SVGA_foreground()
 {
-	SVGA_WriteReg(SVGA_REG_ENABLE, TRUE);
+	SVGA_HW_enable();
 }
 #endif /* SVGA */
 

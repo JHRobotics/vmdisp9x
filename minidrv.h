@@ -90,8 +90,6 @@ extern WORD     OurVMHandle;
 extern DWORD    LfbBase;
 #endif
 
-extern WORD wMesa3DEnabled;         /* Is possible to accelerate though Mesa3D SVGA */
-
 WORD CalcPitch(WORD x, WORD bpp);
 
 typedef void (__far * FastBitBlt_t) (unsigned dx, unsigned dy, unsigned sx, unsigned sy, unsigned w, unsigned h);
@@ -104,39 +102,10 @@ typedef struct _longRECT {
   LONG bottom;
 } longRECT;
 
-/*
- * frame buffer direct hadrware access, allow user space programs/drivers write
- * to device frame buffer directly
- */
-#pragma pack(push)
-#pragma pack(1)
-typedef struct _FBHDA
-{
-	DWORD width;
-	DWORD height;
-	DWORD bpp;
-	DWORD pitch;
-	DWORD        fb_pm32; /* eq. linear address, mapped to shared or kernel space*/
-	void __far * fb_pm16; /* usable in this driver */
-	DWORD flags;
-	volatile DWORD lock; /* lock for framebuffer operations */
-	DWORD        vram_pm32;
-	void __far * vram_pm16;
-	DWORD        vram_size;
-} FBHDA;
+typedef struct FBHDA FBHDA_t;
 
-#pragma pack(pop)
-
-#define FBHDA_SIZE 4096 /* alloc whole page */
-
-#define FBHDA_NEED_UPDATE 1
-#define FBHDA_LOCKING     2
-#define FBHDA_FLIPING     4
-#define FBHDA_SW_CURSOR   8
-//#define FBHDA_NO_CURSOR  16
-
-extern FBHDA __far * FBHDA_ptr;
-extern DWORD FBHDA_linear;
+extern FBHDA_t __far * hda;
+extern DWORD hda_linear;
 
 /* Inlines needed in multiple modules. */
 
