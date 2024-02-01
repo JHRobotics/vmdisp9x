@@ -40,6 +40,12 @@ extern void dbg_printf( const char *s, ... );
 #define dbg_printf(...)
 #endif
 
+#ifndef SVGA
+# ifndef VESA
+#  define VBE
+# endif
+#endif
+
 static DWORD VXD_VM = 0;
 
 #pragma code_seg( _INIT )
@@ -385,3 +391,102 @@ void SVGA_HW_disable()
 	}
 }
 #endif
+
+#ifdef VBE
+BOOL VBE_valid()
+{
+	static BOOL status;
+	status = FALSE;
+	
+	_asm
+	{
+		.386
+		push eax
+		push edx
+		push ecx
+	  
+	  mov edx, OP_VBE_VALID
+	  call dword ptr [VXD_VM]
+	  mov  [status], cx
+	  
+	  pop ecx
+		pop edx
+		pop eax
+	}
+	
+	return status == 0 ? FALSE : TRUE;
+}
+
+BOOL VBE_setmode(DWORD w, DWORD h, DWORD bpp)
+{
+	static BOOL status;
+	static DWORD sw, sh, sbpp;
+	
+	status = FALSE;
+	sw = w;
+	sh = h;
+	sbpp = bpp;
+	
+	_asm
+	{
+		.386
+		push eax
+		push edx
+		push ecx
+		push esi
+		push edi
+	  
+	  mov edx, OP_VBE_SETMODE
+	  mov ecx, [bpp]
+	  mov esi, [w]
+	  mov edi, [h]
+	  call dword ptr [VXD_VM]
+	  mov  [status], cx
+	  
+	  pop edi
+	  pop esi
+	  pop ecx
+		pop edx
+		pop eax
+	}
+	
+	return status == 0 ? FALSE : TRUE;
+}
+
+BOOL VBE_validmode(DWORD w, DWORD h, DWORD bpp)
+{
+	static BOOL status;
+	static DWORD sw, sh, sbpp;
+	
+	status = FALSE;
+	sw = w;
+	sh = h;
+	sbpp = bpp;
+	
+	_asm
+	{
+		.386
+		push eax
+		push edx
+		push ecx
+		push esi
+		push edi
+	  
+	  mov edx, OP_VBE_VALIDMODE
+	  mov ecx, [bpp]
+	  mov esi, [w]
+	  mov edi, [h]
+	  call dword ptr [VXD_VM]
+	  mov  [status], cx
+	  
+	  pop edi
+	  pop esi
+	  pop ecx
+		pop edx
+		pop eax
+	}
+	
+	return status == 0 ? FALSE : TRUE;
+}
+
+#endif /* VBE */

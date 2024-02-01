@@ -109,4 +109,28 @@ void dbg_printf( const char *s, ... );
 #define VDD_CY state->Client_EFlags |= 0x1
 #define VDD_NC state->Client_EFlags &= 0xFFFFFFFEUL
 
+typedef struct {
+	WORD    diHdrSize;
+	WORD    diInfoFlags;
+	DWORD   diDevNodeHandle;
+	char    diDriverName[16];
+	WORD    diXRes;
+	WORD    diYRes;
+	WORD    diDPI;
+	BYTE    diPlanes;
+	BYTE    diBpp;
+	WORD    diRefreshRateMax;
+	WORD    diRefreshRateMin;
+	WORD    diLowHorz;
+	WORD    diHighHorz;
+	WORD    diLowVert;
+	WORD    diHighVert;
+	DWORD   diMonitorDevNodeHandle;
+	BYTE    diHorzSyncPolarity;
+	BYTE    diVertSyncPolarity;
+} DISPLAYINFO;
+
+void Enable_Global_Trapping(DWORD port);
+void Disable_Global_Trapping(DWORD port);
+
 #endif /* __VXD_VDD_H__INCLUDED__ */

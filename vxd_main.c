@@ -22,11 +22,21 @@ THE SOFTWARE.
 
 *****************************************************************************/
 
+/* 
+ * Code for QEMU is inspired by boxvmini.asm by Philip Kelley
+ */
+
 #ifndef VXD32
 #error VXD32 not defined!
 #endif
 
 #define VXD_MAIN
+
+#ifndef SVGA
+# ifndef VESA
+#  define VBE
+# endif
+#endif
 
 #include "winhack.h"
 #include "vmm.h"
@@ -44,29 +54,30 @@ THE SOFTWARE.
 
 #include "code32.h"
 
-void VMWS_control();
-void VMWS_API_entry();
+void VXD_control();
+void VXD_API_entry();
 void Device_Init_proc();
 void __stdcall Device_Dynamic_Init_proc(DWORD VM);
 void __stdcall Device_Exit_proc(DWORD VM);
+void __stdcall Device_Init_Complete(DWORD VM);
 
 /*
   VXD structure
   this variable must be in first address in code segment.
   In other cases VXD isn't loadable (WLINK bug?)
 */
-DDB VMWS_DDB = {
+DDB VXD_DDB = {
 	NULL,                       // must be NULL
 	DDK_VERSION,                // DDK_Version
 	VXD_DEVICE_ID,              // Device ID
 	VXD_MAJOR_VER,              // Major Version
 	VXD_MINOR_VER,              // Minor Version
 	NULL,
-	"VMWSVXD",
+	VXD_DEVICE_NAME,
 	VDD_Init_Order, //Undefined_Init_Order,
-	(DWORD)VMWS_control,
-	(DWORD)VMWS_API_entry,
-	(DWORD)VMWS_API_entry,
+	(DWORD)VXD_control,
+	(DWORD)VXD_API_entry,
+	(DWORD)VXD_API_entry,
 	NULL,
 	NULL,
 	NULL,
@@ -82,6 +93,59 @@ DDB VMWS_DDB = {
 DWORD *DispatchTable = 0;
 DWORD DispatchTableLength = 0;
 DWORD ThisVM = 0;
+
+#ifdef QEMU
+void Install_IO_Handler(DWORD port, DWORD callback)
+{
+	static DWORD sPort = 0;
+	static DWORD sCallback = 0;
+
+	sPort = port;
+	sCallback = callback;
+	
+/*
+ * esi <- IOCallback
+ * edx <- I/O port numbers
+ */
+	_asm
+	{
+		push esi
+		push edx
+		mov esi, [sCallback]
+		mov edx, [sPort]
+	}
+	VMMCall(Install_IO_Handler);
+	_asm
+	{
+		pop edx
+		pop esi
+	}
+}
+
+/**
+ * This is fix of broken screen when open DOS window
+ *
+ **/
+void __declspec(naked) virtual_0x1ce()
+{
+/*
+ * AX/AL contains the value to be read or written on the port.
+ * EBX contains the handle of the VM accessing the port.
+ * ECX contains the direction (in/out) and size (byte/word) of the operation.
+ * EDX contains the port number, which for us will either be 1CEh or 1CFh.
+ */
+	VxDCall(VDD, Get_VM_Info); // esi = result
+	_asm{
+		cmp edi, ThisVM             ; Is the CRTC controlled by Windows?
+    jne _Virtual1CEPhysical     ; If not, we should allow the I/O
+    cmp ebx, edi                ; Is the calling VM Windows?
+    je _Virtual1CEPhysical      ; If not, we should eat the I/O
+    	ret
+		_Virtual1CEPhysical:
+	}
+	VxDJmp(VDD, Do_Physical_IO);
+}
+#endif /* QEMU */
 
 /**
  * VDD calls wrapers
@@ -120,7 +184,7 @@ void __declspec(naked) Device_IO_Control_entry()
  * service module calls (init, exit, deviceIoControl, ...)
  * clear carry if succes (this is always success)
  */
-void __declspec(naked) VMWS_control()
+void __declspec(naked) VXD_control()
 {
 	// eax = 0x00 - Sys Critical Init
 	// eax = 0x01 - sys dynamic init
@@ -144,35 +208,44 @@ void __declspec(naked) VMWS_control()
 			clc
 			ret
 		control_2:
-		cmp eax,0x1B
+		cmp eax,Init_Complete
 		jnz control_3
+			pushad
+			push ebx ; VM handle
+		  call Device_Init_Complete
+			popad
+			clc
+			ret
+		control_3:
+		cmp eax,0x1B
+		jnz control_4
 			pushad
 			push ebx ; VM handle
 		  call Device_Dynamic_Init_proc
 		  popad
 			clc
 			ret
-		control_3:
-		cmp eax,W32_DEVICEIOCONTROL
-		jnz control_4
-			jmp Device_IO_Control_entry
 		control_4:
-		cmp eax,System_Exit
+		cmp eax,W32_DEVICEIOCONTROL
 		jnz control_5
+			jmp Device_IO_Control_entry
+		control_5:
+		cmp eax,System_Exit
+		jnz control_6
 			pushad
 			push ebx ; VM handle
 		  call Device_Exit_proc
 			popad
 			clc
 			ret
-		control_5:	
+		control_6:
 		clc
 	  ret
 	};
 }
 
 /* process V86/PM16 calls */
-WORD __stdcall VMWS_API_Proc(PCRS_32 state)
+WORD __stdcall VXD_API_Proc(PCRS_32 state)
 {
 	WORD rc = 0xFFFF;
 	WORD service = state->Client_EDX & 0xFFFF;
@@ -261,6 +334,34 @@ WORD __stdcall VMWS_API_Proc(PCRS_32 state)
 			rc = 1;
 			break;
 #endif
+
+#ifdef VBE
+		case OP_VBE_VALID:
+			{
+				BOOL rs;
+				rs = VBE_valid();
+				state->Client_ECX = (DWORD)rs;
+				rc = 1;
+				break;
+			}
+		case OP_VBE_SETMODE:
+			{
+				BOOL rs;
+				rs = VBE_setmode(state->Client_ESI, state->Client_EDI, state->Client_ECX);
+				state->Client_ECX = (DWORD)rs;
+				rc = 1;
+				break;
+			}
+		case OP_VBE_VALIDMODE:
+			{
+				BOOL rs;
+				rs = VBE_validmode(state->Client_ESI, state->Client_EDI, state->Client_ECX);
+				state->Client_ECX = (DWORD)rs;
+				rc = 1;
+				break;
+			}
+#endif
+
 	}
 	
 	if(rc == 0xFFFF)
@@ -278,15 +379,15 @@ WORD __stdcall VMWS_API_Proc(PCRS_32 state)
 /*
  * Service calls from protected mode (usually 16 bit) and virtual 86 mode
  * CPU state before call is already on stack (EBP points it).
- * Converts the call to __stdcall and call 'VMWS_API_Proc', result of this
+ * Converts the call to __stdcall and call 'VXD_API_Proc', result of this
  * function is placed to saved AX register.
  *
  */
-void __declspec(naked) VMWS_API_entry()
+void __declspec(naked) VXD_API_entry()
 {
 	_asm {
 		push ebp
-		call VMWS_API_Proc
+		call VXD_API_Proc
 		mov [ebp+1Ch], ax
 		retn
 	}
@@ -314,7 +415,18 @@ void Device_Dynamic_Init_proc(DWORD VM)
 #ifdef SVGA
 	SVGA_init_hw();
 #endif
- 		
+
+#ifdef VBE
+	VBE_init_hw();
+#endif
+
+#ifdef QEMU
+	Install_IO_Handler(0x1ce, (DWORD)virtual_0x1ce);
+	Disable_Global_Trapping(0x1ce);
+	Install_IO_Handler(0x1cf, (DWORD)virtual_0x1ce);
+	Disable_Global_Trapping(0x1cf);
+#endif
+ 	
 	/* register miniVDD functions */
 	VDD_Get_Mini_Dispatch_Table();
 	if(DispatchTableLength >= 0x31)
@@ -429,14 +541,40 @@ void Device_Init_proc()
 	/* nop */
 }
 
+void Device_Init_Complete(DWORD VM)
+{
+#ifdef QEMU
+/*
+ * At Windows shutdown time, the display driver calls VDD_DRIVER_UNREGISTER,
+ * which calls our DisplayDriverDisabling callback, and soon thereafter
+ * does an INT 10h (AH=0) to mode 3 (and then 13) in V86 mode. However, the
+ * memory ranges for display memory are not always mapped!
+ *
+ * If the VGA ROM BIOS, during execution of such a set video mode call, tries to
+ * clear the screen, and the appropriate memory range isn't mapped, then we end
+ * up in a page fault handler, which I guess maps the memory and then resumes
+ * execution in V86 mode. But strangely, in QEMU, this fault & resume mechanism
+ * does not work with KVM or WHPX assist, at least on Intel. The machine hangs
+ * instead (I have not root caused why).
+ *
+ * We can dodge this problem by setting up real mappings up front.
+ *
+ * At entry, EBX contains a Windows VM handle.
+ *
+ */
+	_PhysIntoV86(0xA0, VM, 0xA0, 16, 0);
+	_PhysIntoV86(0xB8, VM, 0xB8, 8, 0);
+#endif
+}
+
 /* shutdown procedure */
 void Device_Exit_proc(DWORD VM)
 {
-	dbg_printf(dbg_destroy);
-	
 #ifdef SVGA
 	SVGA_HW_disable();
 #endif
+
+	dbg_printf(dbg_destroy);
 	
 	// TODO: free memory
 }

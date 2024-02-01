@@ -11,10 +11,13 @@
 
 #if defined(SVGA)
 #define VXD_DEVICE_ID VXD_DEVICE_SVGA_ID
+#define VXD_DEVICE_NAME "VMWSVXD"
 #elif defined(QEMU)
 #define VXD_DEVICE_ID VXD_DEVICE_QEMU_ID
+#define VXD_DEVICE_NAME "QEMUVXD"
 #else
 #define VXD_DEVICE_ID VXD_DEVICE_VBE_ID
+#define VXD_DEVICE_NAME "VBE_VXD"
 #endif
 
 #define VXD_MAJOR_VER 4 /* should be 4 for windows 95 and newer */

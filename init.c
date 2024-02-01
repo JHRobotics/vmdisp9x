@@ -47,10 +47,6 @@ WORD    wPalettized = 0;    /* Non-zero if palettized. */
 
 WORD    OurVMHandle   = 0;  /* The current VM's ID. */
 DWORD   VDDEntryPoint = 0;  /* The VDD entry point. */
-#ifdef QEMU
-DWORD   ConfigMGEntryPoint = 0;     /* The configuration manager entry point. */
-DWORD   LfbBase = 0;                /* The physical base address of the linear framebuffer. */
-#endif
 
 /* On Entry:
  * EAX    = Function code (VDD_GET_DISPLAY_CONFIG)
@@ -79,66 +75,10 @@ extern DWORD CallVDDGetDispConf( WORD Function, WORD wDInfSize, LPVOID pDInf );
  */
 
 #pragma code_seg( _INIT )
-#ifdef QEMU
-/* Get the first logical configuration for a devnode.
- */
-CONFIGRET static _near _cdecl CM_Get_First_Log_Conf(
-    PLOG_CONF plcLogConf,
-    DEVNODE dnDevNode,
-    ULONG ulFlags)
-{
-    WORD wRc = 0;
-
-    _asm { mov eax, 01Ah }; /* CM_GET_FIRST_LOG_CONF */
-    _asm { call ConfigMGEntryPoint };
-    _asm { mov wRc, ax };
-
-    return( wRc );
-}
-
-/* Get the next resource descriptor of a given type.
- */
-CONFIGRET static _near _cdecl CM_Get_Next_Res_Des(
-    PRES_DES prdResDes,
-    RES_DES CurrentResDesOrLogConf,
-    RESOURCEID ForResource,
-    PRESOURCEID pResourceID,
-    ULONG ulFlags)
-{
-    WORD wRc = 0;
-
-    _asm { mov eax, 01Fh }; /* CM_GET_NEXT_RES_DES */
-    _asm { call ConfigMGEntryPoint };
-    _asm { mov wRc, ax };
-
-    return( wRc );
-}
-
-/* Get the data for a resource descriptor.
-*/
-CONFIGRET static _near _cdecl CM_Get_Res_Des_Data(
-    RES_DES rdResDes,
-    PFARVOID Buffer,
-    ULONG BufferLen,
-    ULONG ulFlags)
-{
-    WORD wRc = 0;
-
-    _asm { mov eax, 022h }; /* CM_GET_RES_DES_DATA */
-    _asm { call ConfigMGEntryPoint };
-    _asm { mov wRc, ax };
-
-    return( wRc );
-}
-#endif
 
 /* Read the display settings from SYSTEM.INI or Registry.
  */
-#ifdef QEMU
-DEVNODE ReadDisplayConfig( void )
-#else
 void ReadDisplayConfig( void )
-#endif
 {
     WORD        wX, wY;
     UINT        bIgnoreRegistry;
@@ -164,29 +104,6 @@ void ReadDisplayConfig( void )
 
     bIgnoreRegistry = GetPrivateProfileInt( "display", "IgnoreRegistry", 0, "system.ini" );
 
-#ifdef QEMU
-    dwRc = CallVDDGetDispConf( VDD_GET_DISPLAY_CONFIG, sizeof( DispInfo ), &DispInfo );
-    if( (dwRc != VDD_GET_DISPLAY_CONFIG) && !dwRc ) {
-        devNode = (DEVNODE)DispInfo.diDevNodeHandle;
- 
-        /* Call succeeded, use the data. */
-        if (!bIgnoreRegistry)
-        {
-             wScrX = DispInfo.diXRes;
-             wScrY = DispInfo.diYRes;
-             wBpp = DispInfo.diBpp;
-
-             dbg_printf( "Registry: %ux%u %ubpp %udpi\n", DispInfo.diXRes, DispInfo.diYRes, DispInfo.diBpp, DispInfo.diDPI );
-
-             /* DPI might not be set, careful. */
-             if( DispInfo.diDPI )
-                 wDpi = DispInfo.diDPI;
-         }
-    } else {
-        dbg_printf( "VDD_GET_DISPLAY_CONFIG failed, dwRc=%lX\n",dwRc );
-        devNode = 0;
-   }
-#else
     if( !bIgnoreRegistry ) {
         DISPLAYINFO DispInfo;
         DWORD       dwRc;
@@ -207,7 +124,6 @@ void ReadDisplayConfig( void )
             dbg_printf( "VDD_GET_DISPLAY_CONFIG failed, dwRc=%lX\n",dwRc );
         }
     }
-#endif
 
     mode.xRes = wScrX;
     mode.yRes = wScrY;
@@ -229,10 +145,6 @@ void ReadDisplayConfig( void )
         wPalettized = GetPrivateProfileInt( "display", "palettized", 1, "system.ini" );
     else
         wPalettized = 0;
-
-#ifdef QEMU
-    return( devNode );
-#endif
 }
 
 #define VDD_ID      10  /* Virtual Display Driver ID. */
@@ -259,80 +171,6 @@ extern char __based( __segname( "_TEXT" ) ) *pText;
 
 #pragma aux DriverInit parm [cx] [di] [es si]
 
-#ifdef QEMU
-UINT FAR DriverInit( UINT cbHeap, UINT hModule, LPSTR lpCmdLine )
-{
-    DEVNODE devNode;
-
-     /* Lock the code segment. */
-     GlobalSmartPageLock( (__segment)pText );
- 
-    /* Query the entry point of the Virtual Display Device. */
-    VDDEntryPoint = (DWORD)int_2F_GetEP( 0x1684, VDD_ID );
-
-    /* Obtain the "magic number" needed for VDD calls. */
-    OurVMHandle = int_2F_GetVMID( 0x1683 );
-    
-    dbg_printf( "DriverInit: VDDEntryPoint=%WP, OurVMHandle=%x\n", VDDEntryPoint, OurVMHandle );
- 
-    /* Read the display configuration before doing anything else. */
-    LfbBase = 0;
-    devNode = ReadDisplayConfig();
-
-    /* Use the Configuration Manager to locate the base address of the linear framebuffer. */
-    if( devNode ) {
-        RES_DES rd;
-
-        ConfigMGEntryPoint = (DWORD)int_2F_GetEP( 0x1684, CONFIGMG_ID );
-
-        if( CM_Get_First_Log_Conf( &rd, devNode, ALLOC_LOG_CONF ) == CR_SUCCESS ) {
-           ULONG cbAllocMax = 0;
-
-            /* Take the largest physical memory range in use by this device
-             * and store it into LfbBase. */
-            while( CM_Get_Next_Res_Des( &rd, rd, ResType_Mem, NULL, 0 ) == CR_SUCCESS ) {
-
-                /* Experimentally, no MEM_RES was found to be larger than 0x28 bytes
-                 * with the QEMU VGA adapter, so this buffer is static, but it would
-                 * be better to query the size (with CM_Get_Res_Des_Data_Size) and
-                 * then use alloca here. */
-                char memRes[0x28];
-
-                if( CM_Get_Res_Des_Data( rd, memRes, sizeof(memRes), 0 ) == CR_SUCCESS ) {
-                    PMEM_DES pMemDes = (PMEM_DES)memRes;
-                    ULONG cbAlloc = pMemDes->MD_Alloc_End - pMemDes->MD_Alloc_Base + 1;
-
-                    if( cbAlloc > cbAllocMax ) {
-                        cbAllocMax = cbAlloc;
-                        LfbBase = pMemDes->MD_Alloc_Base;
-                    }
-                }
-            }
-        }
-    }
-
-    dbg_printf("DriverInit: LfbBase is %lX\n", LfbBase);
- 
-		/* connect to 32bit RING-0 driver */
-		if(!VXD_VM_connect())
-		{
-			dbg_printf("VXD connect failure!\n");
-			return 0;
-		}
-		
-		dbg_printf("VXD connect success!\n");
-		FBHDA_setup(&hda, &hda_linear);
-		
-		if(hda == NULL)
-		{
-			dbg_printf("DriverInit: failed to get FBHDA!\n");
-			return 0;
-		}
- 
-    /* Return 1 (success) iff we located the physical address of the linear framebuffer. */
-    return ( !!LfbBase );
-}
-#else
 UINT FAR DriverInit( UINT cbHeap, UINT hModule, LPSTR lpCmdLine )
 {
     /* Lock the code segment. */
@@ -367,4 +205,3 @@ UINT FAR DriverInit( UINT cbHeap, UINT hModule, LPSTR lpCmdLine )
 
     return( 1 );    /* Success. */
 }
-#endif

@@ -35,6 +35,8 @@ FBHDA_t *hda = NULL;
 ULONG hda_sem = 0;
 LONG fb_lock_cnt = 0;
 
+#include "vxd_strings.h"
+
 BOOL FBHDA_init_hw()
 {
 	hda = (FBHDA_t *)_PageAllocate(RoundToPages(sizeof(FBHDA_t)), PG_SYS, 0, 0, 0x0, 0x100000, NULL, PAGEFIXED);
@@ -72,6 +74,8 @@ void FBHDA_release_hw()
 
 FBHDA_t *FBHDA_setup()
 {
+	dbg_printf(dbg_fbhda_setup);
+	
 	return hda;
 }
 

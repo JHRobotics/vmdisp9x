@@ -25,6 +25,7 @@ DX.CopyBackup=10,SYSBCKUP
 
 [SourceDisksFiles]
 boxvmini.drv=1
+boxvmini.vxd=1
 vmwsmini.drv=1
 vmwsmini.vxd=1
 qemumini.drv=1
@@ -77,6 +78,7 @@ AddReg=VMSvga.AddReg,VM.AddReg,DX.addReg
 
 [VBox.Copy]
 boxvmini.drv,,,0x00000004
+boxvmini.vxd,,,0x00000004
 ;mesa:mesa3d.dll,,,0x00000004
 ;vmhal:vmhal9x.dll,,,0x00000004
 
@@ -121,7 +123,7 @@ HKR,DEFAULT,Mode,,"8,640,480"
 
 [VBox.AddReg]
 HKR,DEFAULT,drv,,boxvmini.drv
-;HKR,DEFAULT,minivdd,,boxvmini.vxd
+HKR,DEFAULT,minivdd,,boxvmini.vxd
 HKR,DEFAULT,Mode,,"8,640,480"
 
 [VMSvga.AddReg]

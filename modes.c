@@ -26,6 +26,12 @@ THE SOFTWARE.
 
 /* Display driver mode management. */
 
+#ifndef SVGA
+#ifndef VESA
+#define VBE
+#endif
+#endif
+
 #include "winhack.h"
 #include <gdidefs.h>
 #include <dibeng.h>
@@ -117,20 +123,6 @@ WORD FixModeInfo( LPMODEDESC lpMode )
         rc = 0;             /* Mode wasn't valid. */
     }
 
-#if 0
-    /* Clip the resolution to something that probably won't make
-     * Windows have a cow.
-     */
-    if( lpMode->xRes > RES_MAX_X ) {
-        lpMode->xRes = RES_MAX_X;
-        rc = 0;
-    }
-    if( lpMode->yRes > RES_MAX_Y ) {
-        lpMode->yRes = RES_MAX_Y;
-        rc = 0;
-    }
-#endif
-
     return( rc );
 }
 
@@ -170,6 +162,13 @@ static int IsModeOK( WORD wXRes, WORD wYRes, WORD wBpp )
 		}
 #endif
 
+#ifdef VBE
+		if(!VBE_validmode(wXRes, wYRes, wBpp))
+		{
+			return 0;
+		}
+#endif
+
     return( 1 );
 }
 
@@ -200,8 +199,13 @@ static int SetDisplayMode( WORD wXRes, WORD wYRes, int bFullSet )
 		{
 			return 0;
 		}
-#else
-    BOXV_ext_mode_set( 0, wXRes, wYRes, wBpp, wXRes, wYRes );
+#endif
+
+#ifdef VBE
+		if(!VBE_setmode(wXRes, wYRes, wBpp))
+		{
+			return 0;
+		}
 #endif
 
     if( bFullSet ) {
@@ -231,25 +235,6 @@ int PhysicalEnable( void )
 
     if( !ScreenSelector ) {
         dwVideoMemorySize = hda->vram_size;
-
-#ifndef SVGA
-    {
-        /* Extra work if driver hasn't yet been initialized. */
-        int     iChipID;
-        iChipID = BOXV_detect( 0, &dwVideoMemorySize );
-        if( !iChipID ) {
-            return( 0 );
-        }
-
-#if 0        
-# ifdef QEMU
-        dwPhysVRAM = LfbBase;
-# else
-        dwPhysVRAM = BOXV_get_lfb_base( 0 );
-# endif
-#endif
-    }
-#endif
 
         dbg_printf( "PhysicalEnable: Hardware detected, dwVideoMemorySize=%lX\n", dwVideoMemorySize );
     }
@@ -302,6 +287,10 @@ int PhysicalEnable( void )
     SVGA_setmode(wScrX, wScrY, wBpp);
 #endif
 
+#ifdef VBE
+    VBE_setmode(wScrX, wScrY, wBpp);
+#endif
+
     /* Let the VDD know that the mode changed. */
     CallVDD( VDD_POST_MODE_CHANGE );
     CallVDD( VDD_SAVE_DRIVER_STATE );
@@ -332,26 +321,17 @@ UINT WINAPI __loadds ValidateMode( DISPVALMODE FAR *lpValMode )
               rc = VALMODE_NO_WRONGDRV;
               break;
             }
-            
-            dwVideoMemorySize = hda->vram_size;
-#else
-            int     iChipID;
+#endif
 
-            /* Additional checks if driver isn't running. */
-            iChipID = BOXV_detect( 0, &dwVideoMemorySize );
-            if( !iChipID ) {
-                rc = VALMODE_NO_WRONGDRV;
-                break;
+#ifdef VBE
+            /* Check if we have Boschs VBE card */
+            if(!VBE_valid())
+            {
+              rc = VALMODE_NO_WRONGDRV;
+              break;
             }
-#if 0 /* TODO move VXD */
-# ifdef QEMU
-            dwPhysVRAM = LfbBase;
-# else
-            dwPhysVRAM = BOXV_get_lfb_base( 0 );
-# endif
-            dbg_printf( "ValidateMode: Hardware detected, dwVideoMemorySize=%lX dwPhysVRAM=%lX\n", dwVideoMemorySize, dwPhysVRAM );
 #endif
-#endif
+            dwVideoMemorySize = hda->vram_size;
         }
 
         if( !IsModeOK( lpValMode->dvmXRes, lpValMode->dvmYRes, lpValMode->dvmBpp ) ) {

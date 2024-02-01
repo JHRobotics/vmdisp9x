@@ -136,8 +136,3 @@ BOOL DDCreateDriverObject(int bReset);
 #else
 # define MAX_VRAM 0x08000000UL /* 128 MB */
 #endif
-
-#ifdef SVGA
-#define SVGA_PARTIAL_UPDATE_MAX 16
-extern void SVGA_UpdateRect(LONG x, LONG y, LONG w, LONG h);
-#endif

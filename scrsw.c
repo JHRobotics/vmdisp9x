@@ -122,18 +122,6 @@ void UnhookInt2Fh( void )
     }
 }
 
-#ifdef SVGA
-static void __far __loadds SVGA_background()
-{
-	SVGA_HW_disable();
-}
-
-static void __far __loadds SVGA_foreground()
-{
-	SVGA_HW_enable();
-}
-#endif /* SVGA */
-
 #pragma code_seg( _TEXT )
 
 /* Repaint screen or postpone for later.
@@ -176,7 +164,7 @@ void SwitchToBgnd( void )
 {
     dbg_printf( "SwitchToBgnd\n" );
 #ifdef SVGA
-    SVGA_background();
+    SVGA_HW_disable();
 #endif
 
     lpDriverPDevice->deFlags |= BUSY;   /// @todo Does this need to be a locked op?
@@ -191,7 +179,7 @@ void SwitchToFgnd( void )
 {
     dbg_printf( "SwitchToFgnd\n" );
 #ifdef SVGA
-    SVGA_foreground();
+    SVGA_HW_enable();
 #endif
 
     /* If the PDevice is busy, we need to reset the display mode. */

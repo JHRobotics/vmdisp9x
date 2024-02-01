@@ -63,8 +63,10 @@ THE SOFTWARE.
 #define OP_VBE_VALID          0x3000 /* VXD, DRV */
 #define OP_VBE_SETMODE        0x3001 /* DRV */
 #define OP_VBE_VALIDMODE      0x3002 /* DRV */
-#define OP_VBE_HW_ENABLE      0x3003 /* DRV */
-#define OP_VBE_HW_DISABLE     0x3004 /* DRV */
+
+#define OP_VESA_VALID         0x4000 /* VXD, DRV */
+#define OP_VESA_SETMODE       0x4001 /* DRV */
+#define OP_VESA_VALIDMODE     0x4002 /* DRV */
 
 #define OP_MOUSE_LOAD         0x1F00 /* DRV */         
 #define OP_MOUSE_MOVE         0x1F01 /* DRV */
@@ -141,6 +143,9 @@ void mouse_load(void FBPTR mouse_data);
 void mouse_move(DWORD x, DWORD y);
 void mouse_reset();
 
+/*
+ * VMWare SVGA-II API
+ */
 #ifdef SVGA
 
 typedef struct SVGA_region_info
@@ -267,6 +272,36 @@ typedef struct SVGA_OT_info_entry
 SVGA_OT_info_entry_t *SVGA_OT_setup();
 
 #endif /* SVGA */
+
+/*
+ * Bochs VBE Extensions API
+ */
+#ifdef VBE
+
+BOOL VBE_init_hw(); /* internal for VXD only */
+
+void VBE_HW_enable();
+void VBE_HW_disable();
+BOOL VBE_valid();
+BOOL VBE_validmode(DWORD w, DWORD h, DWORD bpp);
+BOOL VBE_setmode(DWORD w, DWORD h, DWORD bpp);
+
+#endif /* VBE */
+
+/*
+ * VESA Video API
+ */
+#ifdef VESA
+
+BOOL VESA_init_hw(); /* internal for VXD only */
+
+void VESA_HW_enable();
+void VESA_HW_disable();
+BOOL VESA_valid();
+BOOL VESA_validmode(DWORD w, DWORD h, DWORD bpp);
+BOOL VESA_setmode(DWORD w, DWORD h, DWORD bpp);
+
+#endif
 
 #pragma pack(pop)
 

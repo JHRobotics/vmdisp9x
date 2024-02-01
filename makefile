@@ -1,13 +1,13 @@
 OBJS = &
   boxv.obj boxv_qemu.obj dbgprint.obj dibcall.obj &
-  dibthunk.obj dddrv.obj drvlib.obj enable.obj init.obj init_qemu.obj init_svga.obj &
+  dibthunk.obj dddrv.obj drvlib.obj enable.obj init.obj &
   control.obj pm16_calls.obj pm16_calls_svga.obj pm16_calls_qemu.obj &
-  palette.obj sswhook.obj modes.obj modes_svga.obj modes_qemu.obj scrsw.obj scrsw_svga.obj &
+  palette.obj sswhook.obj modes.obj modes_svga.obj scrsw.obj scrsw_svga.obj &
 
 OBJS += &
   dbgprint32.obj svga.obj pci.obj vxd_fbhda.obj vxd_lib.obj vxd_main.obj &
   vxd_main_qemu.obj vxd_main_svga.obj vxd_svga.obj vxd_vdd.obj vxd_vdd_qemu.obj &
-  vxd_vdd_svga.obj
+  vxd_vdd_svga.obj vxd_vbe.obj vxd_vbe_qemu.obj
 
 INCS = -I$(%WATCOM)\h\win -Iddk -Ivmware
 
@@ -21,7 +21,7 @@ FLAGS = -DDRV_VER_BUILD=$(VER_BUILD)
 #FLAGS += -DVRAM256MB
 
 # Set DBGPRINT to add debug printf logging.
-DBGPRINT = 1
+#DBGPRINT = 1
 
 !ifdef DBGPRINT
 FLAGS += -DDBGPRINT
@@ -44,7 +44,7 @@ CFLAGS32 += -DCOM2
 !endif
 
 #all : boxvmini.drv vmwsmini.drv qemumini.drv vmwsmini.vxd qemumini.vxd
-all : vmwsmini.drv vmwsmini.vxd
+all : vmwsmini.drv vmwsmini.vxd qemumini.drv qemumini.vxd boxvmini.drv boxvmini.vxd
 
 # Object files: PM16 RING-3
 boxv.obj : boxv.c .autodepend
@@ -73,12 +73,6 @@ enable.obj : enable.c .autodepend
 
 init.obj : init.c .autodepend
 	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
-	
-init_qemu.obj : init_qemu.c .autodepend
-	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
-	
-init_svga.obj : init_svga.c .autodepend
-	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
 
 control.obj : control.c .autodepend
 	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
@@ -102,9 +96,6 @@ modes.obj : modes.c .autodepend
 	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
 	
 modes_svga.obj : modes_svga.c .autodepend
-	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
-
-modes_qemu.obj : modes_qemu.c .autodepend
 	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
 
 scrsw.obj : scrsw.c .autodepend
@@ -140,6 +131,12 @@ vxd_main_svga.obj : vxd_main_svga.c .autodepend
 	$(CC32) $(CFLAGS32) $(INCS) $(FLAGS) $<
 
 vxd_svga.obj : vxd_svga.c .autodepend
+	$(CC32) $(CFLAGS32) $(INCS) $(FLAGS) $<
+
+vxd_vbe.obj : vxd_vbe.c .autodepend
+	$(CC32) $(CFLAGS32) $(INCS) $(FLAGS) $<
+
+vxd_vbe_qemu.obj : vxd_vbe_qemu.c .autodepend
 	$(CC32) $(CFLAGS32) $(INCS) $(FLAGS) $<
 
 vxd_vdd.obj : vxd_vdd.c .autodepend
@@ -187,19 +184,18 @@ dibeng.lib : ddk/dibeng.lbc
 boxvmini.drv : $(OBJS) boxvmini.res dibeng.lib
 	wlink op quiet, start=DriverInit_ disable 2055 $(DBGFILE) @<<boxvmini.lnk
 system windows dll initglobal
-file dibthunk.obj
 file dibcall.obj
+file dibthunk.obj
+file dddrv.obj 
 file drvlib.obj
-file enable.obj
+file enable.obj 
 file init.obj
+file control.obj
+file pm16_calls.obj
 file palette.obj
-file scrsw.obj
 file sswhook.obj
 file modes.obj
-file boxv.obj
-file control.obj
-file dddrv.obj
-file swcursor.obj
+file scrsw.obj
 name boxvmini.drv
 option map=boxvmini.map
 library dibeng.lib
@@ -260,7 +256,7 @@ file dibthunk.obj
 file dddrv.obj 
 file drvlib.obj
 file enable.obj 
-file init_svga.obj
+file init.obj
 file control.obj
 file pm16_calls_svga.obj
 file palette.obj
@@ -320,22 +316,20 @@ import GlobalSmartPageLock  KERNEL.230
 	wrc -q vmwsmini.res $@
 
 qemumini.drv : $(OBJS) qemumini.res dibeng.lib
-	wlink op quiet, start=DriverInit_ disable 2055 $(DBGFILE) @<<boxvmini.lnk
+	wlink op quiet, start=DriverInit_ disable 2055 $(DBGFILE) @<<qemumini.lnk
 system windows dll initglobal
-file dibthunk.obj
 file dibcall.obj
+file dibthunk.obj
+file dddrv.obj 
 file drvlib.obj
-file enable.obj
-file init_qemu.obj
+file enable.obj 
+file init.obj
+file control.obj
+file pm16_calls_qemu.obj
 file palette.obj
-file scrsw.obj
 file sswhook.obj
-file modes_qemu.obj
-file boxv_qemu.obj
-file control_qemu.obj
-file vxdcall_qemu.obj
-file dddrv.obj
-file swcursor.obj
+file modes.obj
+file scrsw.obj
 name qemumini.drv
 option map=qemumini.map
 library dibeng.lib
@@ -404,24 +398,46 @@ file vxd_vdd_svga.obj
 segment '_LTEXT' PRELOAD NONDISCARDABLE 
 segment '_TEXT'  PRELOAD NONDISCARDABLE
 segment '_DATA'  PRELOAD NONDISCARDABLE
-export VMWS_DDB.1
+export VXD_DDB.1
 <<
 
 # not working now
 #	wrc -q vmws_vxd.res $@
 
-qemumini.vxd : $(OBJS) vmws_vxd.res
+qemumini.vxd : $(OBJS)
 	wlink op quiet $(DBGFILE32) @<<qemumini.lnk
 system win_vxd dynamic
-option map=qemuvxd.map
+option map=qemumini.map
 option nodefaultlibs
 name qemumini.vxd
-file qemuvxd.obj
-file minivdd_qemu.obj
-segment '_LTEXT' PRELOAD NONDISCARDABLE
+file vxd_main_qemu.obj
+file pci.obj
+file vxd_fbhda.obj
+file vxd_lib.obj
+file vxd_vbe_qemu.obj
+file vxd_vdd_qemu.obj
+segment '_LTEXT' PRELOAD NONDISCARDABLE 
 segment '_TEXT'  PRELOAD NONDISCARDABLE
 segment '_DATA'  PRELOAD NONDISCARDABLE
-export QEMU_DDB.1
+export VXD_DDB.1
+<<
+
+boxvmini.vxd : $(OBJS)
+	wlink op quiet $(DBGFILE32) @<<boxvmini.lnk
+system win_vxd dynamic
+option map=boxvmini.map
+option nodefaultlibs
+name boxvmini.vxd
+file vxd_main.obj
+file pci.obj
+file vxd_fbhda.obj
+file vxd_vbe.obj
+file vxd_lib.obj
+file vxd_vdd.obj
+segment '_LTEXT' PRELOAD NONDISCARDABLE 
+segment '_TEXT'  PRELOAD NONDISCARDABLE
+segment '_DATA'  PRELOAD NONDISCARDABLE
+export VXD_DDB.1
 <<
 
 # Cleanup

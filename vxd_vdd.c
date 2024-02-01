@@ -21,6 +21,14 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 *****************************************************************************/
+
+#ifndef SVGA
+# ifndef VESA
+#  define VBE
+# endif
+#endif
+
+
 #include "winhack.h"
 #include "vmm.h"
 
@@ -31,8 +39,16 @@ THE SOFTWARE.
 #include "svga_all.h"
 #endif
 
+#include "3d_accel.h"
+
 /* code and data is same segment */
 #include "code32.h"
+
+extern FBHDA_t *hda;
+
+#ifdef VBE
+extern WORD vbe_chip_id;
+#endif
 
 /*
 You can implement all the VESA support entirely in your mini-VDD. Doing so will
@@ -112,10 +128,25 @@ VDDPROC(GET_CHIP_ID, get_chip_id)
 	{
 		uint32 chip_id = (((uint32)gSVGA.vendorId) << 16) || ((uint32)gSVGA.deviceId);
 		state->Client_EAX = chip_id;
+		VDD_CY;
 		return;
 	}
 	state->Client_EAX = 0;
 #endif
+
+#ifdef VBE
+	if(VBE_valid())
+	{
+		state->Client_EAX = vbe_chip_id;
+		VDD_CY;
+	}
+	else
+	{
+		state->Client_EAX = 0;
+		VDD_NC;
+	}
+#endif
+
 }
 
 /**
@@ -210,19 +241,8 @@ For performance reasons, you should implement this function.
 **/
 VDDPROC(GET_TOTAL_VRAM_SIZE, get_total_vram_size)
 {
-#ifdef SVGA
-	if(SVGA_valid())
-	{
-		uint32 vram_size = SVGA_ReadReg(SVGA_REG_VRAM_SIZE);
-		state->Client_ECX = vram_size;
-		
-		VDD_CY;
-		return;
-	}
-	
-	state->Client_ECX = 0;
-	VDD_NC;
-#endif
+	state->Client_ECX = hda->vram_size;
+	VDD_CY;
 }
 
 /**

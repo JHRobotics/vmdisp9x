@@ -46,17 +46,13 @@ VDDFUNC(DISPLAY_DRIVER_DISABLING, display_driver_disabling)
 //VDDFUNC(GET_CURRENT_BANK_READ, get_current_bank_read)
 ///! VDDFUNC(SET_BANK, set_bank)
 //VDDFUNC(CHECK_HIRES_MODE, check_hires_mode)
-#ifdef SVGA
 VDDFUNC(GET_TOTAL_VRAM_SIZE, get_total_vram_size)
-#endif
 ///! VDDFUNC(GET_BANK_SIZE, get_bank_size)
 ///! VDDFUNC(SET_HIRES_MODE, set_hires_mode)
 ///! VDDFUNC(PRE_HIRES_SAVE_RESTORE, pre_hires_save_restore)
 ///! VDDFUNC(POST_HIRES_SAVE_RESTORE, post_hires_save_restore)
 ///! VDDFUNC(VESA_SUPPORT, vesa_support)
-#ifdef SVGA
 VDDFUNC(GET_CHIP_ID, get_chip_id)
-#endif
 ///! VDDFUNC(CHECK_SCREEN_SWITCH_OK, check_screen_switch_ok)
 //VDDFUNC(VIRTUALIZE_BLTER_IO, virtualize_blter_io)
 //VDDFUNC(SAVE_MESSAGE_MODE_STATE, save_message_mode_state)

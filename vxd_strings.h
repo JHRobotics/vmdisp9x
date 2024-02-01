@@ -81,6 +81,14 @@ DSTR(dbg_fence_overflow, "fence overflow\n");
 
 DSTR(dbg_pagefree, "_PageFree: %X\n");
 
+DSTR(dbg_vbe_fail, "Bochs VBE detection failure!\n");
+
+DSTR(dbg_vbe_init, "Bochs VBE: vram: %X, size: %ld\n");
+
+DSTR(dbg_vbe_lfb, "LFB at %X\n");
+
+DSTR(dbg_fbhda_setup, "FBHDA_setup()\n");
+
 #undef DSTR
 
 #endif
