@@ -16,12 +16,12 @@ VER_BUILD = 24
 FLAGS = -DDRV_VER_BUILD=$(VER_BUILD)
 
 # Define HWBLT if BitBlt can be accelerated.
-FLAGS += -DHWBLT
+#FLAGS += -DHWBLT
 # Define VRAM256MB if you want set VRAM limit to 256MB (default is 128MB)
 #FLAGS += -DVRAM256MB
 
 # Set DBGPRINT to add debug printf logging.
-DBGPRINT = 1
+#DBGPRINT = 1
 
 !ifdef DBGPRINT
 FLAGS += -DDBGPRINT
