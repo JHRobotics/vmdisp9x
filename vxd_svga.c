@@ -914,7 +914,8 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 	dbg_printf(dbg_gmr, rinfo->region_id, rinfo->region_ppn);
 	
 	
-	SVGA_Flush_CB();
+	// JH: no need here
+	//SVGA_Flush_CB();
 	
 	if(rinfo->region_id <= SVGA_ReadReg(SVGA_REG_GMR_MAX_IDS))
 	{
@@ -945,7 +946,7 @@ void SVGA_region_free(SVGA_region_info_t *rinfo)
 	SVGA_Flush_CB();
 	SVGA_WriteReg(SVGA_REG_GMR_ID, rinfo->region_id);
 	SVGA_WriteReg(SVGA_REG_GMR_DESCRIPTOR, 0);
-	SVGA_Flush_CB();
+	//SVGA_Flush_CB();
 	
 	if(rinfo->region_address != NULL)
 	{
@@ -1232,6 +1233,8 @@ BOOL SVGA_setmode(DWORD w, DWORD h, DWORD bpp)
 	hda->stride  = hda->height * hda->pitch;
 	hda->surface = 0;
 	
+	mouse_invalidate();
+	
 	if(has3D && SVGA_GetDevCap(SVGA3D_DEVCAP_3D) > 0)
 	{
 		hda->flags |= FB_ACCEL_VMSVGA3D;
@@ -1394,6 +1397,8 @@ void FBHDA_access_end(DWORD flags)
 	
 	if(fb_lock_cnt == 0)
 	{
+		mouse_blit();
+		
 	  if(hda->bpp == 32)
 	  {
 	  	SVGAFifoCmdUpdate  *cmd_update;

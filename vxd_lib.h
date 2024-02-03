@@ -45,11 +45,20 @@ ULONG __cdecl Create_Semaphore(ULONG TokenCount);
 void __cdecl Destroy_Semaphore(ULONG SemHandle);
 void __cdecl Wait_Semaphore(ULONG semHandle, ULONG flags);
 void __cdecl Signal_Semaphore(ULONG SemHandle);
+void __cdecl *Map_Flat(BYTE SegOffset, BYTE OffOfset);
 
 /**
  * round size in bytes to number of pages
  **/
 #define RoundToPages(_size) (((_size) + P_SIZE - 1)/P_SIZE)
+
+/**
+ * PM16 to PM32 memory mapping
+ **/
+#define INVALID_FLAT_ADDRESS ((void*)(0xFFFFFFFFUL))
+#define Client_Ptr_Flat(_pcrs, _segReg, _offReg) Map_Flat( \
+	((DWORD)(&(_pcrs->_segReg)))-((DWORD)(_pcrs)), \
+	((DWORD)(&(_pcrs->_offReg)))-((DWORD)(_pcrs)) )
 
 /* sometimes missing */
 #ifndef ERROR_SUCCESS

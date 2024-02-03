@@ -249,6 +249,9 @@ WORD __stdcall VXD_API_Proc(PCRS_32 state)
 {
 	WORD rc = 0xFFFF;
 	WORD service = state->Client_EDX & 0xFFFF;
+	
+	//dbg_printf(dbg_vxd_api, service);
+	
 	switch(service)
 	{
 		case VXD_PM16_VERSION:
@@ -300,6 +303,25 @@ WORD __stdcall VXD_API_Proc(PCRS_32 state)
 				rc = 1;
 				break;
 			}
+		/* mouse */
+		case OP_MOUSE_LOAD:
+			state->Client_ECX = mouse_load();
+			rc = 1;
+			break;
+		case OP_MOUSE_BUFFER:
+			state->Client_ECX = (DWORD)mouse_buffer();
+			rc = 1;
+			break;
+		case OP_MOUSE_MOVE:
+			mouse_move(state->Client_ESI, state->Client_EDI);
+			rc = 1;
+			break;
+		case OP_MOUSE_SHOW:
+			mouse_show();
+			break;
+		case OP_MOUSE_HIDE:
+			mouse_hide();
+			break;
 #ifdef SVGA
 		case OP_SVGA_VALID:
 			{

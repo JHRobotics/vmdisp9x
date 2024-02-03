@@ -7,7 +7,7 @@ OBJS = &
 OBJS += &
   dbgprint32.obj svga.obj pci.obj vxd_fbhda.obj vxd_lib.obj vxd_main.obj &
   vxd_main_qemu.obj vxd_main_svga.obj vxd_svga.obj vxd_vdd.obj vxd_vdd_qemu.obj &
-  vxd_vdd_svga.obj vxd_vbe.obj vxd_vbe_qemu.obj
+  vxd_vdd_svga.obj vxd_vbe.obj vxd_vbe_qemu.obj vxd_mouse.obj
 
 INCS = -I$(%WATCOM)\h\win -Iddk -Ivmware
 
@@ -16,12 +16,12 @@ VER_BUILD = 24
 FLAGS = -DDRV_VER_BUILD=$(VER_BUILD)
 
 # Define HWBLT if BitBlt can be accelerated.
-#FLAGS += -DHWBLT
+FLAGS += -DHWBLT
 # Define VRAM256MB if you want set VRAM limit to 256MB (default is 128MB)
 #FLAGS += -DVRAM256MB
 
 # Set DBGPRINT to add debug printf logging.
-#DBGPRINT = 1
+DBGPRINT = 1
 
 !ifdef DBGPRINT
 FLAGS += -DDBGPRINT
@@ -128,6 +128,9 @@ vxd_main_qemu.obj : vxd_main_qemu.c .autodepend
 	$(CC32) $(CFLAGS32) $(INCS) $(FLAGS) $<
 
 vxd_main_svga.obj : vxd_main_svga.c .autodepend
+	$(CC32) $(CFLAGS32) $(INCS) $(FLAGS) $<
+
+vxd_mouse.obj : vxd_mouse.c .autodepend
 	$(CC32) $(CFLAGS32) $(INCS) $(FLAGS) $<
 
 vxd_svga.obj : vxd_svga.c .autodepend
@@ -395,6 +398,7 @@ file vxd_fbhda.obj
 file vxd_lib.obj
 file vxd_svga.obj
 file vxd_vdd_svga.obj
+file vxd_mouse.obj
 segment '_LTEXT' PRELOAD NONDISCARDABLE 
 segment '_TEXT'  PRELOAD NONDISCARDABLE
 segment '_DATA'  PRELOAD NONDISCARDABLE
@@ -416,6 +420,7 @@ file vxd_fbhda.obj
 file vxd_lib.obj
 file vxd_vbe_qemu.obj
 file vxd_vdd_qemu.obj
+file vxd_mouse.obj
 segment '_LTEXT' PRELOAD NONDISCARDABLE 
 segment '_TEXT'  PRELOAD NONDISCARDABLE
 segment '_DATA'  PRELOAD NONDISCARDABLE
@@ -434,6 +439,7 @@ file vxd_fbhda.obj
 file vxd_vbe.obj
 file vxd_lib.obj
 file vxd_vdd.obj
+file vxd_mouse.obj
 segment '_LTEXT' PRELOAD NONDISCARDABLE 
 segment '_TEXT'  PRELOAD NONDISCARDABLE
 segment '_DATA'  PRELOAD NONDISCARDABLE

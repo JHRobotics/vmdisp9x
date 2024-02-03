@@ -82,7 +82,10 @@ FBHDA_t *FBHDA_setup()
 void FBHDA_access_begin(DWORD flags)
 {
 	//Wait_Semaphore(hda_sem, 0);
-	fb_lock_cnt++;
+	if(fb_lock_cnt++ == 0)
+	{
+		mouse_erase();
+	}
 }
 
 void FBHDA_clean()

@@ -177,6 +177,32 @@ void __cdecl Signal_Semaphore(ULONG SemHandle)
 	_asm pop eax
 }
 
+void __cdecl *Map_Flat(BYTE SegOffset, BYTE OffOffset)
+{
+	static BYTE sSegOffset;
+	static BYTE sOffOffset;
+	static void *result;
+	
+	sSegOffset = SegOffset;
+	sOffOffset = OffOffset;
+	
+	_asm
+	{
+		push eax
+		xor eax, eax
+		mov al, [sOffOffset]
+		mov ah, [sSegOffset]
+	}
+	VMMCall(Map_Flat);
+	_asm
+	{
+		mov [result],eax
+		pop eax
+	}
+	
+	return result;
+}
+
 ULONG __declspec(naked) __cdecl _PageAllocate(ULONG nPages, ULONG pType, ULONG VM, ULONG AlignMask, ULONG minPhys, ULONG maxPhys, ULONG *PhysAddr, ULONG flags)
 {
 	VMMJmp(_PageAllocate);

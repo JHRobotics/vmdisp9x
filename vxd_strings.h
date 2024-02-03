@@ -89,6 +89,14 @@ DSTR(dbg_vbe_lfb, "LFB at %X\n");
 
 DSTR(dbg_fbhda_setup, "FBHDA_setup()\n");
 
+DSTR(dbg_mouse_cur, "Mouse %d %d %d %d\n");
+
+DSTR(dbg_flatptr, "Flatptr: %X\n");
+
+DSTR(dbg_vxd_api, "VXD_API_Proc, service: %X\n");
+
+DSTR(dbg_cursor_empty, "new cursor: empty %X\n");
+
 #undef DSTR
 
 #endif

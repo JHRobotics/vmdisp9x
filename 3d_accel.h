@@ -68,11 +68,12 @@ THE SOFTWARE.
 #define OP_VESA_SETMODE       0x4001 /* DRV */
 #define OP_VESA_VALIDMODE     0x4002 /* DRV */
 
-#define OP_MOUSE_LOAD         0x1F00 /* DRV */         
-#define OP_MOUSE_MOVE         0x1F01 /* DRV */
-#define OP_MOUSE_HIDE         0x1F02 /* DRV */
+#define OP_MOUSE_BUFFER       0x1F00 /* DRV */
+#define OP_MOUSE_LOAD         0x1F01 /* DRV */         
+#define OP_MOUSE_MOVE         0x1F02 /* DRV */
 #define OP_MOUSE_SHOW         0x1F03 /* DRV */
-#define OP_MOUSE_RESET        0x1F04 /* DRV */
+#define OP_MOUSE_HIDE         0x1F04 /* DRV */
+
 
 #pragma pack(push)
 #pragma pack(1)
@@ -111,8 +112,7 @@ typedef struct FBHDA
 #define FB_ACCEL_VMSVGA        16
 #define FB_ACCEL_VMSVGA3D      32
 #define FB_ACCEL_VMSVGA10      64
-
-#define FB_MOUSE_RESTORE       1
+#define FB_MOUSE_NO_BLIT      128
 
 /* for internal use in RING-0 by VXD only */
 BOOL FBHDA_init_hw(); 
@@ -139,9 +139,22 @@ void  FBHDA_palette_set(unsigned char index, DWORD rgb);
 DWORD FBHDA_palette_get(unsigned char index);
 
 /* mouse */
-void mouse_load(void FBPTR mouse_data);
-void mouse_move(DWORD x, DWORD y);
-void mouse_reset();
+#ifdef FBHDA_SIXTEEN
+void mouse_buffer(void __far* __far* pBuf, DWORD __far* pLinear);
+#else
+void *mouse_buffer();
+#endif
+BOOL mouse_load();
+void mouse_move(int x, int y);
+void mouse_show();
+void mouse_hide();
+
+/* vxd internal */
+void mouse_invalidate(); 
+void mouse_blit();
+void mouse_erase();
+
+#define MOUSE_BUFFER_SIZE 65535
 
 /*
  * VMWare SVGA-II API

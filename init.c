@@ -83,11 +83,6 @@ void ReadDisplayConfig( void )
     WORD        wX, wY;
     UINT        bIgnoreRegistry;
     MODEDESC    mode;
-#ifdef QEMU
-    DEVNODE     devNode;
-    DISPLAYINFO DispInfo;
-    DWORD       dwRc;
-#endif
 
     /* Get the DPI, default to 96. */
     wDpi = GetPrivateProfileInt( "display", "dpi", 96, "system.ini" );
@@ -196,6 +191,13 @@ UINT FAR DriverInit( UINT cbHeap, UINT hModule, LPSTR lpCmdLine )
 		
 		dbg_printf("VXD connect success!\n");
 		FBHDA_setup(&hda, &hda_linear);
+		
+		mouse_buffer(&mouse_buf, &mouse_buf_lin);
+		if(mouse_buf != NULL)
+		{
+			dbg_printf("VXD mouse ON\n");
+			mouse_vxd = TRUE;
+		}
 		
 		if(hda == NULL)
 		{

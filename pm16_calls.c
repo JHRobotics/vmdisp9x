@@ -262,6 +262,124 @@ DWORD FBHDA_palette_get(unsigned char index)
 	return sRGB;
 }
 
+BOOL mouse_load()
+{
+	static BOOL status;
+	
+	_asm
+	{
+		.386
+		push eax
+		push edx
+		push ecx
+		
+		mov edx, OP_MOUSE_LOAD
+		call dword ptr [VXD_VM]
+		mov [status],cx
+		
+		pop ecx
+		pop edx
+		pop eax
+	}
+	
+	return status == 0 ? FALSE : TRUE;
+}
+
+void mouse_buffer(void __far* __far* pBuf, DWORD __far* pLinear)
+{
+	static DWORD buffer;
+	
+	_asm
+	{
+		.386
+		push eax
+		push edx
+		push ecx
+		
+		mov edx, OP_MOUSE_BUFFER
+		call dword ptr [VXD_VM]
+		mov [buffer],ecx
+		
+		pop ecx
+		pop edx
+		pop eax
+	}
+	
+	if(buffer)
+	{
+		void __far *longptr = NULL;
+		WORD desc = DPMI_AllocLDTDesc(1);
+		DPMI_SetSegBase(desc,  buffer);
+		DPMI_SetSegLimit(desc, MOUSE_BUFFER_SIZE);
+		
+		longptr = desc :> 0;
+			
+		*pBuf = longptr;
+		*pLinear = buffer;
+	}
+}
+
+void mouse_move(int x, int y)
+{
+	static DWORD sx;
+	static DWORD sy;
+	
+	sx = x;
+	sy = y;
+	
+	_asm
+	{
+		.386
+		push eax
+		push edx
+		push esi
+		push edi
+		
+		mov esi, [sx]
+		mov edi, [sy]
+		mov edx, OP_MOUSE_MOVE
+		call dword ptr [VXD_VM]
+		
+		pop edi
+		pop esi
+		pop edx
+		pop eax
+	}
+}
+
+void mouse_show()
+{
+	_asm
+	{
+		.386
+		push eax
+		push edx
+		
+		mov edx, OP_MOUSE_SHOW
+		call dword ptr [VXD_VM]
+		
+		pop edx
+		pop eax
+	}
+}
+
+void mouse_hide()
+{
+	_asm
+	{
+		.386
+		push eax
+		push edx
+		
+		mov edx, OP_MOUSE_HIDE
+		call dword ptr [VXD_VM]
+		
+		pop edx
+		pop eax
+	}
+}
+
+
 #ifdef SVGA
 BOOL SVGA_valid()
 {

@@ -143,8 +143,7 @@ HKLM,Software\Microsoft\Windows\CurrentVersion\OpenGLdrivers,VMWSVGA
 [VM.AddReg]
 HKR,,Ver,,4.0
 HKR,,DevLoader,,*vdd
-HKR,DEFAULT,vdd,,"*vdd,*vflatd"
-;HKR,DEFAULT,carddvdd,,cardsamp.vxd
+HKR,DEFAULT,vdd,,"*vdd"
 HKR,DEFAULT,RefreshRate,,-1
 HKR,DEFAULT,DDC,,1
 HKR,DEFAULT,ExtModeSwitch,,0

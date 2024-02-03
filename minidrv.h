@@ -106,6 +106,9 @@ typedef struct FBHDA FBHDA_t;
 
 extern FBHDA_t __far * hda;
 extern DWORD hda_linear;
+extern DWORD mouse_buf_lin;
+extern void __far* mouse_buf;
+extern BOOL mouse_vxd;
 
 /* Inlines needed in multiple modules. */
 

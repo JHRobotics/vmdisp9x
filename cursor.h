@@ -6,9 +6,9 @@
 #pragma pack(1)
 typedef struct _CURSORSHAPE
 {
-   int     xHotSpot, yHotSpot;
-   int     cx, cy;
-   int     cbWidth;
+   short   xHotSpot, yHotSpot;
+   short   cx, cy;
+   short   cbWidth;
    BYTE    Planes;
    BYTE    BitsPixel;
 } CURSORSHAPE;

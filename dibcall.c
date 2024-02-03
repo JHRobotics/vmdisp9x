@@ -32,6 +32,30 @@ THE SOFTWARE.
 #include "minidrv.h"
 #include "cursor.h"
 
+#include "3d_accel.h"
+
+DWORD mouse_buf_lin = 0;
+void __far* mouse_buf = NULL;
+BOOL mouse_vxd = FALSE;
+
+static void cs_enter()
+{
+	_asm
+	{
+		mov ax, 1681h
+		int 2Fh
+	};
+}
+
+static void cs_leave()
+{
+	_asm
+	{
+		mov ax, 1682h
+		int 2Fh
+	};
+}
+
 /*
  * What's this all about? Most of the required exported driver functions can
  * be passed straight to the DIB Engine. The DIB Engine in some cases requires
@@ -49,19 +73,64 @@ THE SOFTWARE.
 
 #pragma code_seg( _TEXT )
 
-void WINAPI __loadds MoveCursor(WORD absX, WORD absY)
+void WINAPI __loadds MoveCursor(int absX, int absY)
 {	
 	if(wEnabled)
 	{
-		DIB_MoveCursorExt(absX, absY, lpDriverPDevice);
+		if(mouse_vxd)
+		{
+			mouse_move(absX, absY);
+		}
+		else
+		{
+			DIB_MoveCursorExt(absX, absY, lpDriverPDevice);
+		}
 	}
+}
+
+static size_t mouse_cursor_size(CURSORSHAPE __far *lpCursor)
+{
+	size_t s = sizeof(CURSORSHAPE);
+	s += ((lpCursor->cx + 7)/8) * lpCursor->cy; // size of AND mask
+	if(lpCursor->BitsPixel == 1)
+	{
+		s += ((lpCursor->cx + 7)/8) * lpCursor->cy; // size of XOR mask 1bpp
+	}
+	else
+	{
+		s += ((lpCursor->BitsPixel + 7)/8) * lpCursor->cx * lpCursor->cy; // size of XOR mask (mode bpp)
+	}
+	
+	return s;
 }
 
 WORD WINAPI __loadds SetCursor_driver(CURSORSHAPE __far *lpCursor)
 {
 	if(wEnabled)
 	{
-		DIB_SetCursorExt(lpCursor, lpDriverPDevice);
+		cs_enter();
+		if(mouse_vxd)
+		{
+			if(lpCursor != NULL)
+			{
+				size_t ms = mouse_cursor_size(lpCursor);
+				if(ms > 0)
+				{
+					_fmemcpy(mouse_buf, lpCursor, ms);
+					mouse_load();
+					goto setcursor_exit;
+				}
+			}
+			mouse_hide();
+		}
+		else
+		{
+			DIB_SetCursorExt(lpCursor, lpDriverPDevice);
+		}
+		
+		setcursor_exit:
+		cs_leave();
+		
 	}
 	
 	return 0;
@@ -72,7 +141,10 @@ void WINAPI __loadds CheckCursor( void )
 {
 	if(wEnabled)
 	{
-		DIB_CheckCursorExt(lpDriverPDevice);
+		if(!mouse_vxd)
+		{
+			DIB_CheckCursorExt(lpDriverPDevice);
+		}
 	}
 }
 

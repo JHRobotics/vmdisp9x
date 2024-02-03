@@ -259,8 +259,10 @@ BOOL VBE_setmode(DWORD w, DWORD h, DWORD bpp)
 	hda->height = h;
 	hda->bpp    = bpp;
 	hda->pitch  = VBE_pitch(w, bpp);
-	hda->surface = 0;
 	hda->stride = h * hda->bpp;
+	hda->surface = 0;
+
+	mouse_invalidate();
 
 	return TRUE;
 }
@@ -314,6 +316,7 @@ void FBHDA_access_end(DWORD flags)
 	
 	if(fb_lock_cnt == 0)
 	{
+		mouse_blit();
 		// cursor
 	}
 	

@@ -152,7 +152,10 @@ VOID WINAPI __loadds BeginAccess_VXD( LPPDEVICE lpDevice, WORD wLeft, WORD wTop,
 	}
 	
 	FBHDA_access_begin(dflags);
-	DIB_BeginAccess(lpDevice, wLeft, wTop, wRight, wBottom, wFlags);
+	if(!mouse_vxd)
+	{
+		DIB_BeginAccess(lpDevice, wLeft, wTop, wRight, wBottom, wFlags);
+	}
 }
 
 VOID WINAPI __loadds EndAccess_VXD( LPPDEVICE lpDevice, WORD wFlags )
@@ -163,7 +166,10 @@ VOID WINAPI __loadds EndAccess_VXD( LPPDEVICE lpDevice, WORD wFlags )
 		dflags |= FBHDA_IGNORE_CURSOR;
 	}
 	
-	DIB_EndAccess(lpDevice, wFlags);
+	if(!mouse_vxd)
+	{
+		DIB_EndAccess(lpDevice, wFlags);
+	}
 	FBHDA_access_end(dflags);
 }
 
