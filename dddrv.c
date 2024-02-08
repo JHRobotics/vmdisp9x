@@ -37,7 +37,7 @@ THE SOFTWARE.
 #include "3d_accel.h"
 #include "vmdahal.h"
 
-const static DD32BITDRIVERDATA_t drv_bridge99 = {
+const static DD32BITDRIVERDATA_t drv_vmhal9x = {
 	"vmhal9x.dll",
 	"DriverInit",
 	0
@@ -178,6 +178,10 @@ static BOOL DDGetPtr(VMDAHAL_t __far *__far *pm16ptr, DWORD __far *linear)
 		{
 			_fmemset(pm16VMDAHAL, 0, sizeof(VMDAHAL_t));
 			pm16VMDAHAL->dwSize = sizeof(VMDAHAL_t);
+
+			pm16VMDAHAL->pFBHDA32 = hda_linear;
+			pm16VMDAHAL->pFBHDA16 = hda;
+ 		 	pm16VMDAHAL->FBHDA_version = 2024;
 		}
 	}
 	
@@ -250,12 +254,12 @@ static void buildDDHALInfo(VMDAHAL_t __far *hal, int modeidx)
 	hal->ddHALInfo.lpD3DGlobalDriverData = pGbl;
     
 	//clean 3d callback pointers on 8bpps
-	if(wBpp > 8)
+	if(hda->bpp > 8)
 	{
 		hal->ddHALInfo.lpDDExeBufCallbacks = pExeBuf;
 	}
 	
-	bytes_per_pixel = wBpp/8;
+	bytes_per_pixel = (hda->bpp+7)/8;
 	hal->ddHALInfo.dwSize = sizeof(hal->ddHALInfo);
 
   hal->ddHALInfo.hInstance = hal->hInstance;
@@ -269,10 +273,10 @@ static void buildDDHALInfo(VMDAHAL_t __far *hal, int modeidx)
 	/*
 	 * current primary surface attributes
 	 */
-	hal->ddHALInfo.vmiData.fpPrimary       = dwScreenFlatAddr;
-	hal->ddHALInfo.vmiData.dwDisplayWidth  = (DWORD) wScreenX;
-	hal->ddHALInfo.vmiData.dwDisplayHeight = (DWORD) wScreenY;
-	hal->ddHALInfo.vmiData.lDisplayPitch   = (DWORD) CalcPitch(wScreenX, wBpp);
+	hal->ddHALInfo.vmiData.fpPrimary       = hda->vram_pm32;
+	hal->ddHALInfo.vmiData.dwDisplayWidth  = hda->width;
+	hal->ddHALInfo.vmiData.dwDisplayHeight = hda->height;
+	hal->ddHALInfo.vmiData.lDisplayPitch   = hda->pitch;
 
 	_fmemset(&hal->ddHALInfo.vmiData.ddpfDisplay, 0, sizeof(hal->ddHALInfo.vmiData.ddpfDisplay));
 	hal->ddHALInfo.vmiData.ddpfDisplay.dwSize = sizeof(DDPIXELFORMAT_t);
@@ -298,8 +302,8 @@ static void buildDDHALInfo(VMDAHAL_t __far *hal, int modeidx)
 
 	vidMem[0].dwFlags = VIDMEM_ISLINEAR;
 	vidMem[0].ddsCaps.dwCaps = DDSCAPS_OFFSCREENPLAIN;
-	vidMem[0].fpStart = dwScreenFlatAddr + screenSize;
-	vidMem[0].fpEnd   = dwScreenFlatAddr + dwVideoMemorySize - 1;
+	vidMem[0].fpStart = hda->vram_pm32 + hda->stride;
+	vidMem[0].fpEnd   = hda->vram_pm32 + hda->vram_size - 1;
 	
 	hal->ddHALInfo.vmiData.dwNumHeaps = 1;
     
@@ -414,7 +418,7 @@ static void buildDDHALInfo(VMDAHAL_t __far *hal, int modeidx)
 	/*
 	 * required alignments of the scan lines for each kind of memory
 	 */
-	hal->ddHALInfo.vmiData.dwOffscreenAlign = AlignTbl[ wBpp >> 2 ];
+	hal->ddHALInfo.vmiData.dwOffscreenAlign = AlignTbl[ hda->bpp >> 2 ];
 	hal->ddHALInfo.vmiData.dwOverlayAlign = 8;
 	hal->ddHALInfo.vmiData.dwTextureAlign = 8;
 	hal->ddHALInfo.vmiData.dwZBufferAlign = 8;
@@ -469,9 +473,9 @@ BOOL DDCreateDriverObject(int bReset)
 
 	for(modeidx = 0; modeidx < NUMMODES; modeidx++)
 	{
-		if((modeInfo[modeidx].dwWidth == wScreenX) &&
-       (modeInfo[modeidx].dwHeight == wScreenY) &&
-       (modeInfo[modeidx].dwBPP == wBpp) )
+		if((modeInfo[modeidx].dwWidth == hda->width) &&
+       (modeInfo[modeidx].dwHeight == hda->height) &&
+       (modeInfo[modeidx].dwBPP == hda->bpp) )
     {
     	break;
     }
@@ -482,8 +486,8 @@ BOOL DDCreateDriverObject(int bReset)
 		modeidx = -1;
 	}
 	
-	hal->vramLinear = dwScreenFlatAddr;
-	hal->vramSize   = dwVideoMemorySize;
+	hal->vramLinear = hda->vram_pm32;
+	hal->vramSize   = hda->vram_size;
 
   /*
    * set up hal info
@@ -493,10 +497,10 @@ BOOL DDCreateDriverObject(int bReset)
   /*
    * copy new data into area of memory shared with 32-bit DLL
    */
-	hal->dwWidth  = wScreenX;
-	hal->dwHeight = wScreenY;
-	hal->dwBpp = wBpp;
-	hal->dwPitch = CalcPitch(wScreenX, wBpp);
+	hal->dwWidth  = hda->width;
+	hal->dwHeight = hda->height;
+	hal->dwBpp = hda->bpp;
+	hal->dwPitch = hda->pitch;
   /*
    * get addresses of 32-bit routines
    */
@@ -551,17 +555,13 @@ BOOL DDCreateDriverObject(int bReset)
 	dbg_printf("  DestroySurface = %lX\n", cbDDSurfaceCallbacks.DestroySurface);
 	dbg_printf("  GetDriverInfo = %lX\n", hal->ddHALInfo.GetDriverInfo);
 	dbg_printf("  WaitForVerticalBlank = %lX\n\n", cbDDCallbacks.WaitForVerticalBlank);
-	
-	hal->pFBHDA32 = hda_linear;
-	hal->pFBHDA16 = hda;
-  hal->FBHDA_version = 2;
-  
+
 	return lpDDHAL_SetInfo(&(hal->ddHALInfo), bReset);
 }
 
 BOOL DDGet32BitDriverName(DD32BITDRIVERDATA_t __far *dd32)
 {
-	_fmemcpy(dd32, &drv_bridge99, sizeof(drv_bridge99));
+	_fmemcpy(dd32, &drv_vmhal9x, sizeof(drv_vmhal9x));
 	
 	if(DDGetPtr(NULL, &(dd32->dwContext)))
 	{

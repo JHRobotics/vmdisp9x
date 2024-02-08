@@ -259,7 +259,7 @@ BOOL VBE_setmode(DWORD w, DWORD h, DWORD bpp)
 	hda->height = h;
 	hda->bpp    = bpp;
 	hda->pitch  = VBE_pitch(w, bpp);
-	hda->stride = h * hda->bpp;
+	hda->stride = h * hda->pitch;
 	hda->surface = 0;
 
 	mouse_invalidate();
@@ -287,24 +287,24 @@ DWORD FBHDA_palette_get(unsigned char index)
 	return (r << 16) | (g << 8) | b;
 }
 
-
 BOOL FBHDA_swap(DWORD offset)
 {
 	DWORD ps = ((hda->bpp+7)/8);
 	DWORD offset_y = offset/hda->pitch;
 	DWORD offset_x = (offset % hda->pitch)/ps;
-	DWORD surface = offset/hda->stride;
 	
 	if(offset + hda->stride > hda->vram_size) return FALSE; /* if exceed VRAM */
-	
-	if(surface == 0 && offset != 0) return FALSE; /* forbind move of half screen */
-	
-	hda->surface = surface;
+		
+	FBHDA_access_begin(0);
 	
 	outpw(VBE_DISPI_IOPORT_INDEX, VBE_DISPI_INDEX_Y_OFFSET);
 	outpw(VBE_DISPI_IOPORT_DATA, (WORD)offset_y);
 	outpw(VBE_DISPI_IOPORT_INDEX, VBE_DISPI_INDEX_X_OFFSET);
 	outpw(VBE_DISPI_IOPORT_DATA, (WORD)offset_x);
+	
+	hda->surface = offset;
+	
+	FBHDA_access_end(0);
 
 	return TRUE;
 }

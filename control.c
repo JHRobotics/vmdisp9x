@@ -154,6 +154,7 @@ LONG WINAPI __loadds Control(LPVOID lpDevice, UINT function,
   	{
   		case OPENGL_GETINFO:
   		case OP_FBHDA_SETUP:
+  		case MOUSETRAILS:
   			rc = 1;
   			break;
   		case DCICOMMAND:

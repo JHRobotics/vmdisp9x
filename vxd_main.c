@@ -464,7 +464,7 @@ DWORD __stdcall Device_IO_Control_proc(struct DIOCParams *params)
 	DWORD *inBuf  = (DWORD*)params->lpInBuffer;
 	DWORD *outBuf = (DWORD*)params->lpOutBuffer;
 	
-	//dbg_printf(dbg_deviceiocontrol, params->dwIoControlCode);
+	dbg_printf(dbg_deviceiocontrol, params->dwIoControlCode);
 	
 	switch(params->dwIoControlCode)
 	{

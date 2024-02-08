@@ -26,6 +26,14 @@ typedef struct VMDAHALCB32
 	LPDDHAL_SETEXCLUSIVEMODE          SetExclusiveMode;
 } VMDAHALCB32_t;
 
+struct VXD_pair
+{
+	DWORD pid;
+	DWORD vxd;
+};
+
+#define VXD_PAIRS_CNT 32
+
 typedef struct VMDAHAL
 {
 	DWORD dwSize;
@@ -49,6 +57,8 @@ typedef struct VMDAHAL
   DWORD FBHDA_version;
   
   DWORD hDC;
+  
+  struct VXD_pair vxd_table[VXD_PAIRS_CNT];
 } VMDAHAL_t;
 #pragma pack(pop)
 

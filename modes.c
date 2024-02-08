@@ -59,7 +59,6 @@ WORD wPDeviceFlags  = 0;
 FBHDA_t __far * hda = NULL;
 DWORD hda_linear = 0;
 
-DWORD    dwScreenFlatAddr = 0;   /* 32-bit flat address of VRAM. */
 DWORD    dwVideoMemorySize = 0;  /* Installed VRAM in bytes. */
  WORD    wScreenPitchBytes = 0;  /* Current scanline pitch. */
 

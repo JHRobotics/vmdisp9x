@@ -21,8 +21,10 @@ This repository contains only basic 2D driver, for 3D (hardware or software) acc
 Driver is based on [Michal Necasek's VirtualBox driver](http://www.os2museum.com/wp/windows-9x-video-minidriver-hd/). With my modifications:
 - added VMWare SVGA and VirtualBox SVGA support
 - added OpenGL ICD support (simple command that only returns the name of OpenGL implementation library)
-- added 32bit mini-VDD driver stub (required for future development to better support for 16-bit applications)
-- added access to VMWare/VBox SVGA registers and FIFO to support real 3D acceleration from user space driver
+- most calls converted to 32bit mini-VDD driver (faster and not limited by 64k segmentation)
+- added access VMWare/VBox SVGA API to support real 3D acceleration from user space driver
+- added API to access VRAM/FB directly
+- added DirectDraw support
 
 QEMU support (`-vga std`) is from [Philip Kelley driver modification](https://github.com/phkelley/boxv9x)
 
@@ -30,8 +32,11 @@ QEMU support (`-vga std`) is from [Philip Kelley driver modification](https://gi
 ## OpenGL ICD support
 OpenGL is much more driver independent than DirectX, if fact, there is only 1 (ONE by words) function that needs to be served by driver, 0x1101. More on https://github.com/JHRobotics/mesa9x
 
+## DirectDraw support
+2D only accelerated drawing is available. User DLL (RING-3) code is in separated project: https://github.com/JHRobotics/vmhal9x
+
 ## Glide support
-3dfx proprietary API (later open sourced) for their Voodoo Graphics 3D accelerator cards. This has nothing to do with the display driver - keep in mind, that original Voodoo and Voodoo 2 cards were only 3D accretors and you still need some other video card to draw 2D part (= all system things). Calling from user space was through DLL (Glide2x.dll, Glide3x.dll) in Windows or driver (Glide.vxd) in DOS and they made the rest.
+3dfx proprietary API (later open sourced) for their Voodoo Graphics 3D accelerator cards. This has nothing to do with the display driver - keep in mind, that original Voodoo and Voodoo 2 cards were only 3D accelerators and you still need some other video card to draw 2D part (= all system things). Calling from user space was through DLL (Glide2x.dll, Glide3x.dll) in Windows or driver (Glide.vxd) in DOS and they made the rest.
 
 If you have some OpenGL driver, you can use OpenGlide to translate Glide call to OpenGL. My port of Open Glide for Windows 9x is here: https://github.com/JHRobotics/openglide9x
 

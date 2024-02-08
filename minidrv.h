@@ -80,10 +80,6 @@ extern WORD wScreenY;               /* Screen height in pixels. */
 extern WORD wEnabled;               /* PDevice enabled flag. */
 extern RGBQUAD FAR *lpColorTable;   /* Current color table. */
 
-extern DWORD    dwScreenFlatAddr;   /* Linear address of frame buffer */
-extern DWORD    dwVideoMemorySize;  /* Installed VRAM in bytes. */
-extern  WORD    wScreenPitchBytes;  /* screen pitch */
-
 extern DWORD    VDDEntryPoint;
 extern WORD     OurVMHandle;
 #ifdef QEMU

@@ -35,15 +35,23 @@ qemumini.vxd=1
 ;openglide:glide2x.dll=1
 ;openglide:glide3x.dll=1
 ;wined3d:wined3d.dll=1
-;wined3d:dwine.dll=1
+;wined3d:winedd.dll=1
+;wined3d:wined8.dll=1
+;wined3d:wined9.dll=1
 ;wined3d:ddraw.dll=1
 ;wined3d:ddrawme.dll=1
 ;wined3d:d3d8.dll=1
 ;wined3d:d3d9.dll=1
-;3dfx:3dfxSpl2.dll=1,vgw9x
-;3dfx:3dfxSpl3.dll=1,vgw9x
 ;wined3d:ddr95.dll=1,dx
 ;wined3d:ddr98.dll=1,dx
+;3dfx:3dfxSpl2.dll=1,vgw9x
+;3dfx:3dfxSpl3.dll=1,vgw9x
+;nine:mesa89.dll=1
+;nine:mesa99.dll=1
+;syscopy:ddsys.dll=1,sys
+;syscopy:msd3d8.dll=1,sys
+;syscopy:msd3d9.dll=1,sys
+
 ;vmhal:vmhal9x.dll=1
 
 [Manufacturer]
@@ -103,13 +111,20 @@ vmwsmini.vxd,,,0x00000004
 
 [DX.Copy]
 ;wined3d:wined3d.dll,,,0x00000004
-;wined3d:dwine.dll,,,0x00000004
+;wined3d:winedd.dll,,,0x00000004
+;wined3d:wined8.dll,,,0x00000004
+;wined3d:wined9.dll,,,0x00000004
 ;wined3d:ddraw.dll,,,0x00000004
 ;wined3d:ddrawme.dll,,,0x00000004
 ;wined3d:d3d8.dll,,,0x00000004
 ;wined3d:d3d9.dll,,,0x00000004
 ;wined3d:ddr95.dll,,,0x00000004
 ;wined3d:ddr98.dll,,,0x00000004
+;nine:mesa89.dll,,,0x00000004
+;nine:mesa99.dll,,,0x00000004
+;syscopy:ddsys.dll,,,0x00000004
+;syscopy:msd3d8.dll,,,0x00000004
+;syscopy:msd3d9.dll,,,0x00000004
 
 [DX.CopyBackup]
 ;wined3d:ddraw.dll,,,0x00000004

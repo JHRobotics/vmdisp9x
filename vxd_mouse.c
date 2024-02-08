@@ -99,8 +99,6 @@ BOOL mouse_load()
 	
 	cur = (CURSORSHAPE*)mouse_buffer_mem;
 	
-	dbg_printf(dbg_mouse_cur, cur->cx, cur->cy, cur->BitsPixel, cur->Planes);
-	
 	/* erase cursor if present */
 	FBHDA_access_begin(0);
 	
@@ -174,7 +172,7 @@ BOOL mouse_load()
 	mouse_visible = TRUE;
 	mouse_empty = cursor_is_empty();
 	
-	dbg_printf(dbg_cursor_empty, mouse_empty);
+	//dbg_printf(dbg_cursor_empty, mouse_empty);
 	
 	/* blit new cursor */
 	FBHDA_access_end(0);

@@ -1,5 +1,5 @@
 OBJS = &
-  boxv.obj boxv_qemu.obj dbgprint.obj dibcall.obj &
+  dbgprint.obj dibcall.obj &
   dibthunk.obj dddrv.obj drvlib.obj enable.obj init.obj &
   control.obj pm16_calls.obj pm16_calls_svga.obj pm16_calls_qemu.obj &
   palette.obj sswhook.obj modes.obj modes_svga.obj scrsw.obj scrsw_svga.obj &
@@ -11,14 +11,12 @@ OBJS += &
 
 INCS = -I$(%WATCOM)\h\win -Iddk -Ivmware
 
-VER_BUILD = 24
+VER_BUILD = 32
 
 FLAGS = -DDRV_VER_BUILD=$(VER_BUILD)
 
 # Define HWBLT if BitBlt can be accelerated.
 #FLAGS += -DHWBLT
-# Define VRAM256MB if you want set VRAM limit to 256MB (default is 128MB)
-#FLAGS += -DVRAM256MB
 
 # Set DBGPRINT to add debug printf logging.
 #DBGPRINT = 1
@@ -47,12 +45,6 @@ CFLAGS32 += -DCOM2
 all : vmwsmini.drv vmwsmini.vxd qemumini.drv qemumini.vxd boxvmini.drv boxvmini.vxd
 
 # Object files: PM16 RING-3
-boxv.obj : boxv.c .autodepend
-	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
-	
-boxv_qemu.obj : boxv_qemu.c .autodepend
-	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
-
 dbgprint.obj : dbgprint.c .autodepend
 	$(CC) $(CFLAGS) -zW $(FLAGS) $<
 

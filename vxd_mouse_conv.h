@@ -39,8 +39,9 @@ static void save ## _bpp(int mx, int my){ \
 	int x, y; \
 	_type *screen; \
 	_type *buf = mouse_swap_data; \
+	BYTE *screen_pos = ((BYTE*)hda->vram_pm32) + hda->surface; \
 	if(!calc_save(mx, my)){ return; } \
-	screen = (_type*)((BYTE*)hda->vram_pm32 + hda->pitch * mouse_swap_y); \
+	screen = (_type*)(screen_pos + hda->pitch * mouse_swap_y); \
 	for(y = 0; y < mouse_swap_h; y++) { \
 		for(x = 0; x < mouse_swap_w; x++) { \
 			*buf = screen[mouse_swap_x + x]; \
@@ -59,8 +60,9 @@ static void save24(int mx, int my)
 	int x, y;
 	BYTE *screen;
 	BYTE *buf = mouse_swap_data;
+	BYTE *screen_pos = ((BYTE*)hda->vram_pm32) + hda->surface;
 	if(!calc_save(mx, my)){ return; }
-	screen = (BYTE*)hda->vram_pm32 + hda->pitch * mouse_swap_y;
+	screen = screen_pos + hda->pitch * mouse_swap_y;
 	for(y = 0; y < mouse_swap_h; y++)
 	{
 		for(x = 0; x < mouse_swap_w; x++)
@@ -79,8 +81,9 @@ static void restore ## _bpp () { \
 	int x, y; \
 	_type *screen; \
 	_type *buf = mouse_swap_data; \
+	BYTE *screen_pos = ((BYTE*)hda->vram_pm32) + hda->surface; \
 	if(!mouse_swap_valid){ return; } \
-	screen = (_type*)((BYTE*)hda->vram_pm32 + hda->pitch * mouse_swap_y); \
+	screen = (_type*)(screen_pos + hda->pitch * mouse_swap_y); \
 	for(y = 0; y < mouse_swap_h; y++) { \
 		for(x = 0; x < mouse_swap_w; x++) { \
 			screen[mouse_swap_x + x] = *buf; buf++; \
@@ -98,8 +101,9 @@ void restore24()
 	int x, y;
 	BYTE *screen;
 	BYTE *buf = mouse_swap_data;
+	BYTE *screen_pos = ((BYTE*)hda->vram_pm32) + hda->surface;
 	if(!mouse_swap_valid){ return; }
-	screen = (BYTE*)hda->vram_pm32 + hda->pitch * mouse_swap_y;
+	screen = screen_pos + hda->pitch * mouse_swap_y;
 	for(y = 0; y < mouse_swap_h; y++)
 	{
 		for(x = 0; x < mouse_swap_w; x++)
@@ -122,10 +126,11 @@ static void blit ## _bpp (int mx, int my) { \
 	int real_x = mx - mouse_pointx; \
 	int real_y = my - mouse_pointy; \
 	int real_xx, real_yy; \
+	BYTE *screen_pos = ((BYTE*)hda->vram_pm32) + hda->surface; \
 	for(y = 0; y < mouse_h; y++) { \
 		real_yy = real_y+y; \
 		if(real_yy >= 0 && real_yy < hda->height) { \
-			screen_line = (_type*)(((BYTE*)hda->vram_pm32) + hda->pitch * (real_yy)); \
+			screen_line = (_type*)(screen_pos + hda->pitch * (real_yy)); \
 			and_line    = ((_type*)mouse_andmask_data + mouse_w * y); \
 			xor_line    = ((_type*)mouse_xormask_data + mouse_w * y); \
 			for(x = 0; x < mouse_w; x++) { \
@@ -149,12 +154,13 @@ static void blit24(int mx, int my)
 	int real_y = my - mouse_pointy;
 	int real_xx, real_yy;
 	int real_xx3, x3;
+	BYTE *screen_pos = ((BYTE*)hda->vram_pm32) + hda->surface;
 	for(y = 0; y < mouse_h; y++)
 	{
 		real_yy = real_y+y;
 		if(real_yy >= 0 && real_yy < hda->height)
 		{
-			screen_line = ((BYTE*)hda->vram_pm32) + hda->pitch * real_yy;
+			screen_line = screen_pos + hda->pitch * real_yy;
 			and_line    = ((BYTE*)mouse_andmask_data) + mouse_w * y * 3;
 			xor_line    = ((BYTE*)mouse_xormask_data) + mouse_w * y * 3;
 			for(x = 0; x < mouse_w; x++)
