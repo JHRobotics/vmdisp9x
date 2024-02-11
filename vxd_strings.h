@@ -97,6 +97,10 @@ DSTR(dbg_vxd_api, "VXD_API_Proc, service: %X\n");
 
 DSTR(dbg_cursor_empty, "new cursor: empty %X\n");
 
+DSTR(dbg_spare_region, "used spare region = pages: %ld, address: %X\n");
+
+DSTR(dbg_free_as_spare, "Saved region = address %X as spare\n");
+
 #undef DSTR
 
 #endif
