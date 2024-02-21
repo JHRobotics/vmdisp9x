@@ -11,7 +11,7 @@ OBJS += &
 
 INCS = -I$(%WATCOM)\h\win -Iddk -Ivmware
 
-VER_BUILD = 32
+VER_BUILD = 34
 
 FLAGS = -DDRV_VER_BUILD=$(VER_BUILD)
 
@@ -32,13 +32,15 @@ DBGFILE =
 DBGFILE32 =
 !endif
 CFLAGS = -q -wx -s -zu -zls -6 -fp6
-CFLAGS32 = -q -wx -s -zls -6s -fp6 -mf -DVXD32
+CFLAGS32 = -q -wx -s -zls -6s -fp6 -mf -DVXD32 -fpi87 -ei -oeatxhn 
 CC = wcc
 CC32 = wcc386
 
 # Log VXD to com2
 !ifdef DBGPRINT
 CFLAGS32 += -DCOM2
+!else
+CFLAGS32 += -d0
 !endif
 
 #all : boxvmini.drv vmwsmini.drv qemumini.drv vmwsmini.vxd qemumini.vxd

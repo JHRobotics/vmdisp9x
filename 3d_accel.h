@@ -59,6 +59,7 @@ THE SOFTWARE.
 #define OP_SVGA_QUERY_VECTOR  0x200E  /* VXD */
 #define OP_SVGA_DB_SETUP      0x200F  /* VXD */
 #define OP_SVGA_OT_SETUP      0x2010  /* VXD */
+#define OP_SVGA_FLUSHCACHE    0x2011  /* VXD */
 
 #define OP_VBE_VALID          0x3000 /* VXD, DRV */
 #define OP_VBE_SETMODE        0x3001 /* DRV */
@@ -113,6 +114,7 @@ typedef struct FBHDA
 #define FB_ACCEL_VMSVGA3D      32
 #define FB_ACCEL_VMSVGA10      64
 #define FB_MOUSE_NO_BLIT      128
+#define FB_FORCE_SOFTWARE     256
 
 /* for internal use in RING-0 by VXD only */
 BOOL FBHDA_init_hw(); 
@@ -206,6 +208,8 @@ typedef struct SVGA_DB_surface
 	DWORD height;
 	DWORD bpp;
 	DWORD gmrId; /* != 0 for GB surfaces */
+	DWORD gmrMngt; /* 1 when auto destroy MOB and region when releasing surface */
+	DWORD size; /* surface size in bytes */
 } SVGA_DB_surface_t;
 
 typedef struct SVGA_DB
@@ -283,6 +287,8 @@ typedef struct SVGA_OT_info_entry
 } SVGA_OT_info_entry_t;
 
 SVGA_OT_info_entry_t *SVGA_OT_setup();
+
+void SVGA_flushcache();
 
 #endif /* SVGA */
 

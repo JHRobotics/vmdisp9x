@@ -101,7 +101,7 @@ DWORD Get_VMM_Version()
 	return ver;
 }
 
-void __cdecl Begin_Critical_Section(ULONG Flags)
+volatile void __cdecl Begin_Critical_Section(ULONG Flags)
 {
 	static ULONG sFlags;
 	sFlags = Flags;
@@ -112,7 +112,7 @@ void __cdecl Begin_Critical_Section(ULONG Flags)
 	_asm pop ecx	
 }
 
-void __cdecl End_Critical_Section()
+volatile  void __cdecl End_Critical_Section()
 {
 	VMMCall(End_Critical_Section);
 }

@@ -550,6 +550,9 @@ DWORD __stdcall Device_IO_Control_proc(struct DIOCParams *params)
 		case OP_SVGA_OT_SETUP:
 			outBuf[0] = (DWORD)SVGA_OT_setup();
 			return 0;
+		case OP_SVGA_FLUSHCACHE:
+			SVGA_flushcache();
+			return 0;
 #endif /* SVGA */
 	}
 		

@@ -146,12 +146,10 @@ DWORD PASCAL CreateDIBPDeviceX( LPBITMAPINFO lpInfo, LPPDEVICE lpDevice, LPVOID 
 VOID WINAPI __loadds BeginAccess_VXD( LPPDEVICE lpDevice, WORD wLeft, WORD wTop, WORD wRight, WORD wBottom, WORD wFlags )
 {
 	DWORD dflags = 0;
-	if(!(wFlags & CURSOREXCLUDE))
+	if(wFlags & CURSOREXCLUDE)
 	{
-		dflags |= FBHDA_IGNORE_CURSOR;
+		FBHDA_access_begin(dflags);
 	}
-	
-	FBHDA_access_begin(dflags);
 	if(!mouse_vxd)
 	{
 		DIB_BeginAccess(lpDevice, wLeft, wTop, wRight, wBottom, wFlags);
@@ -161,16 +159,14 @@ VOID WINAPI __loadds BeginAccess_VXD( LPPDEVICE lpDevice, WORD wLeft, WORD wTop,
 VOID WINAPI __loadds EndAccess_VXD( LPPDEVICE lpDevice, WORD wFlags )
 {
 	DWORD dflags = 0;
-	if(!(wFlags & CURSOREXCLUDE))
-	{
-		dflags |= FBHDA_IGNORE_CURSOR;
-	}
-	
 	if(!mouse_vxd)
 	{
 		DIB_EndAccess(lpDevice, wFlags);
 	}
-	FBHDA_access_end(dflags);
+	if(wFlags & CURSOREXCLUDE)
+	{
+		FBHDA_access_end(dflags);
+	}
 }
 
 

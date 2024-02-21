@@ -63,7 +63,6 @@ THE SOFTWARE.
 #pragma pack(1)
 typedef struct _cb_enable_t
 {
-//	SVGACBHeader       cbheader;
 	uint32             cmd;
 	SVGADCCmdStartStop cbstart;
 } cb_enable_t;
@@ -84,7 +83,7 @@ static BOOL cb_context0 = FALSE;
 
 static BOOL SVGA_is_valid = FALSE;
 
-static SVGACBHeader *last_cb = NULL;
+static volatile SVGACBHeader *last_cb = NULL;
 
 /* temp for reading registry */
 static union
@@ -139,10 +138,8 @@ static void SVGA_Sync()
 	SVGA_WriteReg(SVGA_REG_SYNC, 1);
 }
 
-static void SVGA_Flush_CB()
+static void SVGA_Flush_CB_critical()
 {
-	Begin_Critical_Section(0);
-	
 	/* wait for actual CB */
 	if(last_cb != NULL)
 	{
@@ -154,7 +151,12 @@ static void SVGA_Flush_CB()
 	
 	/* drain FIFO */
 	SVGA_Flush();
-	
+}
+
+static void SVGA_Flush_CB()
+{
+	Begin_Critical_Section(0);
+	SVGA_Flush_CB_critical();
 	End_Critical_Section();
 }
 
@@ -386,8 +388,7 @@ DWORD *SVGA_CMB_alloc()
 
 void SVGA_CMB_free(DWORD *cmb)
 {
-	SVGACBHeader *cb = (SVGACBHeader *)cmb;
-	--cb;
+	SVGACBHeader *cb = ((SVGACBHeader *)cmb)-1;
 	
 	Begin_Critical_Section(0);
 	
@@ -475,6 +476,7 @@ void SVGA_CMB_submit(DWORD FBPTR cmb, DWORD cmb_size, SVGA_CMB_status_t FBPTR st
 			cb->id.hi  = cb_next_id.hi;
 			cb->length = cmb_size;
 			
+#if 0
 			/* wait for last CB to complete */
 			if(last_cb && cb != last_cb)
 			{
@@ -483,12 +485,11 @@ void SVGA_CMB_submit(DWORD FBPTR cmb, DWORD cmb_size, SVGA_CMB_status_t FBPTR st
 					SVGA_Sync();
 				}
 			}
+#endif
 			
-			//Begin_Critical_Section(0);
 			SVGA_WriteReg(SVGA_REG_COMMAND_HIGH, 0); // high part of 64-bit memory address...
-			SVGA_WriteReg(SVGA_REG_COMMAND_LOW, cb->ptr.pa.low - sizeof(SVGACBHeader) | cbhwctxid);
+			SVGA_WriteReg(SVGA_REG_COMMAND_LOW, (cb->ptr.pa.low - sizeof(SVGACBHeader)) | cbhwctxid);
 			SVGA_Sync();
-			//End_Critical_Section();
 			
 			last_cb = cb;
 	
@@ -543,8 +544,6 @@ void SVGA_CMB_submit(DWORD FBPTR cmb, DWORD cmb_size, SVGA_CMB_status_t FBPTR st
 		
 		dwords += 2;
 		
-		//Begin_Critical_Section(0);
-		
 		nextCmd = gSVGA.fifoMem[SVGA_FIFO_NEXT_CMD];
 		max     = gSVGA.fifoMem[SVGA_FIFO_MAX];
 		min     = gSVGA.fifoMem[SVGA_FIFO_MIN];
@@ -563,8 +562,6 @@ void SVGA_CMB_submit(DWORD FBPTR cmb, DWORD cmb_size, SVGA_CMB_status_t FBPTR st
 			gSVGA.fifoMem[SVGA_FIFO_NEXT_CMD] = nextCmd;
 			dwords--;
 		}
-		
-		//End_Critical_Section();
 		
 		if(flags & SVGA_CB_SYNC)
 		{
@@ -967,27 +964,25 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 	
 	spare_region_used:
 	
-	End_Critical_Section();
-	
 	// JH: no need here
 	//SVGA_Flush_CB();
 	
 	if(rinfo->region_id <= SVGA_ReadReg(SVGA_REG_GMR_MAX_IDS))
 	{
 		/* register GMR */
-		Begin_Critical_Section(0);
 		SVGA_WriteReg(SVGA_REG_GMR_ID, rinfo->region_id);
 		SVGA_WriteReg(SVGA_REG_GMR_DESCRIPTOR, rinfo->region_ppn);
 		SVGA_Sync(); // notify register change
-		End_Critical_Section();
 		
-		SVGA_Flush_CB();
+		SVGA_Flush_CB_critical();
 	}
 	else
 	{
 		/* GMR is too high, use it as only as MOB (DX) */
 		rinfo->region_ppn = 0;
 	}
+	
+	End_Critical_Section();
 	
 	//dbg_printf(dbg_gmr_succ, rinfo->size);
 	
@@ -1002,14 +997,13 @@ void SVGA_region_free(SVGA_region_info_t *rinfo)
 {
 	BYTE *free_ptr = (BYTE*)rinfo->address;
 	
-	SVGA_Flush_CB();
-	
 	Begin_Critical_Section(0);
+	SVGA_Sync();
+	SVGA_Flush_CB_critical();
+	
 	SVGA_WriteReg(SVGA_REG_GMR_ID, rinfo->region_id);
 	SVGA_WriteReg(SVGA_REG_GMR_DESCRIPTOR, 0);
 	SVGA_Sync(); // notify register change
-		
-	//SVGA_Flush_CB();
 	
 	/* save 2 large regions */
 	if(rinfo->size >= SPARE_REGION_LARGE_SIZE)
@@ -1073,7 +1067,52 @@ void SVGA_region_free(SVGA_region_info_t *rinfo)
 	rinfo->mob_address    = NULL;
 	rinfo->region_ppn     = 0;
 	rinfo->mob_ppn        = 0;
+	
 }
+
+/**
+ * Destroy saved regions and free memory
+ *
+ **/
+void SVGA_flushcache()
+{
+	int i;
+	
+	Begin_Critical_Section(0);
+	
+	for(i = 0; i < SPARE_REGIONS; i++)
+	{
+		if(spare_regions[i].used != FALSE)
+		{
+			SVGA_region_info_t *rinfo = &spare_regions[i].region;
+			BYTE *free_ptr = (BYTE*)rinfo->address;
+			
+			spare_regions[i].used = FALSE;
+			
+			if(rinfo->region_address != NULL)
+			{
+				dbg_printf(dbg_pagefree, rinfo->region_address);
+				_PageFree((PVOID)rinfo->region_address, 0);
+			}
+			else
+			{
+				free_ptr -= P_SIZE;
+			}
+			
+			if(rinfo->mob_address != NULL)
+			{
+				dbg_printf(dbg_pagefree, rinfo->mob_address);
+				_PageFree((PVOID)rinfo->mob_address, 0);
+			}
+			
+			dbg_printf(dbg_pagefree, free_ptr);
+			_PageFree((PVOID)free_ptr, 0);
+		}
+	}
+
+	End_Critical_Section();
+}
+
 
 /**
  * GPU10: start context0
@@ -1285,14 +1324,22 @@ BOOL SVGA_setmode(DWORD w, DWORD h, DWORD bpp)
 		return FALSE;
 	}
 	
+	/* free chached regions */
+	SVGA_flushcache();
+	
+	FBHDA_access_begin(0);
+	
+	Begin_Critical_Section(0);
+	
 	/* Make sure, that we drain full FIFO */
-	SVGA_Flush_CB(); 
+	SVGA_Sync();
+	SVGA_Flush_CB_critical(); 
       
 	/* stop command buffer context 0 */
 	SVGA_CB_stop();
             
 	SVGA_SetModeLegacy(w, h, bpp); /* setup by legacy registry */
-	SVGA_Flush_CB(); /* make sure, that is really set */
+	SVGA_Flush_CB_critical(); /* make sure, that is really set */
 	
 	has3D = SVGA3D_Init();
       
@@ -1300,9 +1347,9 @@ BOOL SVGA_setmode(DWORD w, DWORD h, DWORD bpp)
 	if(SVGA_hasAccelScreen())
 	{
 		SVGA_defineScreen(w, h, bpp);
-		SVGA_Flush_CB();
+		SVGA_Flush_CB_critical();
 	}
-      
+	
 	/* start command buffer context 0 */
 	SVGA_CB_start();
      
@@ -1326,7 +1373,7 @@ BOOL SVGA_setmode(DWORD w, DWORD h, DWORD bpp)
       
 	SVGA_WriteReg(SVGA_REG_ENABLE, TRUE);
 	SVGA_Sync();
-	SVGA_Flush_CB();
+	SVGA_Flush_CB_critical();
 	
 	hda->width   = SVGA_ReadReg(SVGA_REG_WIDTH);
 	hda->height  = SVGA_ReadReg(SVGA_REG_HEIGHT);
@@ -1345,6 +1392,10 @@ BOOL SVGA_setmode(DWORD w, DWORD h, DWORD bpp)
 	{
 		hda->flags &= ~((DWORD)FB_ACCEL_VMSVGA3D);
 	}
+	
+	End_Critical_Section();
+	
+	FBHDA_access_end(0);
 
   return TRUE;
 }

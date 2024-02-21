@@ -6,24 +6,28 @@ static BOOL calc_save(int x, int y)
 	
 	if(mouse_swap_x < 0)
 	{
-		mouse_swap_w -= x;
+		mouse_swap_w += mouse_swap_x;
 		mouse_swap_x = 0;
 	}
 	
 	if(mouse_swap_x + mouse_swap_w > hda->width)
+	{
 		mouse_swap_w = hda->width - mouse_swap_x;
+	}
 	
 	mouse_swap_h = mouse_h;
 	mouse_swap_y = y - mouse_pointy;
 	
 	if(mouse_swap_y < 0)
 	{
-		mouse_swap_h -= y;
+		mouse_swap_h += mouse_swap_y;
 		mouse_swap_y = 0;
 	}
 	
 	if(mouse_swap_y + mouse_swap_h > hda->height)
+	{
 		mouse_swap_h = hda->height - mouse_swap_y;
+	}
 	
 	if(mouse_swap_w <= 0 || mouse_swap_h <= 0)
 	{
