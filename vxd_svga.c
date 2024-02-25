@@ -49,10 +49,10 @@ THE SOFTWARE.
 
 #define PTONPAGE (P_SIZE/sizeof(DWORD))
 
-#define SPARE_REGIONS 6
+#define SPARE_REGIONS 5
 #define SPARE_REGION_SIZE (1*1024*1024)
 
-#define SPARE_REGIONS_LARGE 2
+#define SPARE_REGIONS_LARGE 1
 #define SPARE_REGION_LARGE_SIZE (32*1024*1024)
 
 /*
@@ -102,7 +102,7 @@ static struct spare_region
 	SVGA_region_info_t region;
 };
 
-static struct spare_region spare_regions[SPARE_REGIONS] = {FALSE};
+static struct spare_region spare_regions[SPARE_REGIONS];
 
 /* object table for GPU10 */
 static SVGA_OT_info_entry_t otable_setup[SVGA_OTABLE_DX_MAX] = {
@@ -746,6 +746,8 @@ BOOL SVGA_init_hw()
 			hda->flags |= FB_ACCEL_VMSVGA10;
 		}
 		
+		memset(&spare_regions[0], 0, sizeof(spare_regions));
+		
 		SVGA_is_valid = TRUE;
 		
 		return TRUE;
@@ -1005,8 +1007,8 @@ void SVGA_region_free(SVGA_region_info_t *rinfo)
 	SVGA_WriteReg(SVGA_REG_GMR_DESCRIPTOR, 0);
 	SVGA_Sync(); // notify register change
 	
-	/* save 2 large regions */
-	if(rinfo->size >= SPARE_REGION_LARGE_SIZE)
+	/* save 1 large region */
+	if(rinfo->size == SPARE_REGION_LARGE_SIZE)
 	{
 		int i;
 		for(i = 0; i < SPARE_REGIONS_LARGE; i++)
@@ -1023,7 +1025,8 @@ void SVGA_region_free(SVGA_region_info_t *rinfo)
 			}
 		}
 	}
-	else if(rinfo->size >= SPARE_REGION_SIZE)
+	else if(rinfo->size >= SPARE_REGION_SIZE &&
+		rinfo->size < SPARE_REGION_LARGE_SIZE)
 	{
 		int i;
 		for(i = SPARE_REGIONS_LARGE; i < SPARE_REGIONS; i++)
@@ -1325,8 +1328,14 @@ BOOL SVGA_setmode(DWORD w, DWORD h, DWORD bpp)
 	}
 	
 	/* free chached regions */
+	/*
 	SVGA_flushcache();
+	 ^JH: no alloc/free operations here (don't know why,
+				but when VXD si called from 16 bits, these
+				operations are bit unstable)
+	*/
 	
+	mouse_invalidate();
 	FBHDA_access_begin(0);
 	
 	Begin_Critical_Section(0);
@@ -1381,9 +1390,7 @@ BOOL SVGA_setmode(DWORD w, DWORD h, DWORD bpp)
 	hda->pitch   = SVGA_ReadReg(SVGA_REG_BYTES_PER_LINE);
 	hda->stride  = hda->height * hda->pitch;
 	hda->surface = 0;
-	
-	mouse_invalidate();
-	
+		
 	if(has3D && SVGA_GetDevCap(SVGA3D_DEVCAP_3D) > 0)
 	{
 		hda->flags |= FB_ACCEL_VMSVGA3D;
@@ -1395,6 +1402,7 @@ BOOL SVGA_setmode(DWORD w, DWORD h, DWORD bpp)
 	
 	End_Critical_Section();
 	
+	mouse_invalidate();
 	FBHDA_access_end(0);
 
   return TRUE;

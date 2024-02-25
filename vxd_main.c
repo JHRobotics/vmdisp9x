@@ -409,6 +409,8 @@ void __declspec(naked) VXD_API_entry()
 {
 	_asm {
 		push ebp
+		mov eax,cr3 ; TLB bug here? Looks like...
+		mov cr3,eax
 		call VXD_API_Proc
 		mov [ebp+1Ch], ax
 		retn
@@ -529,7 +531,12 @@ DWORD __stdcall Device_IO_Control_proc(struct DIOCParams *params)
 				{
 					memcpy(outio, inio, sizeof(SVGA_region_info_t));
 				}
-				SVGA_region_create(outio);
+				outio->address = NULL;
+				if(!SVGA_region_create(outio))
+				{
+					SVGA_flushcache();
+					SVGA_region_create(outio);
+				}
 				return 0;
 			}
 		case OP_SVGA_REGION_FREE:

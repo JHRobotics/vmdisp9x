@@ -35,6 +35,12 @@ static BOOL calc_save(int x, int y)
 		return FALSE;
 	}
 	
+	if((DWORD)(mouse_swap_w * mouse_swap_h * mouse_ps) > mouse_mem_size)
+	{
+		mouse_swap_valid = FALSE;
+		return FALSE;
+	}
+	
 	return TRUE;
 }
 
