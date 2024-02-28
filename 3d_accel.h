@@ -221,6 +221,7 @@ typedef struct SVGA_DB
 	DWORD               contexts_cnt;
 	DWORD               surfaces_cnt;
 	char                mutexname[64];
+	DWORD               stat_regions_usage;
 } SVGA_DB_t;
 
 /* internal VXD only */

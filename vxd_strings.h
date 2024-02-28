@@ -63,7 +63,7 @@ DSTR(dbg_SVGA_Init, "SVGA_Init: %d\n");
 
 DSTR(dbg_update, "Update screen: %d %d %d\n");
 
-DSTR(dbg_cmd_on, "SVGA_CMB_submit: first cmd: %X, flags: %X, size: %d\n");
+DSTR(dbg_cmd_on, "SVGA_CMB_submit: ptr=%X, first cmd=%X, flags=%X, size=%d\n");
 DSTR(dbg_cmd_off, "SVGA_CMB_submit: end - cmd: %X\n");
 DSTR(dbg_cmd_error, "CB error: %d, first cmd %X (error at %d)\n");
 

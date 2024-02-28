@@ -222,9 +222,14 @@ HKR,"MODES\32\1600,1200"
 HKR,"MODES\32\1680,1050"
 HKR,"MODES\32\1920,1080"
 HKR,"MODES\32\1920,1200"
+HKLM,Software\VMWSVGA,RGB565bug,,0
+HKLM,Software\VMWSVGA,CommandBuffers,,1
+HKLM,Software\VMWSVGA,VRAMLimit,,128
 ;mesa:HKLM,Software\Microsoft\Windows\CurrentVersion\OpenGLdrivers,SOFTWARE,2,"mesa3d.dll"
 ;mesa:HKLM,Software\Microsoft\Windows\CurrentVersion\OpenGLdrivers,VMWSVGA,2,"vmwsgl32.dll"
 ;mesa:HKLM,Software\Mesa3D\global,LP_NATIVE_VECTOR_WIDTH,,128
+;mesa:HKLM,Software\Mesa3D\global,SVGA_CLEAR_DX_FLAGS,,1
+;mesa:HKLM,Software\Mesa3D\global,SVGA_GMR_LIMIT,,192
 
 [DX.addReg]
 ;wined3d:HKLM,System\CurrentControlSet\Control\SessionManager\KnownDLLs,DDRAW,2,"ddrawme.dll"
