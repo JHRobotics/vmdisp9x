@@ -105,16 +105,12 @@ static BOOL gb_support = FALSE;
 static BOOL cb_support = FALSE;
 static BOOL cb_context0 = FALSE;
 
+/* for GPU9 is FIFO more stable (VMWARE) or faster (VBOX) */
+static DWORD prefer_fifo = 1; 
+
 static BOOL SVGA_is_valid = FALSE;
 
 static volatile SVGACBHeader *last_cb = NULL;
-
-/* temp for reading registry */
-static union
-{
-	DWORD dw;
-	char str[64];
-} RegReadConfBuf = {0};
 
 static uint64 cb_next_id = {0, 0};
 static DWORD fence_next_id = 1;
@@ -148,6 +144,7 @@ static char SVGA_conf_hw_cursor[]  = "HWCursor";
 static char SVGA_conf_vram_limit[] = "VRAMLimit";
 static char SVGA_conf_rgb565bug[]  = "RGB565bug";
 static char SVGA_conf_cb[]         = "CommandBuffers";
+static char SVGA_conf_pref_fifo[]  = "PreferFIFO";
 static char SVGA_conf_hw_version[] = "HWVersion";
 static char SVGA_vxd_name[] = "vmwsmini.vxd";
 
@@ -182,51 +179,6 @@ static void SVGA_Flush_CB()
 	End_Critical_Section();
 }
 #endif
-
-/**
- * Read integer value from registry
- *
- **/
-static BOOL RegReadConf(const char *value, DWORD *out)
-{
-	DWORD hKey;
-	DWORD type;
-	DWORD cbData = sizeof(RegReadConfBuf);
-	BOOL rv = FALSE;
-	
-	if(_RegOpenKey(HKEY_LOCAL_MACHINE, SVGA_conf_path, &hKey) == ERROR_SUCCESS)
-	{
-		if(_RegQueryValueEx(hKey, (char*)value, 0, &type, &(RegReadConfBuf.str), &cbData) == ERROR_SUCCESS)
-		{
-			if(type == REG_SZ)
-			{
-				DWORD cdw = 0;
-				char *ptr = &(RegReadConfBuf.str);
-				
-				while(*ptr == ' '){ptr++;}
-				
-				while(*ptr >= '0' && *ptr <= '9')
-				{
-					cdw *= 10;
-					cdw += *ptr - '0';
-					ptr++;
-				}
-				
-				*out = cdw;
-			}
-			else
-			{
-				*out = RegReadConfBuf.dw;
-			}
-			
-			rv = TRUE;
-		}
-		
-		_RegCloseKey(hKey);
-	}
-	
-	return rv;
-}
 
 /* map physical addresses to system linear space */
 void SVGA_MapIO()
@@ -638,11 +590,12 @@ BOOL SVGA_init_hw()
 	int rc;
 	
 	/* configs in registry */
-	RegReadConf(SVGA_conf_hw_cursor,  &conf_hw_cursor);
- 	RegReadConf(SVGA_conf_vram_limit, &conf_vram_limit);
- 	RegReadConf(SVGA_conf_rgb565bug,  &conf_rgb565bug);
- 	RegReadConf(SVGA_conf_cb,         &conf_cb); 
- 	RegReadConf(SVGA_conf_hw_version, &conf_hw_version);
+	RegReadConf(HKEY_LOCAL_MACHINE, SVGA_conf_path, SVGA_conf_hw_cursor,  &conf_hw_cursor);
+ 	RegReadConf(HKEY_LOCAL_MACHINE, SVGA_conf_path, SVGA_conf_vram_limit, &conf_vram_limit);
+ 	RegReadConf(HKEY_LOCAL_MACHINE, SVGA_conf_path, SVGA_conf_rgb565bug,  &conf_rgb565bug);
+ 	RegReadConf(HKEY_LOCAL_MACHINE, SVGA_conf_path, SVGA_conf_cb,         &conf_cb); 
+ 	RegReadConf(HKEY_LOCAL_MACHINE, SVGA_conf_path, SVGA_conf_hw_version, &conf_hw_version);
+ 	RegReadConf(HKEY_LOCAL_MACHINE, SVGA_conf_path, SVGA_conf_pref_fifo,  &prefer_fifo);
  	
  	if(!FBHDA_init_hw())
  	{
@@ -737,6 +690,11 @@ BOOL SVGA_init_hw()
 		/* enable command buffers if supported and enabled */
 		if(SVGA_ReadReg(SVGA_REG_CAPABILITIES) & (SVGA_CAP_COMMAND_BUFFERS | SVGA_CAP_CMD_BUFFERS_2))
 		{
+			if(prefer_fifo && !gb_support)
+			{
+				conf_cb = FALSE;
+			}
+			
 			if(conf_cb)
 			{
 				cb_support = TRUE;

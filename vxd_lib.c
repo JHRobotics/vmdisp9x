@@ -82,6 +82,57 @@ void *memcpy(void *dst, const void *src, unsigned int size)
 	return dst;
 }
 
+/* temp for reading registry */
+static union
+{
+	DWORD dw;
+	char str[64];
+} RegReadConfBuf = {0};
+
+/**
+ * Read integer value from registry
+ *
+ **/ 
+BOOL RegReadConf(UINT root, const char *path, const char *name, DWORD *out)
+{
+	DWORD hKey;
+	DWORD type;
+	DWORD cbData = sizeof(RegReadConfBuf);
+	BOOL rv = FALSE;
+	
+	if(_RegOpenKey(root, (char*)path, &hKey) == ERROR_SUCCESS)
+	{
+		if(_RegQueryValueEx(hKey, (char*)name, 0, &type, &(RegReadConfBuf.str), &cbData) == ERROR_SUCCESS)
+		{
+			if(type == REG_SZ)
+			{
+				DWORD cdw = 0;
+				char *ptr = &(RegReadConfBuf.str);
+				
+				while(*ptr == ' '){ptr++;}
+				
+				while(*ptr >= '0' && *ptr <= '9')
+				{
+					cdw *= 10;
+					cdw += *ptr - '0';
+					ptr++;
+				}
+				
+				*out = cdw;
+			}
+			else
+			{
+				*out = RegReadConfBuf.dw;
+			}
+			
+			rv = TRUE;
+		}
+		
+		_RegCloseKey(hKey);
+	}
+	
+	return rv;
+}
 
 /**
  * VMM calls wrapers
@@ -202,6 +253,34 @@ void __cdecl *Map_Flat(BYTE SegOffset, BYTE OffOffset)
 	
 	return result;
 }
+
+void __cdecl Install_IO_Handler(DWORD port, DWORD callback)
+{
+	static DWORD sPort = 0;
+	static DWORD sCallback = 0;
+
+	sPort = port;
+	sCallback = callback;
+	
+/*
+ * esi <- IOCallback
+ * edx <- I/O port numbers
+ */
+	_asm
+	{
+		push esi
+		push edx
+		mov esi, [sCallback]
+		mov edx, [sPort]
+	}
+	VMMCall(Install_IO_Handler);
+	_asm
+	{
+		pop edx
+		pop esi
+	}
+}
+
 
 ULONG __declspec(naked) __cdecl _PageAllocate(ULONG nPages, ULONG pType, ULONG VM, ULONG AlignMask, ULONG minPhys, ULONG maxPhys, ULONG *PhysAddr, ULONG flags)
 {

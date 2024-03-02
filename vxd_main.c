@@ -95,33 +95,6 @@ DWORD DispatchTableLength = 0;
 DWORD ThisVM = 0;
 
 #ifdef QEMU
-void Install_IO_Handler(DWORD port, DWORD callback)
-{
-	static DWORD sPort = 0;
-	static DWORD sCallback = 0;
-
-	sPort = port;
-	sCallback = callback;
-	
-/*
- * esi <- IOCallback
- * edx <- I/O port numbers
- */
-	_asm
-	{
-		push esi
-		push edx
-		mov esi, [sCallback]
-		mov edx, [sPort]
-	}
-	VMMCall(Install_IO_Handler);
-	_asm
-	{
-		pop edx
-		pop esi
-	}
-}
-
 /**
  * This is fix of broken screen when open DOS window
  *
@@ -417,6 +390,35 @@ void __declspec(naked) VXD_API_entry()
 	}
 }
 
+static char reg_path[] = "Software\\vmdisp9x";
+static char reg_force_sw[] = "FORCE_SOFTWARE";
+static char reg_force_qemu3dfx[] = "FORCE_QEMU3DFX";
+
+static void configure_FBHDA()
+{
+	FBHDA_t *fbhda;
+	DWORD force_sw = 0;
+	DWORD force_qemu3dfx = 0;
+	
+	fbhda = FBHDA_setup();
+	
+	if(fbhda)
+	{
+		RegReadConf(HKEY_LOCAL_MACHINE, reg_path, reg_force_sw, &force_sw);
+		RegReadConf(HKEY_LOCAL_MACHINE, reg_path, reg_force_qemu3dfx, &force_qemu3dfx);
+		
+		if(force_sw)
+		{
+			fbhda->flags |= FB_FORCE_SOFTWARE;
+		}
+		
+		if(force_qemu3dfx)
+		{
+			fbhda->flags |= FB_ACCEL_QEMU3DFX;
+		}
+	}
+}
+
 /* generate all entry pro VDD function */
 #define VDDFUNC(_fnname, _procname) void __declspec(naked) _procname ## _entry() { \
 	_asm { push ebp }; \
@@ -457,6 +459,8 @@ void Device_Dynamic_Init_proc(DWORD VM)
 	{
 		#include "vxd_vdd_list.h"
 	}
+	
+	configure_FBHDA();
 }
 #undef VDDFUNC
 

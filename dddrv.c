@@ -231,8 +231,9 @@ static void buildPixelFormat(LPDDHALMODEINFO lpMode, LPDDPIXELFORMAT lpddpf)
  */
 static void buildDDHALInfo(VMDAHAL_t __far *hal, int modeidx)
 {
-	static DWORD        AlignTbl [ 9 ] = { 64, 64, 64, 64, 64, 64, 64, 64, 64 };
+//	static DWORD        AlignTbl [ 9 ] = { 64, 64, 64, 64, 64, 64, 64, 64, 64 };
 //    static DWORD      AlignTbl [ 9 ] = { 8, 8, 8, 8, 16, 8, 24, 8, 32 };
+	static DWORD        AlignTbl [ 9 ] = { 128, 128, 128, 128, 128, 128, 128, 128, 128 }; /* we can now use aligned SSE to manipulate with surfaces */
 	int                 ii;
 	BOOL                can_flip;
 	WORD                heap;

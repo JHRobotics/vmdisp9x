@@ -170,11 +170,11 @@ LONG WINAPI __loadds Control(LPVOID lpDevice, UINT function,
   }
   else if(function == OPENGL_GETINFO) /* input: NULL, output: opengl_icd_t */
   {
-  	if(hda->flags & FB_ACCEL_VMSVGA3D)
+  	if((hda->flags & FB_ACCEL_VMSVGA3D) && ((hda->flags & FB_FORCE_SOFTWARE) == 0))
   	{
   		_fmemcpy(lpOutput, &vmwsvga_icd, OPENGL_ICD_SIZE);
   	}
-  	else if(hda->flags & FB_ACCEL_QEMU3DFX)
+  	else if((hda->flags & FB_ACCEL_QEMU3DFX) && ((hda->flags & FB_FORCE_SOFTWARE) == 0))
   	{
   		_fmemcpy(lpOutput, &qemu3dfx_icd, OPENGL_ICD_SIZE);
   	}

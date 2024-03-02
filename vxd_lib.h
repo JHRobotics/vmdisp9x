@@ -27,6 +27,8 @@ THE SOFTWARE.
 void memset(void *dst, int c, unsigned int size);
 void *memcpy(void *dst, const void *src, unsigned int size);
 
+BOOL RegReadConf(UINT root, const char *path, const char *name, DWORD *out);
+
 DWORD Get_VMM_Version();
 ULONG __cdecl _PageAllocate(ULONG nPages, ULONG pType, ULONG VM, ULONG AlignMask, ULONG minPhys, ULONG maxPhys, ULONG *PhysAddr, ULONG flags);
 ULONG __cdecl _PageFree(PVOID hMem, DWORD flags);
@@ -46,6 +48,7 @@ void __cdecl Destroy_Semaphore(ULONG SemHandle);
 void __cdecl Wait_Semaphore(ULONG semHandle, ULONG flags);
 void __cdecl Signal_Semaphore(ULONG SemHandle);
 void __cdecl *Map_Flat(BYTE SegOffset, BYTE OffOfset);
+void __cdecl Install_IO_Handler(DWORD port, DWORD callback);
 
 /**
  * round size in bytes to number of pages
