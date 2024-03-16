@@ -148,6 +148,9 @@ static char SVGA_conf_pref_fifo[]  = "PreferFIFO";
 static char SVGA_conf_hw_version[] = "HWVersion";
 static char SVGA_vxd_name[] = "vmwsmini.vxd";
 
+/* VM handle */
+extern DWORD ThisVM;
+
 /* prototypes */
 DWORD SVGA_GetDevCap(DWORD search_id);
 
@@ -199,7 +202,7 @@ static void SVGA_OTable_alloc()
 	
 	if(otable == NULL)
 	{
-		otable = (SVGA_OT_info_entry_t *)_PageAllocate(RoundToPages(sizeof(otable_setup)), PG_SYS, 0, 0, 0x0, 0x100000, NULL, PAGEFIXED);
+		otable = (SVGA_OT_info_entry_t *)_PageAllocate(RoundToPages(sizeof(otable_setup)), PG_VM, ThisVM, 0, 0x0, 0x100000, NULL, PAGEFIXED);
 		if(otable)
 		{
 			memcpy(otable, &(otable_setup[0]), sizeof(otable_setup));
@@ -213,7 +216,7 @@ static void SVGA_OTable_alloc()
 			SVGA_OT_info_entry_t *entry = &otable[i];
 			if(entry->size != 0 && (entry->flags & SVGA_OT_FLAG_ALLOCATED) == 0)
 			{
-				entry->lin = (void*)_PageAllocate(RoundToPages(entry->size), PG_SYS, 0, 0, 0x0, 0x100000, &entry->phy, PAGECONTIG | PAGEUSEALIGN | PAGEFIXED);
+				entry->lin = (void*)_PageAllocate(RoundToPages(entry->size), PG_VM, ThisVM, 0, 0x0, 0x100000, &entry->phy, PAGECONTIG | PAGEUSEALIGN | PAGEFIXED);
 				if(entry->lin)
 				{
 					dbg_printf(dbg_mob_allocate, i);
@@ -243,7 +246,7 @@ static void SVGA_DB_alloc()
 	  SVGA3D_MAX_SURFACE_IDS * sizeof(SVGA_DB_surface_t) +
 	  sizeof(SVGA_DB_t);
 
-	svga_db = (SVGA_DB_t*)_PageAllocate(RoundToPages(size), PG_SYS, 0, 0, 0x0, 0x100000, NULL, PAGEFIXED);
+	svga_db = (SVGA_DB_t*)_PageAllocate(RoundToPages(size), PG_VM, ThisVM, 0, 0x0, 0x100000, NULL, PAGEFIXED);
 	if(svga_db)
 	{
 		memset(svga_db, 0, size);
@@ -740,6 +743,7 @@ static DWORD getPPN(DWORD virtualaddr)
 	return phy/P_SIZE;
 }
 
+
 /**
  * Allocate guest memory region (GMR) - HW needs know memory physical
  * addressed of pages in (virtual) memory block.
@@ -785,7 +789,7 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 	dbg_printf(dbg_pages, rinfo->size, nPages, P_SIZE);
 	
 	/* first try to allocate continuous physical memory space, 1st page is used for GMR descriptor */
-	laddr = _PageAllocate(nPages+1, PG_SYS, 0, 0, 0x0, 0x100000, &phy, PAGECONTIG | PAGEUSEALIGN | PAGEFIXED);
+	laddr = _PageAllocate(nPages+1, PG_VM, ThisVM, 0, 0x0, 0x100000, &phy, PAGECONTIG | PAGEUSEALIGN | PAGEFIXED);
 	
 	if(laddr)
 	{
@@ -819,7 +823,7 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 		DWORD mobphy = 0;
 		
 		/* allocate user block */
-		laddr = _PageAllocate(nPages, PG_SYS, 0, 0, 0x0, 0x100000, NULL, PAGEFIXED);
+		laddr = _PageAllocate(nPages, PG_VM, ThisVM, 0, 0x0, 0x100000, NULL, PAGEFIXED);
 		
 		if(!laddr)
 		{
@@ -854,7 +858,7 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 		blk_pages = ((blocks+blk_pages+1)/(P_SIZE/sizeof(SVGAGuestMemDescriptor))) + 1;
 		
 		/* allocate memory for GMR descriptor */
-		pgblk = _PageAllocate(blk_pages, PG_SYS, 0, 0, 0x0, 0x100000, NULL, PAGEFIXED);
+		pgblk = _PageAllocate(blk_pages, PG_VM, ThisVM, 0, 0x0, 0x100000, NULL, PAGEFIXED);
 		if(!pgblk)
 		{
 			_PageFree((PVOID)laddr, 0);
@@ -904,7 +908,7 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 		{
 			int i;
 			/* for simplicity we're always creating table of depth 2, first page is page of PPN pages */
-			mob = (DWORD *)_PageAllocate(1 + (nPages + PTONPAGE - 1)/PTONPAGE, PG_SYS, 0, 0, 0x0, 0x100000, &mobphy, PAGECONTIG | PAGEUSEALIGN | PAGEFIXED);
+			mob = (DWORD *)_PageAllocate(1 + (nPages + PTONPAGE - 1)/PTONPAGE, PG_VM, ThisVM, 0, 0x0, 0x100000, &mobphy, PAGECONTIG | PAGEUSEALIGN | PAGEFIXED);
 				
 			if(!mob)
 			{

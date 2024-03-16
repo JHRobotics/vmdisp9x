@@ -138,7 +138,7 @@ void Sys_Critical_Init_proc()
 	// nop
 }
 
-DWORD __stdcall Device_IO_Control_proc(struct DIOCParams *params);
+DWORD __stdcall Device_IO_Control_proc(DWORD vmhandle, struct DIOCParams *params);
 
 /*
  * 32-bit DeviceIoControl ends here
@@ -148,6 +148,7 @@ void __declspec(naked) Device_IO_Control_entry()
 {
 	_asm {
 		push esi /* struct DIOCParams */
+		push ebx /* VMHandle */
 		call Device_IO_Control_proc
 		retn
 	}
@@ -465,7 +466,7 @@ void Device_Dynamic_Init_proc(DWORD VM)
 #undef VDDFUNC
 
 /* process user space (PM32, RING-3) call */
-DWORD __stdcall Device_IO_Control_proc(struct DIOCParams *params)
+DWORD __stdcall Device_IO_Control_proc(DWORD vmhandle, struct DIOCParams *params)
 {
 	DWORD *inBuf  = (DWORD*)params->lpInBuffer;
 	DWORD *outBuf = (DWORD*)params->lpOutBuffer;
