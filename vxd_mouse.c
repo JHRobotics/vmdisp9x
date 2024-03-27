@@ -222,13 +222,16 @@ void mouse_invalidate()
 }
 
 /* called by FBHDA_access_end */
-void mouse_blit()
+BOOL mouse_blit()
 {
 	if(mouse_valid && mouse_visible && !mouse_empty)
 	{
 		draw_save(mouse_x, mouse_y);
 		draw_blit(mouse_x, mouse_y);
+		return TRUE;
 	}
+	
+	return FALSE;
 }
 
 /* called by FBHA_access_begin */

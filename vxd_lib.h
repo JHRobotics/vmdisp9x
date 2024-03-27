@@ -49,11 +49,15 @@ void __cdecl Wait_Semaphore(ULONG semHandle, ULONG flags);
 void __cdecl Signal_Semaphore(ULONG SemHandle);
 void __cdecl *Map_Flat(BYTE SegOffset, BYTE OffOfset);
 void __cdecl Install_IO_Handler(DWORD port, DWORD callback);
+DWORD __cdecl _GetFreePageCount(DWORD *pLockablePages);
 
 /**
  * round size in bytes to number of pages
  **/
 #define RoundToPages(_size) (((_size) + P_SIZE - 1)/P_SIZE)
+
+#define RoundTo4k(_n)  (((_n) + 0x0FFFUL) & 0xFFFFF000UL)
+#define RoundTo64k(_n) (((_n) + 0xFFFFUL) & 0xFFFF0000UL)
 
 /**
  * PM16 to PM32 memory mapping

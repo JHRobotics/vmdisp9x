@@ -25,8 +25,6 @@ THE SOFTWARE.
 /* 32 bit RING-0 code for SVGA-II 3D acceleration */
 #define SVGA
 
-#define GMR_CACHE_DISABLED
-
 #include <limits.h>
 
 #include "winhack.h"
@@ -51,16 +49,18 @@ THE SOFTWARE.
 
 #define PTONPAGE (P_SIZE/sizeof(DWORD))
 
-#define SPARE_REGIONS_LARGE 1
+#define SPARE_REGIONS_LARGE 2
 #define SPARE_REGION_LARGE_SIZE (32*1024*1024)
 
-#define SPARE_REGIONS_NORMAL 4
-#define SPARE_REGION_NORMAL_SIZE (4*1024*1024)
+#define SPARE_REGIONS_MEDIUM 16
+#define SPARE_REGION_MEDIUM_SIZE (1024*1024)
 
-#define SPARE_REGIONS_SMALL 32
-#define SPARE_REGION_SMALL_SIZE 64*1024
+#define SPARE_REGIONS_SMALL 128
+//#define SPARE_REGION_SMALL_SIZE 4096
 
-#define SPARE_REGIONS_CNT (SPARE_REGIONS_LARGE+SPARE_REGIONS_NORMAL+SPARE_REGIONS_SMALL)
+#define SPARE_REGIONS_CNT (SPARE_REGIONS_LARGE+SPARE_REGIONS_MEDIUM+SPARE_REGIONS_SMALL)
+
+#define CACHE_THRESHOLD 128
 
 #define SVGA_MIN_VRAM 8
 
@@ -70,7 +70,7 @@ THE SOFTWARE.
 	do{ \
 		DWORD wcnt; \
 		for(wcnt = 0; (_cb)->status == SVGA_CB_STATUS_NONE; wcnt++){ \
-			if(wcnt >= SVGA_TIMEOUT) break; \
+			/*if(wcnt >= SVGA_TIMEOUT) break;*/ \
 			WAIT_FOR_CB_SYNC_ ## _forcesync \
 		} \
 	}while(0)
@@ -91,6 +91,23 @@ typedef struct _cb_enable_t
 	SVGADCCmdStartStop cbstart;
 } cb_enable_t;
 #pragma pack(pop)
+
+typedef struct spare_region
+{
+	BOOL      used;
+	uint32    missed;
+	SVGA_region_info_t region;
+} spare_region_t;
+
+typedef struct svga_cache_state
+{
+	int free_index_min;
+	int free_index_max;
+	int cnt_large;
+	int cnt_medium;
+	int cnt_small;
+	spare_region_t spare_region[SPARE_REGIONS_CNT];
+} svga_cache_state_t;
 
 /*
  * globals
@@ -116,13 +133,9 @@ static uint64 cb_next_id = {0, 0};
 static DWORD fence_next_id = 1;
 static void *cmdbuf = NULL;
 
-static struct spare_region
-{
-	BOOL used;
-	SVGA_region_info_t region;
-};
+static svga_cache_state_t cache_state = {0, 0};
 
-static struct spare_region spare_regions[SPARE_REGIONS_CNT];
+static BOOL cache_enabled = FALSE;
 
 /* object table for GPU10 */
 static SVGA_OT_info_entry_t otable_setup[SVGA_OTABLE_DX_MAX] = {
@@ -155,6 +168,198 @@ extern DWORD ThisVM;
 DWORD SVGA_GetDevCap(DWORD search_id);
 
 /**
+ * Delete item from cache
+ **/
+static void cache_delete(int index)
+{
+	if(cache_state.spare_region[index].used != FALSE)
+	{
+		SVGA_region_info_t *rinfo = &cache_state.spare_region[index].region;
+		BYTE *free_ptr = (BYTE*)rinfo->address;
+		uint32 region_size = rinfo->size;;
+		
+		if(rinfo->region_address != NULL)
+		{
+			dbg_printf(dbg_pagefree, rinfo->region_address);
+			_PageFree((PVOID)rinfo->region_address, 0);
+		}
+		else
+		{
+			free_ptr -= P_SIZE;
+		}
+			
+		if(rinfo->mob_address != NULL)
+		{
+			dbg_printf(dbg_pagefree, rinfo->mob_address);
+			_PageFree((PVOID)rinfo->mob_address, 0);
+		}
+			
+		dbg_printf(dbg_pagefree, free_ptr);
+		_PageFree((PVOID)free_ptr, 0);
+			
+		cache_state.spare_region[index].used = FALSE;
+		
+		if((index+1) == cache_state.free_index_max)
+		{
+			cache_state.free_index_max--;
+		}
+		
+		if(index < cache_state.free_index_min)
+		{
+			cache_state.free_index_min = index;
+		}
+		
+		if(region_size >= SPARE_REGION_LARGE_SIZE)
+			cache_state.cnt_large--;
+		else if(region_size >= SPARE_REGION_MEDIUM_SIZE)
+			cache_state.cnt_medium--;
+		else
+			cache_state.cnt_small--;
+	}
+}
+
+/**
+ * Insert region to cache
+ **/
+static BOOL cache_insert(SVGA_region_info_t *region)
+{
+	int i;
+	BOOL rc = FALSE;
+	
+	if(!cache_enabled)
+	{
+		return FALSE;
+	}
+	
+	if(region->size >= SPARE_REGION_LARGE_SIZE)
+	{
+		if(cache_state.cnt_large > SPARE_REGIONS_LARGE) return FALSE;
+	}
+	else if(region->size >= SPARE_REGION_MEDIUM_SIZE)
+	{
+		if(cache_state.cnt_medium > SPARE_REGIONS_MEDIUM) return FALSE;
+	}
+	else
+	{
+		if(cache_state.cnt_small > SPARE_REGIONS_SMALL) return FALSE;
+	}
+	
+	for(i = cache_state.free_index_min; i < SPARE_REGIONS_CNT; i++)
+	{		
+		if(!cache_state.spare_region[i].used)
+		{
+			memcpy(&cache_state.spare_region[i].region, region, sizeof(SVGA_region_info_t));
+			cache_state.spare_region[i].used = TRUE;
+			cache_state.spare_region[i].missed = 0;
+			rc = TRUE;
+			break;
+		}
+	}
+	
+	for(; i < SPARE_REGIONS_CNT; i++)
+	{
+		if(!cache_state.spare_region[i].used)
+		{
+			cache_state.free_index_min = i;
+			break;
+		}
+	}
+	
+	if(i == SPARE_REGIONS_CNT)
+	{
+		cache_state.free_index_min = i;
+		cache_state.free_index_max = SPARE_REGIONS_CNT;
+	}
+	else if(i >= cache_state.free_index_max)
+	{
+		cache_state.free_index_max = i+1;
+	}
+
+	if(rc)
+	{
+		if(region->size >= SPARE_REGION_LARGE_SIZE)
+			cache_state.cnt_large++;
+		else if(region->size >= SPARE_REGION_MEDIUM_SIZE)
+			cache_state.cnt_medium++;
+		else
+			cache_state.cnt_small++;
+
+		dbg_printf(dbg_cache_insert, region->region_id, region->size);
+	}
+
+	return rc;
+}
+
+/**
+ * Use region from cache
+ **/
+static BOOL cache_use(SVGA_region_info_t *region)
+{
+	int i;
+	BOOL rc = FALSE;
+	
+	if(!cache_enabled)
+	{
+		return FALSE;
+	}
+	
+	dbg_printf(dbg_cache_search, region->size);
+	
+	for(i = cache_state.free_index_max-1; i >= 0; i--)
+	{
+		if(cache_state.spare_region[i].used != FALSE)
+		{
+			if(cache_state.spare_region[i].region.size == region->size)
+			{
+				SVGA_region_info_t *ptr = &cache_state.spare_region[i].region;
+				
+				region->address        = ptr->address;
+				region->region_address = ptr->region_address;
+				region->region_ppn     = ptr->region_ppn;
+				region->mob_address    = ptr->mob_address;
+				region->mob_ppn        = ptr->mob_ppn;
+				
+				cache_state.spare_region[i].used = FALSE;
+				rc = TRUE;
+				break;
+			}
+			else
+			{
+				if(++cache_state.spare_region[i].missed >= CACHE_THRESHOLD)
+				{
+					dbg_printf(dbg_cache_delete, cache_state.spare_region[i].region.size);
+					cache_delete(i);
+				}
+			}
+		}
+	}
+	
+	if(rc)
+	{
+		if((i+1) == cache_state.free_index_max)
+		{
+			cache_state.free_index_max--;
+		}
+		
+		if(i < cache_state.free_index_min)
+		{
+			cache_state.free_index_min = i;
+		}
+		
+		if(region->size >= SPARE_REGION_LARGE_SIZE)
+			cache_state.cnt_large--;
+		else if(region->size >= SPARE_REGION_MEDIUM_SIZE)
+			cache_state.cnt_medium--;
+		else
+			cache_state.cnt_small--;
+	
+		dbg_printf(dbg_cache_used, region->region_id, region->size);
+	}
+		
+	return rc;
+}
+
+/**
  * Notify virtual HW that is some work to do
  **/
 static void SVGA_Sync()
@@ -172,6 +377,12 @@ static void SVGA_Flush_CB_critical()
 	
 	/* drain FIFO */
 	SVGA_Flush();
+}
+
+static void wait_for_cmdbuf()
+{
+	SVGACBHeader *cb = ((SVGACBHeader *)cmdbuf)-1;
+	WAIT_FOR_CB(cb, 0);
 }
 
 #if 0
@@ -390,6 +601,25 @@ void SVGA_CMB_free(DWORD *cmb)
 	_PageFree(cb, 0);
 	
 	End_Critical_Section();
+}
+
+static void *SVGA_cmd_ptr(DWORD *buf, DWORD *pOffset, DWORD cmd, DWORD cmdsize)
+{
+	DWORD pp = (*pOffset)/sizeof(DWORD);
+	buf[pp] = cmd;
+	*pOffset = (*pOffset) + sizeof(DWORD) + cmdsize;
+	
+	return (void*)(buf + pp + 1);
+}
+
+static void *SVGA_cmd3d_ptr(DWORD *buf, DWORD *pOffset, DWORD cmd, DWORD cmdsize)
+{
+	DWORD pp = (*pOffset)/sizeof(DWORD);
+	buf[pp] = cmd;
+	buf[pp+1] = cmdsize;
+	*pOffset = (*pOffset) + 2*sizeof(DWORD) + cmdsize;
+	
+	return (void*)(buf + pp + 2);
 }
 
 // FIXME: inline?
@@ -722,9 +952,16 @@ BOOL SVGA_init_hw()
 			hda->flags |= FB_ACCEL_VMSVGA10;
 		}
 		
-		memset(&spare_regions[0], 0, sizeof(spare_regions));
+		memset(&cache_state, 0, sizeof(svga_cache_state_t));
 		
 		SVGA_is_valid = TRUE;
+		
+		if(_GetFreePageCount(NULL) >= 0x38000UL) /* 896MB / 4096 */
+		{
+			cache_enabled = TRUE;
+		}
+		
+		dbg_printf(dbg_cache, cache_enabled);
 		
 		return TRUE;
 	}
@@ -758,33 +995,20 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 	ULONG phy = 0;
 	ULONG laddr;
 	ULONG pgblk;
-	ULONG nPages = RoundToPages(rinfo->size);
-#ifndef GMR_CACHE_DISABLED
-	int i;
-#endif
+	ULONG new_size = RoundTo4k(rinfo->size);	
+	ULONG nPages = RoundToPages(new_size);
+	//ULONG nPages = RoundToPages64k(rinfo->size);
 
 	SVGAGuestMemDescriptor *desc;
 	
-	Begin_Critical_Section(0);
+	rinfo->size = new_size;
 	
-#ifndef GMR_CACHE_DISABLED
-	for(i = 0; i < SPARE_REGIONS_CNT; i++)
+	Begin_Critical_Section(0);
+
+	if(cache_use(rinfo))
 	{
-		if(spare_regions[i].used != FALSE && spare_regions[i].region.size == rinfo->size)
-		{
-			rinfo->address        = spare_regions[i].region.address;
-			rinfo->region_address = spare_regions[i].region.region_address;
-			rinfo->region_ppn     = spare_regions[i].region.region_ppn;
-			rinfo->mob_address    = spare_regions[i].region.mob_address;
-			rinfo->mob_ppn        = spare_regions[i].region.mob_ppn;
-			
-			spare_regions[i].used = FALSE;
-			
-			dbg_printf(dbg_spare_region, nPages, rinfo->address);
-			goto spare_region_used;
-		}
+		goto spare_region_used;
 	}
-#endif
 	
 	dbg_printf(dbg_pages, rinfo->size, nPages, P_SIZE);
 	
@@ -903,7 +1127,6 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 		desc->ppn = 0;
 		desc->numPages = 0;
 
-
 		if(gb_support) /* don't create MOBs for Gen9 */
 		{
 			int i;
@@ -945,26 +1168,56 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 	
 	dbg_printf(dbg_gmr, rinfo->region_id, rinfo->region_ppn);
 	
-#ifndef GMR_CACHE_DISABLED
 	spare_region_used:
-#endif
+	dbg_printf(dbg_mobonly, rinfo->mobonly);
 	
 	// JH: no need here
 	//SVGA_Flush_CB();
 	
-	if(rinfo->region_id <= SVGA_ReadReg(SVGA_REG_GMR_MAX_IDS))
+	if(!rinfo->mobonly)
 	{
-		/* register GMR */
-		SVGA_WriteReg(SVGA_REG_GMR_ID, rinfo->region_id);
-		SVGA_WriteReg(SVGA_REG_GMR_DESCRIPTOR, rinfo->region_ppn);
-		SVGA_Sync(); // notify register change
+		if(rinfo->region_id < SVGA_ReadReg(SVGA_REG_GMR_MAX_IDS))
+		{
+			/* register GMR */
+			SVGA_WriteReg(SVGA_REG_GMR_ID, rinfo->region_id);
+			SVGA_WriteReg(SVGA_REG_GMR_DESCRIPTOR, rinfo->region_ppn);
+			SVGA_Sync(); // notify register change
+			
+			SVGA_Flush_CB_critical();
+		}
+		else
+		{
+			/* GMR is too high, use it as only as MOB (DX) */
+			rinfo->region_ppn = 0;
+		}
+	}
+
+	if(gb_support)
+	{
+		SVGA3dCmdDefineGBMob *mob;
+		DWORD cmdoff = 0;
 		
-		SVGA_Flush_CB_critical();
+		wait_for_cmdbuf();
+  	mob              = SVGA_cmd3d_ptr(cmdbuf, &cmdoff, SVGA_3D_CMD_DEFINE_GB_MOB, sizeof(SVGA3dCmdDefineGBMob));
+  	mob->mobid       = rinfo->region_id;
+  	mob->base        = rinfo->mob_ppn;
+  	mob->sizeInBytes = rinfo->size;
+		if(rinfo->mob_address == NULL) /* continual memory space */
+		{
+			mob->ptDepth     = SVGA3D_MOBFMT_RANGE;
+		}
+		else
+		{
+			mob->ptDepth     = SVGA3D_MOBFMT_PTDEPTH_2;
+		}
+		
+		SVGA_CMB_submit(cmdbuf, cmdoff, NULL, SVGA_CB_SYNC, 0);
+		
+  	rinfo->is_mob = 1;
 	}
 	else
 	{
-		/* GMR is too high, use it as only as MOB (DX) */
-		rinfo->region_ppn = 0;
+		rinfo->is_mob = 0;
 	}
 	
 	svga_db->stat_regions_usage += rinfo->size;
@@ -982,104 +1235,69 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
  **/
 void SVGA_region_free(SVGA_region_info_t *rinfo)
 {
-#ifndef GMR_CACHE_DISABLED
-	int i;
-#endif
+	BOOL saved_in_cache;
 	BYTE *free_ptr = (BYTE*)rinfo->address;
 	
 	Begin_Critical_Section(0);
 	svga_db->stat_regions_usage -= rinfo->size;
 	
-	SVGA_Sync();
-	SVGA_Flush_CB_critical();
+	saved_in_cache = cache_insert(rinfo);
 	
-	SVGA_WriteReg(SVGA_REG_GMR_ID, rinfo->region_id);
-	SVGA_WriteReg(SVGA_REG_GMR_DESCRIPTOR, 0);
-	SVGA_Sync(); // notify register change
-	
-#ifndef GMR_CACHE_DISABLED
-	/* save 1 large region */
-	if(rinfo->size == SPARE_REGION_LARGE_SIZE)
+	if(gb_support)
 	{
-		for(i = 0; i < SPARE_REGIONS_LARGE; i++)
+		SVGA3dCmdDestroyGBMob *mob;
+		DWORD cmdoff = 0;
+		
+  	wait_for_cmdbuf();
+  	mob              = SVGA_cmd3d_ptr(cmdbuf, &cmdoff, SVGA_3D_CMD_DESTROY_GB_MOB, sizeof(SVGA3dCmdDestroyGBMob));
+  	mob->mobid       = rinfo->region_id;
+  	
+  	if(saved_in_cache)
+  		SVGA_CMB_submit(cmdbuf, cmdoff, NULL, 0, 0);
+  	else
+			SVGA_CMB_submit(cmdbuf, cmdoff, NULL, SVGA_CB_SYNC, 0);
+	}
+	
+	if(!rinfo->mobonly)
+	{
+		SVGA_Sync();
+		SVGA_Flush_CB_critical();
+		
+		SVGA_WriteReg(SVGA_REG_GMR_ID, rinfo->region_id);
+		SVGA_WriteReg(SVGA_REG_GMR_DESCRIPTOR, 0);
+		SVGA_Sync(); // notify register change
+	}
+
+	if(!saved_in_cache)
+	{
+		if(rinfo->region_address != NULL)
 		{
-			if(spare_regions[i].used == FALSE)
-			{
-				spare_regions[i].used = TRUE;
-				memcpy(&spare_regions[i].region, rinfo, sizeof(SVGA_region_info_t));
-				
-				dbg_printf(dbg_free_as_spare, rinfo->address);
-				
-				End_Critical_Section();
-				return;
-			}
+			dbg_printf(dbg_pagefree, rinfo->region_address);
+			_PageFree((PVOID)rinfo->region_address, 0);
 		}
-	}
-	else if(rinfo->size <= SPARE_REGION_SMALL_SIZE)
-	{
-		for(i = SPARE_REGIONS_LARGE;
-			i < (SPARE_REGIONS_LARGE+SPARE_REGIONS_SMALL);
-			i++)
+		else
 		{
-			if(spare_regions[i].used == FALSE)
-			{
-				spare_regions[i].used = TRUE;
-				memcpy(&spare_regions[i].region, rinfo, sizeof(SVGA_region_info_t));
-				
-				dbg_printf(dbg_free_as_spare, rinfo->address);
-				
-				End_Critical_Section();
-				return;
-			}
+			free_ptr -= P_SIZE;
 		}
-	}
-	else if(rinfo->size <= SPARE_REGION_NORMAL_SIZE)
-	{
-		for(i = (SPARE_REGIONS_LARGE+SPARE_REGIONS_SMALL);
-			i < (SPARE_REGIONS_LARGE+SPARE_REGIONS_SMALL+SPARE_REGIONS_NORMAL);
-			i++)
+			
+		if(rinfo->mob_address != NULL)
 		{
-			if(spare_regions[i].used == FALSE)
-			{
-				spare_regions[i].used = TRUE;
-				memcpy(&spare_regions[i].region, rinfo, sizeof(SVGA_region_info_t));
-				
-				dbg_printf(dbg_free_as_spare, rinfo->address);
-				
-				End_Critical_Section();
-				return;
-			}
+			dbg_printf(dbg_pagefree, rinfo->mob_address);
+			_PageFree((PVOID)rinfo->mob_address, 0);
 		}
+			
+		dbg_printf(dbg_pagefree, free_ptr);
+		_PageFree((PVOID)free_ptr, 0);
 	}
-#endif
-	
-	if(rinfo->region_address != NULL)
-	{
-		dbg_printf(dbg_pagefree, rinfo->region_address);
-		_PageFree((PVOID)rinfo->region_address, 0);
-	}
-	else
-	{
-		free_ptr -= P_SIZE;
-	}
-	
-	if(rinfo->mob_address != NULL)
-	{
-		dbg_printf(dbg_pagefree, rinfo->mob_address);
-		_PageFree((PVOID)rinfo->mob_address, 0);
-	}
-	
-	dbg_printf(dbg_pagefree, free_ptr);
-	_PageFree((PVOID)free_ptr, 0);
-	
 	End_Critical_Section();
-	
+		
 	rinfo->address        = NULL;
 	rinfo->region_address = NULL;
 	rinfo->mob_address    = NULL;
 	rinfo->region_ppn     = 0;
 	rinfo->mob_ppn        = 0;
 	
+	dbg_printf(dbg_pagefree_end, rinfo->region_id);
 }
 
 /**
@@ -1088,19 +1306,17 @@ void SVGA_region_free(SVGA_region_info_t *rinfo)
  **/
 void SVGA_flushcache()
 {
-#ifndef GMR_CACHE_DISABLED
 	int i;
 	
 	Begin_Critical_Section(0);
 	
-	for(i = 0; i < SPARE_REGIONS_CNT; i++)
+	for(i = 0; i < cache_state.free_index_max ; i++)
 	{
-		if(spare_regions[i].used != FALSE)
+		cache_delete(i);
+/*		if(cache_state.spare_region[i].used != FALSE)
 		{
-			SVGA_region_info_t *rinfo = &spare_regions[i].region;
+			SVGA_region_info_t *rinfo = &cache_state.spare_region[i].region;
 			BYTE *free_ptr = (BYTE*)rinfo->address;
-			
-			spare_regions[i].used = FALSE;
 			
 			if(rinfo->region_address != NULL)
 			{
@@ -1120,11 +1336,18 @@ void SVGA_flushcache()
 			
 			dbg_printf(dbg_pagefree, free_ptr);
 			_PageFree((PVOID)free_ptr, 0);
-		}
+			
+			cache_state.spare_region[i].used = FALSE;
+		}*/
 	}
+	
+	cache_state.free_index_max = 0;
+	cache_state.free_index_min = 0;
+	cache_state.cnt_large      = 0;
+	cache_state.cnt_medium     = 0;
+	cache_state.cnt_small      = 0;
 
 	End_Critical_Section();
-#endif
 }
 
 
@@ -1137,6 +1360,7 @@ static void SVGA_CB_start()
 	if(cb_support)
 	{
 		cb_enable_t *cbe = cmdbuf;
+		wait_for_cmdbuf();
 		
 		memset(cbe, 0, sizeof(cb_enable_t));
 		cbe->cmd = SVGA_DC_CMD_START_STOP_CONTEXT;
@@ -1160,6 +1384,7 @@ static void SVGA_CB_stop()
 	if(cb_support)
 	{
 		cb_enable_t *cbe = cmdbuf;
+		wait_for_cmdbuf();
 		
 		memset(cbe, 0, sizeof(cb_enable_t));
 		cbe->cmd = SVGA_DC_CMD_START_STOP_CONTEXT;
@@ -1227,20 +1452,13 @@ static DWORD SVGA_pitch(DWORD width, DWORD bpp)
 	return (bp * width + 3) & 0xFFFFFFFC;
 }
 
-static void *SVGA_cmd_ptr(DWORD *buf, DWORD *pOffset, DWORD cmd, DWORD cmdsize)
-{
-	DWORD pp = (*pOffset)/sizeof(DWORD);
-	buf[pp] = cmd;
-	*pOffset = (*pOffset) + sizeof(DWORD) + cmdsize;
-	
-	return (void*)(buf + pp + 1);
-}
-
 static void SVGA_defineScreen(DWORD w, DWORD h, DWORD bpp)
 {
   SVGAFifoCmdDefineScreen *screen;
   SVGAFifoCmdDefineGMRFB  *fbgmr;
   DWORD cmdoff = 0;
+  
+  wait_for_cmdbuf();
   
   screen = SVGA_cmd_ptr(cmdbuf, &cmdoff, SVGA_CMD_DEFINE_SCREEN, sizeof(SVGAFifoCmdDefineScreen));
 
@@ -1569,6 +1787,7 @@ void FBHDA_access_end(DWORD flags)
 	
 	if(fb_lock_cnt == 0)
 	{
+		/*BOOL need_sync = */
 		mouse_blit();
 		
 	  if(hda->bpp == 32)
@@ -1576,13 +1795,25 @@ void FBHDA_access_end(DWORD flags)
 	  	SVGAFifoCmdUpdate  *cmd_update;
 	  	DWORD cmd_offset = 0;
 	  	
+	  	wait_for_cmdbuf();
+	  	
 	  	cmd_update = SVGA_cmd_ptr(cmdbuf, &cmd_offset, SVGA_CMD_UPDATE, sizeof(SVGAFifoCmdUpdate));
 	  	cmd_update->x = 0;
 	  	cmd_update->y = 0;
 	  	cmd_update->width  = hda->width;
 	  	cmd_update->height = hda->height;
-	  	
-	  	SVGA_CMB_submit(cmdbuf, cmd_offset, NULL, SVGA_CB_SYNC/*|SVGA_CB_FORCE_FIFO*/, 0);
+#if 0
+	  	if(need_sync)
+	  	{
+	  		SVGA_CMB_submit(cmdbuf, cmd_offset, NULL, SVGA_CB_SYNC, 0);
+	  	}
+	  	else
+	  	{
+	  		SVGA_CMB_submit(cmdbuf, cmd_offset, NULL, 0, 0);
+	  	}
+#else
+			SVGA_CMB_submit(cmdbuf, cmd_offset, NULL, SVGA_CB_SYNC, 0);
+#endif
 	  }
 	}
 	

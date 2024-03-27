@@ -33,6 +33,8 @@ THE SOFTWARE.
 #endif
 #endif
 
+#define API_3DACCEL_VER 20240321
+
 /* function codes */
 #define OP_FBHDA_SETUP        0x110B /* VXD, DRV, ExtEscape */
 #define OP_FBHDA_ACCESS_BEGIN 0x110C /* VXD, DRV */
@@ -89,6 +91,7 @@ typedef struct FBHDA
 {
 	         DWORD cb;
            DWORD flags;
+           DWORD version;
 	volatile DWORD width;
 	volatile DWORD height;
 	volatile DWORD bpp;
@@ -153,7 +156,7 @@ void mouse_hide();
 
 /* vxd internal */
 void mouse_invalidate(); 
-void mouse_blit();
+BOOL mouse_blit();
 void mouse_erase();
 
 #define MOUSE_BUFFER_SIZE 65535
@@ -173,6 +176,7 @@ typedef struct SVGA_region_info
 	void*   mob_address;
 	DWORD   mob_ppn;
 	DWORD   is_mob;
+	DWORD   mobonly;
 } SVGA_region_info_t;
 
 typedef struct SVGA_CMB_status

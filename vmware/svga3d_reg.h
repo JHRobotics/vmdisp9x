@@ -1496,7 +1496,7 @@ typedef enum SVGAMobFormat {
     * This isn't actually used by the guest, but is a mob-format used
     * internally by the SVGA device (and is therefore not binary compatible).
     */
-   SVGA3D_MOBFMT_HB,
+   SVGA3D_MOBFMT_HB
 } SVGAMobFormat;
 
 #define SVGA3D_MOB_EMPTY_BASE 1

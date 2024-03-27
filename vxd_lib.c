@@ -281,6 +281,33 @@ void __cdecl Install_IO_Handler(DWORD port, DWORD callback)
 	}
 }
 
+DWORD __cdecl _GetFreePageCount(DWORD *pLockablePages)
+{
+	static DWORD sLockablePages = 0;
+	static DWORD sFreePages = 0;
+	_asm
+	{
+		push edx
+		push ecx
+		push 0 ; flags - must be zero
+	}
+	VMMCall(_GetFreePageCount);
+	_asm
+	{
+		mov [sLockablePages], edx
+		mov [sFreePages], eax
+		pop eax
+		pop ecx
+		pop edx
+	}
+	
+	if(pLockablePages != NULL)
+	{
+		*pLockablePages = sLockablePages;
+	}
+	
+	return sFreePages;
+}
 
 ULONG __declspec(naked) __cdecl _PageAllocate(ULONG nPages, ULONG pType, ULONG VM, ULONG AlignMask, ULONG minPhys, ULONG maxPhys, ULONG *PhysAddr, ULONG flags)
 {

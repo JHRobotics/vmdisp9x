@@ -101,6 +101,22 @@ DSTR(dbg_spare_region, "used spare region = pages: %ld, address: %X\n");
 
 DSTR(dbg_free_as_spare, "Saved region = address %X as spare\n");
 
+DSTR(dbg_cache_insert, "CACHE: region saved(%ld): size %ld\n");
+
+DSTR(dbg_cache_used, "CACHE: region used(%ld): size %ld\n");
+
+DSTR(dbg_pagefree_end, "GMR END: %ld\n");
+
+DSTR(dbg_cache_search, "CACHE try to find: %ld\n");
+
+DSTR(dbg_cache_delete, "CACHE: deleted old = %d\n");
+
+DSTR(dbg_mobonly, "GMR/MOB only: %d\n");
+
+DSTR(dbg_cache, "Cache enabled: %d\n");
+
+DSTR(dbg_mob_size, "sizeof(SVGA3dCmdDefineGBMob) = %d\n");
+
 #undef DSTR
 
 #endif

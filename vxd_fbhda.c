@@ -45,6 +45,7 @@ BOOL FBHDA_init_hw()
 		memset(hda, 0, sizeof(FBHDA_t));
 	
 		hda->cb = sizeof(FBHDA_t);
+		hda->version = API_3DACCEL_VER;
 		hda->flags = 0;
 		
 		hda_sem = Create_Semaphore(1);
