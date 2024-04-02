@@ -2,11 +2,12 @@
 ; INF file for VirtualBox VGA  Win9x display driver
 ;              VirtualBox SVGA Win9x display driver
 ;              VMWare SVGA-II  Win9x display driver
+;              QEMU STD        Win9x display driver
 ; Copyright 2012-2022, The OS/2 Museum
-;                2023, Jaroslav Hensl
+;           2023-2024, Jaroslav Hensl
 
 [version]
-DriverVer=01/01/2023, 1.2023.0.0
+DriverVer=01/01/2024, 1.2024.0.0
 Class=DISPLAY
 signature="$CHICAGO$"
 Provider=%Mfg%
@@ -44,8 +45,9 @@ qemumini.vxd=1
 ;wined3d:d3d9.dll=1
 ;wined3d:ddr95.dll=1,dx
 ;wined3d:ddr98.dll=1,dx
-;3dfx:3dfxSpl2.dll=1,vgw9x
-;3dfx:3dfxSpl3.dll=1,vgw9x
+;3dfx:3dfxSpl2.dll=1,3dfx
+;3dfx:3dfxSpl3.dll=1,3dfx
+;3dfx:3dfxVGL.dll=1,3dfx
 ;nine:mesa89.dll=1
 ;nine:mesa99.dll=1
 ;syscopy:ddsys.dll=1,sys
@@ -106,6 +108,7 @@ vmwsmini.vxd,,,0x00000004
 [Voodoo.Copy]
 ;3dfx:3dfxspl2.dll,,,0x00000010
 ;3dfx:3dfxspl3.dll,,,0x00000010
+;3dfx:3dfxVGL.dll,,,0x00000010
 ;openglide:glide2x.dll,,,0x00000004
 ;openglide:glide3x.dll,,,0x00000004
 

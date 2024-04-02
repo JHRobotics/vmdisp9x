@@ -4,14 +4,11 @@
 #define DRV_STR_(x) #x
 #define DRV_STR(x) DRV_STR_(x)
 
-/* DRV, VXD and DLL have to have the same */
-#define DRV_API_LEVEL 20230907UL
-
 /* on binaries equals 1 and for INF is 1 = separate driver, 2 = softgpu pack */
 #define DRV_VER_MAJOR 1
 
 /* the YEAR */
-#define DRV_VER_MINOR 2023
+#define DRV_VER_MINOR 2024
 
 /* build version is deducted fom GIT */
 #define DRV_VER_BUILD_FAILBACK 1
