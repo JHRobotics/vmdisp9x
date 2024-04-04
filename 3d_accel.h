@@ -33,7 +33,7 @@ THE SOFTWARE.
 #endif
 #endif
 
-#define API_3DACCEL_VER 20240321
+#define API_3DACCEL_VER 20240404
 
 /* function codes */
 #define OP_FBHDA_SETUP        0x110B /* VXD, DRV, ExtEscape */
@@ -196,12 +196,16 @@ typedef struct SVGA_DB_region
 {
 	DWORD pid;
 	SVGA_region_info_t info;
+	DWORD pad1;
+	DWORD pad2;
 } SVGA_DB_region_t;
 
 typedef struct SVGA_DB_context
 {
 	DWORD pid;
 	void *cotable;
+	DWORD pad1;
+	DWORD pad2;
 } SVGA_DB_context_t;
 
 typedef struct SVGA_DB_surface
@@ -224,8 +228,13 @@ typedef struct SVGA_DB
 	DWORD               regions_cnt;
 	DWORD               contexts_cnt;
 	DWORD               surfaces_cnt;
+	DWORD              *regions_map;
+	DWORD              *contexts_map;
+	DWORD              *surfaces_map;
 	char                mutexname[64];
 	DWORD               stat_regions_usage;
+	DWORD               pad1;
+	DWORD               pad2;
 } SVGA_DB_t;
 
 /* internal VXD only */

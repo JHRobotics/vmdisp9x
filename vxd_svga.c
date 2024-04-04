@@ -452,11 +452,16 @@ static void SVGA_DB_alloc()
 	
 	DWORD max_regions = SVGA3D_MAX_MOBS; ///SVGA_ReadReg(SVGA_REG_GMR_MAX_IDS);
 	
+	DWORD regions_map_size = ((max_regions + 31) >> 3) & 0xFFFFFFFCUL;
+	DWORD contexts_map_size = ((SVGA3D_MAX_CONTEXT_IDS + 31) >> 3) & 0xFFFFFFFCUL;
+	DWORD surfaces_map_size = ((SVGA3D_MAX_SURFACE_IDS + 31) >> 3) & 0xFFFFFFFCUL;
+	
 	size = max_regions * sizeof(SVGA_DB_region_t) +
 	  SVGA3D_MAX_CONTEXT_IDS * sizeof(SVGA_DB_context_t) +
 	  SVGA3D_MAX_SURFACE_IDS * sizeof(SVGA_DB_surface_t) +
-	  sizeof(SVGA_DB_t);
-
+	  sizeof(SVGA_DB_t) +
+	  regions_map_size + contexts_map_size + surfaces_map_size;
+	  
 	svga_db = (SVGA_DB_t*)_PageAllocate(RoundToPages(size), PG_VM, ThisVM, 0, 0x0, 0x100000, NULL, PAGEFIXED);
 	if(svga_db)
 	{
@@ -476,8 +481,21 @@ static void SVGA_DB_alloc()
 		svga_db->surfaces_cnt = SVGA3D_MAX_SURFACE_IDS;
 		mem += svga_db->surfaces_cnt * sizeof(SVGA_DB_surface_t);
 		
+		svga_db->regions_map = (DWORD*)mem;
+		mem += regions_map_size;
+		
+		svga_db->contexts_map = (DWORD*)mem;
+		mem += contexts_map_size;
+		
+		svga_db->surfaces_map = (DWORD*)mem;
+	  mem += surfaces_map_size;
+		
 		memcpy(svga_db->mutexname, &(db_mutexname[0]), sizeof(db_mutexname));
 		
+		memset(svga_db->regions_map,  0xFF, regions_map_size);
+		memset(svga_db->contexts_map, 0xFF, contexts_map_size);
+		memset(svga_db->surfaces_map, 0xFF, surfaces_map_size);
+			
 		svga_db->stat_regions_usage = 0;
 	}
 }
