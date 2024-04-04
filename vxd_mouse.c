@@ -102,6 +102,7 @@ BOOL mouse_load()
 	/* erase cursor if present */
 	FBHDA_access_begin(0);
 	
+	Begin_Critical_Section(0);
 	mouse_valid = FALSE;
 	
 	/* check and alocate/resize buffer */
@@ -137,6 +138,8 @@ BOOL mouse_load()
 		mouse_xormask_data == NULL ||
 		mouse_swap_data == NULL)
 	{
+		End_Critical_Section();
+		
 		FBHDA_access_end(0);
 		return FALSE;
 	}
@@ -173,6 +176,7 @@ BOOL mouse_load()
 	mouse_empty = cursor_is_empty();
 	
 	//dbg_printf(dbg_cursor_empty, mouse_empty);
+	End_Critical_Section();
 	
 	/* blit new cursor */
 	FBHDA_access_end(0);
@@ -226,8 +230,10 @@ BOOL mouse_blit()
 {
 	if(mouse_valid && mouse_visible && !mouse_empty)
 	{
+		Begin_Critical_Section(0);
 		draw_save(mouse_x, mouse_y);
 		draw_blit(mouse_x, mouse_y);
+		End_Critical_Section();
 		return TRUE;
 	}
 	
@@ -239,6 +245,8 @@ void mouse_erase()
 {
 	if(mouse_valid && mouse_visible && !mouse_empty)
 	{
+		Begin_Critical_Section(0);
 		draw_restore();
+		End_Critical_Section();
 	}
 }
