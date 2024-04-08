@@ -976,7 +976,10 @@ BOOL SVGA_init_hw()
 		
 		if(_GetFreePageCount(NULL) >= 0x38000UL) /* 896MB / 4096 */
 		{
-			cache_enabled = TRUE;
+			if(!gb_support) /* mob cache is done by RING-3 DLL */
+			{
+				cache_enabled = TRUE;
+			}
 		}
 		
 		dbg_printf(dbg_cache, cache_enabled);
@@ -1028,7 +1031,7 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 		goto spare_region_used;
 	}
 	
-	dbg_printf(dbg_pages, rinfo->size, nPages, P_SIZE);
+	//dbg_printf(dbg_pages, rinfo->size, nPages, P_SIZE);
 	
 	/* first try to allocate continuous physical memory space, 1st page is used for GMR descriptor */
 	laddr = _PageAllocate(nPages+1, PG_VM, ThisVM, 0, 0x0, 0x100000, &phy, PAGECONTIG | PAGEUSEALIGN | PAGEFIXED);
@@ -1048,7 +1051,7 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 		rinfo->mob_address    = 0;	
 		rinfo->mob_ppn        = (phy/P_SIZE)+1;
 		
-		dbg_printf(dbg_region_simple, laddr, rinfo->address);
+		//dbg_printf(dbg_region_simple, laddr, rinfo->address);
 	}
 	else
 	{
@@ -1181,13 +1184,13 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 			rinfo->mob_ppn        = mobphy/P_SIZE;
 		}
 		
-		dbg_printf(dbg_region_fragmented);
+		//dbg_printf(dbg_region_fragmented);
 	}
 	
-	dbg_printf(dbg_gmr, rinfo->region_id, rinfo->region_ppn);
+	//dbg_printf(dbg_gmr, rinfo->region_id, rinfo->region_ppn);
 	
 	spare_region_used:
-	dbg_printf(dbg_mobonly, rinfo->mobonly);
+	//dbg_printf(dbg_mobonly, rinfo->mobonly);
 	
 	// JH: no need here
 	//SVGA_Flush_CB();
@@ -1242,7 +1245,7 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 	
 	End_Critical_Section();
 	
-	//dbg_printf(dbg_gmr_succ, rinfo->size);
+	dbg_printf(dbg_gmr_succ, rinfo->region_id, rinfo->size);
 	
 	return TRUE;
 }
@@ -1290,7 +1293,7 @@ void SVGA_region_free(SVGA_region_info_t *rinfo)
 	{
 		if(rinfo->region_address != NULL)
 		{
-			dbg_printf(dbg_pagefree, rinfo->region_address);
+			//dbg_printf(dbg_pagefree, rinfo->region_address);
 			_PageFree((PVOID)rinfo->region_address, 0);
 		}
 		else
@@ -1300,22 +1303,22 @@ void SVGA_region_free(SVGA_region_info_t *rinfo)
 			
 		if(rinfo->mob_address != NULL)
 		{
-			dbg_printf(dbg_pagefree, rinfo->mob_address);
+			//dbg_printf(dbg_pagefree, rinfo->mob_address);
 			_PageFree((PVOID)rinfo->mob_address, 0);
 		}
 			
-		dbg_printf(dbg_pagefree, free_ptr);
+		//dbg_printf(dbg_pagefree, free_ptr);
 		_PageFree((PVOID)free_ptr, 0);
 	}
 	End_Critical_Section();
+		
+	dbg_printf(dbg_pagefree_end, rinfo->region_id, rinfo->size, saved_in_cache);
 		
 	rinfo->address        = NULL;
 	rinfo->region_address = NULL;
 	rinfo->mob_address    = NULL;
 	rinfo->region_ppn     = 0;
 	rinfo->mob_ppn        = 0;
-	
-	dbg_printf(dbg_pagefree_end, rinfo->region_id);
 }
 
 /**

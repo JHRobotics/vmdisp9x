@@ -70,7 +70,7 @@ DSTR(dbg_cmd_error, "CB error: %d, first cmd %X (error at %d)\n");
 DSTR(dbg_deviceiocontrol, "DeviceIoControl(%x);\n");
 
 DSTR(dbg_gmr, "GMR: %ld at %X\n");
-DSTR(dbg_gmr_succ, "GMR success, size: %ld\n");
+DSTR(dbg_gmr_succ, "GMR ALLOC: %ld (size: %ld)\n");
 
 DSTR(dbg_region_simple, "GMR is continous, memory maped: %X, user memory: %X\n");
 DSTR(dbg_region_fragmented, "GMR is fragmented\n");
@@ -105,7 +105,7 @@ DSTR(dbg_cache_insert, "CACHE: region saved(%ld): size %ld\n");
 
 DSTR(dbg_cache_used, "CACHE: region used(%ld): size %ld\n");
 
-DSTR(dbg_pagefree_end, "GMR END: %ld\n");
+DSTR(dbg_pagefree_end, "GMR  FREE: %ld (size: %ld, cached: %ld)\n");
 
 DSTR(dbg_cache_search, "CACHE try to find: %ld\n");
 
