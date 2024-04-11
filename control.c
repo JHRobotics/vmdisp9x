@@ -33,6 +33,8 @@ THE SOFTWARE.
 #include <wchar.h> /* wchar_t */
 #include <string.h> /* _fmemset */
 
+#include "tvout.h" /* VIDEOPARAMETERS */
+
 #include "version.h"
 #include "3d_accel.h"
 
@@ -109,6 +111,36 @@ const static opengl_icd_t vmwsvga_icd = {
 	"VMWSVGA"
 };
 
+/* VIDEOPARAMETERS */
+static VIDEOPARAMETERS_t tvsetup = {
+	{0x02C62061UL, 0x1097, 0x11d1, 0x92, 0x0F, 0x00, 0xA0, 0x24, 0xDF, 0x15, 0x6E},
+	0, // dwOffset;
+	0, // dwCommand;
+	0, // dwFlags;
+	VP_MODE_WIN_GRAPHICS, // dwMode;
+	VP_TV_STANDARD_WIN_VGA, // dwTVStandard;
+	VP_MODE_WIN_GRAPHICS | VP_MODE_TV_PLAYBACK, // dwAvailableModes;
+  VP_TV_STANDARD_NTSC_M | VP_TV_STANDARD_NTSC_M_J | VP_TV_STANDARD_PAL_B | VP_TV_STANDARD_PAL_D | VP_TV_STANDARD_PAL_H | VP_TV_STANDARD_PAL_I | VP_TV_STANDARD_PAL_M | VP_TV_STANDARD_PAL_N |
+  VP_TV_STANDARD_SECAM_B | VP_TV_STANDARD_SECAM_D | VP_TV_STANDARD_SECAM_G | VP_TV_STANDARD_SECAM_H | VP_TV_STANDARD_SECAM_K | VP_TV_STANDARD_SECAM_K1 | VP_TV_STANDARD_SECAM_L |
+  VP_TV_STANDARD_WIN_VGA | VP_TV_STANDARD_NTSC_433 | VP_TV_STANDARD_PAL_G | VP_TV_STANDARD_PAL_60 | VP_TV_STANDARD_SECAM_L1, // dwAvailableTVStandard;
+	0, // dwFlickerFilter;
+	0, // dwOverScanX;
+	0, // dwOVerScanY;
+	1000, // dwMaxUnscaledX;
+	1000, // dwMaxUnscaledY;
+	0, // dwPositionX;
+	0, // dwPositionY;
+	100, // dwBrightness;
+	100, // dwContrast;
+	0, // dwCPType;
+	0, // dwCPCommand;
+	VP_TV_STANDARD_NTSC_M | VP_TV_STANDARD_NTSC_M_J | VP_TV_STANDARD_PAL_B | VP_TV_STANDARD_PAL_D | VP_TV_STANDARD_PAL_H | VP_TV_STANDARD_PAL_I | VP_TV_STANDARD_PAL_M | VP_TV_STANDARD_PAL_N |
+  VP_TV_STANDARD_SECAM_B | VP_TV_STANDARD_SECAM_D | VP_TV_STANDARD_SECAM_G | VP_TV_STANDARD_SECAM_H | VP_TV_STANDARD_SECAM_K | VP_TV_STANDARD_SECAM_K1 | VP_TV_STANDARD_SECAM_L |
+  VP_TV_STANDARD_NTSC_433 | VP_TV_STANDARD_PAL_G | VP_TV_STANDARD_PAL_60 | VP_TV_STANDARD_SECAM_L1, // dwCPStandard;
+	0, // dwCPKey;
+	0, // bCP_APSTriggerBits
+};
+
 #pragma code_seg( _INIT )
 
 /**
@@ -138,6 +170,10 @@ const static opengl_icd_t vmwsvga_icd = {
  * removed all VMWare SVGA II commands from here and move to VXD driver
  * you can use DeviceIoControl to call them
  *
+ * 2024-II:
+ * added VIDEOPARAMETERS support, mostly for DVD programs that want somehow
+ * control TV out (usually disabled it).
+ *
  **/
 LONG WINAPI __loadds Control(LPVOID lpDevice, UINT function,
   LPVOID lpInput, LPVOID lpOutput)
@@ -155,6 +191,7 @@ LONG WINAPI __loadds Control(LPVOID lpDevice, UINT function,
   		case OPENGL_GETINFO:
   		case OP_FBHDA_SETUP:
   		case MOUSETRAILS:
+  		case VIDEOPARAMETERS:
   			rc = 1;
   			break;
   		case DCICOMMAND:
@@ -277,6 +314,135 @@ LONG WINAPI __loadds Control(LPVOID lpDevice, UINT function,
   	dbg_printf("FBHDA request: %lX\n", hda_linear);
   	
   	rc = 1;
+  }
+  else if(function == VIDEOPARAMETERS)
+  {
+  	VIDEOPARAMETERS_t __far *vps = ((VIDEOPARAMETERS_t __far *)lpInput);
+  	rc = 0;
+  	
+  	if(vps->dwCommand == VP_COMMAND_GET)
+  	{
+  		DWORD checkMask = vps->dwFlags & (VP_FLAGS_TV_MODE | VP_FLAGS_TV_STANDARD | VP_FLAGS_FLICKER | VP_FLAGS_OVERSCAN | VP_FLAGS_MAX_UNSCALED |
+  		VP_FLAGS_POSITION | VP_FLAGS_BRIGHTNESS | VP_FLAGS_CONTRAST | VP_FLAGS_COPYPROTECT);
+  		
+  		if(checkMask == vps->dwFlags)
+  		{
+  			if(vps->dwFlags & VP_FLAGS_TV_MODE)
+  			{
+  				vps->dwMode = tvsetup.dwMode;
+  				vps->dwAvailableModes = tvsetup.dwAvailableModes;
+  			}
+  			
+  			if(vps->dwFlags & VP_FLAGS_TV_STANDARD)
+  			{
+  				vps->dwTVStandard = tvsetup.dwTVStandard;
+  				vps->dwAvailableTVStandard = tvsetup.dwAvailableTVStandard;
+  			}
+  			
+  			if(vps->dwFlags & VP_FLAGS_FLICKER)
+  				vps->dwFlickerFilter = tvsetup.dwFlickerFilter;
+  			
+  			if(vps->dwFlags & VP_FLAGS_OVERSCAN)
+  			{
+  				vps->dwOverScanX = tvsetup.dwOverScanX;
+  				vps->dwOverScanY = tvsetup.dwOverScanY;
+  			}
+  			
+  			if(vps->dwFlags & VP_FLAGS_MAX_UNSCALED)
+  			{
+  				vps->dwMaxUnscaledX = tvsetup.dwMaxUnscaledX;
+  				vps->dwMaxUnscaledY = tvsetup.dwMaxUnscaledY;
+  			}
+  			
+  			if(vps->dwFlags & VP_FLAGS_POSITION)
+  			{
+  				vps->dwPositionX = tvsetup.dwPositionX;
+  				vps->dwPositionY = tvsetup.dwPositionY;
+  			}
+  			
+  			if(vps->dwFlags & VP_FLAGS_BRIGHTNESS)
+  				vps->dwBrightness = tvsetup.dwBrightness;
+  			
+  			if(vps->dwFlags & VP_FLAGS_CONTRAST)
+  				vps->dwContrast = tvsetup.dwContrast;
+  			
+  			
+  			if(vps->dwFlags & VP_FLAGS_COPYPROTECT)
+  			{
+  				vps->dwCPType = tvsetup.dwCPType;
+  				vps->dwCPStandard = tvsetup.dwCPStandard;
+  				vps->bCP_APSTriggerBits = tvsetup.bCP_APSTriggerBits;
+  			}
+  			
+  			rc = 1;
+  		}
+  	}
+  	else if(vps->dwCommand == VP_COMMAND_SET)
+  	{
+  		rc = 1;
+  		
+  		if(vps->dwFlags & VP_FLAGS_TV_MODE)
+  			tvsetup.dwMode = vps->dwMode;
+  			
+  		if(vps->dwFlags & VP_FLAGS_TV_STANDARD)
+  			tvsetup.dwTVStandard = vps->dwTVStandard;
+
+ 			if(vps->dwFlags & VP_FLAGS_FLICKER)
+ 				tvsetup.dwFlickerFilter = vps->dwFlickerFilter;
+  			
+  		if(vps->dwFlags & VP_FLAGS_OVERSCAN)
+  		{
+  			tvsetup.dwOverScanX = vps->dwOverScanX;
+  			tvsetup.dwOverScanY = vps->dwOverScanY;
+  		}
+
+ 			if(vps->dwFlags & VP_FLAGS_POSITION)
+ 			{
+ 				tvsetup.dwPositionX = vps->dwPositionX;
+ 				tvsetup.dwPositionY = vps->dwPositionY;
+ 			}
+
+ 			if(vps->dwFlags & VP_FLAGS_BRIGHTNESS)
+  			tvsetup.dwBrightness = vps->dwBrightness;
+  			
+  		if(vps->dwFlags & VP_FLAGS_CONTRAST)
+  			tvsetup.dwContrast = vps->dwContrast;
+
+ 			if(vps->dwFlags & VP_FLAGS_COPYPROTECT)
+ 			{
+ 				switch(vps->dwCPCommand)
+ 				{
+ 					case VP_CP_CMD_ACTIVATE:
+ 						tvsetup.dwCPCommand = VP_CP_CMD_ACTIVATE;
+ 						tvsetup.dwCPType    = vps->dwCPType;
+ 						tvsetup.dwCPKey     = vps->dwCPKey;
+ 						tvsetup.bCP_APSTriggerBits = vps->bCP_APSTriggerBits;
+ 						break;
+ 					case VP_CP_CMD_DEACTIVATE:
+ 					case VP_CP_CMD_CHANGE:
+ 						if(tvsetup.dwCPCommand == VP_CP_CMD_ACTIVATE)
+ 						{
+	 						if(tvsetup.dwCPKey != vps->dwCPKey)
+	 						{
+	 							rc = -1;
+	 						}
+	 						else
+	 						{
+	 							tvsetup.dwCPCommand = tvsetup.dwCPCommand;
+	 						}
+	 					}
+	 					break;
+	 				default:
+	 					rc = 0;
+	 					break;
+ 				}
+ 			}
+  	}
+  	
+  	if(rc < 0) /* return RC and don't pass to DIB */
+  	{
+  		return rc;
+  	}
   }
   
   /* if command accepted, return */
