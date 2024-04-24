@@ -35,6 +35,8 @@ THE SOFTWARE.
 #include "vxd_vdd.h"
 #include "3d_accel.h"
 
+#include "vxd_lib.h"
+
 #ifdef SVGA
 #include "svga_all.h"
 #endif
@@ -44,11 +46,54 @@ THE SOFTWARE.
 /* code and data is same segment */
 #include "code32.h"
 
+#include "vxd_strings.h"
+
 extern FBHDA_t *hda;
+extern DWORD ThisVM;
+
+static DWORD hda_pm16 = 0;
+static DWORD mouse_pm16 = 0;
 
 #ifdef VBE
 extern WORD vbe_chip_id;
 #endif
+
+static BOOL mode_changing = FALSE;
+
+static void VDD_Register_Extra_Screen_Selector(DWORD selector)
+{
+	static DWORD sSelector;
+	sSelector = selector;
+	
+	_asm mov eax, [sSelector]
+	_asm push eax
+	VxDCall(VDD, Register_Extra_Screen_Selector);
+	_asm pop eax
+}
+
+static DWORD map_pm16(DWORD vm, DWORD linear, DWORD size)
+{
+	DWORD hi  = 0;
+	DWORD low = 0;
+	DWORD selector;
+	
+	dbg_printf(dbg_map_pm16, vm, linear, size);
+	
+	_BuildDescriptorDWORDs(linear, RoundToPages(size), 0x92, 0x80, 0, &hi, &low);
+	
+	dbg_printf(dbg_map_pm16_qw, hi, low);
+	
+	//_Allocate_LDT_Selector(vm, hi, low, 1, 0, &selector, NULL);
+	_Allocate_GDT_Selector(hi, low, 0, &selector, NULL);
+	
+	dbg_printf(dbg_test, 2);
+	
+	VDD_Register_Extra_Screen_Selector(selector);
+	
+	dbg_printf(dbg_map_pm16_sel, selector);
+	
+	return selector << 16;
+}
 
 /*
 You can implement all the VESA support entirely in your mini-VDD. Doing so will
@@ -86,7 +131,33 @@ See also VDD_REGISTER_DISPLAY_DRIVER_INFO.
 **/
 VDDPROC(REGISTER_DISPLAY_DRIVER, register_display_driver)
 {
-	VDD_NC;
+	dbg_printf(dbg_register, state->Client_EBX, state->Client_ECX, ThisVM);
+	
+	if(hda->vram_pm16 == 0)
+	{
+		hda->vram_pm16 = map_pm16(state->Client_EBX, (DWORD)hda->vram_pm32, hda->vram_size);
+	}
+	
+	if(hda_pm16 == 0)
+	{
+		hda_pm16 = map_pm16(state->Client_EBX, (DWORD)hda, sizeof(FBHDA_t));
+	}
+	
+	if(mouse_pm16 == 0)
+	{
+		mouse_pm16 = map_pm16(state->Client_EBX, (DWORD)mouse_buffer(), MOUSE_BUFFER_SIZE);
+	}
+	
+	/* RETURN:
+		EAX -> VXD_VM (thisVM)
+		EDX -> fbhda
+		ECX -> mouse_buffer
+	*/
+	state->Client_EAX = ThisVM;
+	state->Client_EDX = hda_pm16;
+	state->Client_ECX = mouse_pm16;
+	
+	VDD_CY;
 }
 
 /**
@@ -190,6 +261,24 @@ This routine is called during the save process of a VESA hi-res screen. It tells
 
 **/
 VDDPROC(GET_BANK_SIZE, get_bank_size)
+{
+	state->Client_EAX = 0;
+	state->Client_EDX = 0x4000;
+	VDD_CY;
+}
+
+
+VDDPROC(GET_VDD_BANK, get_vdd_bank)
+{
+	state->Client_EDX = state->Client_ECX;
+}
+
+VDDPROC(SET_VDD_BANK, set_vdd_bank)
+{
+	
+}
+
+VDDPROC(RESET_BANK, reset_bank)
 {
 	
 }
@@ -371,27 +460,67 @@ void Disable_Global_Trapping(DWORD port)
 	_asm pop edx
 }
 
-/* for QEMU */
 VDDPROC(PRE_HIRES_TO_VGA, pre_hires_to_vga)
 {
+	mode_changing = TRUE;
+#ifdef QEMU
 	Disable_Global_Trapping(0x1CE);
 	Disable_Global_Trapping(0x1CF);
+#endif
 }
 
 VDDPROC(POST_HIRES_TO_VGA, post_hires_to_vga)
 {
+	mode_changing = FALSE;
+#ifdef QEMU
 	Enable_Global_Trapping(0x1CE);
 	Enable_Global_Trapping(0x1CF);
+#endif
+}
+
+VDDPROC(PRE_VGA_TO_HIRES, pre_vga_to_hires)
+{
+	mode_changing = TRUE;
+}
+
+VDDPROC(POST_VGA_TO_HIRES, post_vga_to_hires)
+{
+	mode_changing = FALSE;
 }
 
 VDDPROC(ENABLE_TRAPS, enable_traps)
 {
+#ifdef QEMU
 	Enable_Global_Trapping(0x1CE);
 	Enable_Global_Trapping(0x1CF);
+#endif
 }
 
 VDDPROC(DISPLAY_DRIVER_DISABLING, display_driver_disabling)
 {
+#ifdef QEMU
 	Disable_Global_Trapping(0x1CE);
 	Disable_Global_Trapping(0x1CF);
+#endif
+}
+
+VDDPROC(SAVE_REGISTERS, save_registers)
+{
+	// NOP
+}
+
+
+VDDPROC(RESTORE_REGISTERS, restore_registers)
+{
+	// NOP
+}
+
+VDDPROC(VIRTUALIZE_CRTC_IN, virtualize_crtc_in)
+{
+	// NOP
+}
+
+VDDPROC(VIRTUALIZE_CRTC_OUT, virtualize_crtc_out)
+{
+	// NOP
 }

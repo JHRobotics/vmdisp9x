@@ -30,6 +30,12 @@ THE SOFTWARE.
 
 #include "dpmi.h"
 
+#include <gdidefs.h>
+#include <dibeng.h>
+#include <valmode.h>
+#include <minivdd.h>
+#include "minidrv.h"
+
 #include "pm16_calls.h"
 #include "vxd.h"
 #include "3d_accel.h"
@@ -47,6 +53,8 @@ extern void dbg_printf( const char *s, ... );
 #endif
 
 static DWORD VXD_VM = 0;
+static DWORD vxd_fbhda16 = 0;
+static DWORD vxd_mouse16  = 0;
 
 #pragma code_seg( _INIT )
 
@@ -57,6 +65,7 @@ BOOL VXD_VM_connect()
 		return TRUE;
 	}
 	
+	/* read service vector */
 	_asm{
 		push es
 		push ax
@@ -79,11 +88,36 @@ BOOL VXD_VM_connect()
 		pop es
 	};
 	
+	dbg_printf("VDD_REGISTER_DISPLAY_DRIVER_INFO for VM: %d\n", OurVMHandle);
+
+	_asm{
+		.386
+    push   eax
+    push   ebx
+    push   ecx
+    push   edx
+    
+    mov    eax, VDD_REGISTER_DISPLAY_DRIVER_INFO
+    movzx  ebx, word ptr [OurVMHandle]
+    call dword ptr [VDDEntryPoint]
+    
+    mov  [vxd_fbhda16], edx
+    mov  [vxd_mouse16], ecx
+    
+    pop    edx
+    pop    ecx
+    pop    ebx
+    pop    eax
+  }
+  
+  dbg_printf("VDD_REGISTER_DISPLAY_DRIVER_INFO: eax=%lX, edx=%lX, ecx=%lX\n", VXD_VM, vxd_fbhda16, vxd_mouse16);
+  
 	return VXD_VM != 0;
 }
 
 void FBHDA_setup(FBHDA_t __far* __far* FBHDA, DWORD __far* FBHDA_linear)
 {
+#if 0
 	static DWORD linear;
 	linear = 0;
 	
@@ -115,6 +149,8 @@ void FBHDA_setup(FBHDA_t __far* __far* FBHDA, DWORD __far* FBHDA_linear)
 		*FBHDA = (FBHDA_t __far*)longptr;
 		*FBHDA_linear = linear;
 	}
+#endif
+	*FBHDA = (FBHDA_t __far*)vxd_fbhda16;
 }
 
 void FBHDA_access_begin(DWORD flags)
@@ -287,6 +323,7 @@ BOOL mouse_load()
 
 void mouse_buffer(void __far* __far* pBuf, DWORD __far* pLinear)
 {
+#if 0
 	static DWORD buffer;
 	
 	_asm
@@ -317,6 +354,8 @@ void mouse_buffer(void __far* __far* pBuf, DWORD __far* pLinear)
 		*pBuf = longptr;
 		*pLinear = buffer;
 	}
+#endif
+	*pBuf = (void __far*)vxd_mouse16;
 }
 
 void mouse_move(int x, int y)

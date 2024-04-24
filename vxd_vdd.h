@@ -101,8 +101,10 @@ void dbg_printf( const char *s, ... );
 
 /* generate prototypes */
 #define VDDFUNC(_fnname, _procname) void __stdcall _procname ## _proc(PCRS_32 state);
+#define VDDNAKED VDDFUNC
 #include "vxd_vdd_list.h"
 #undef VDDFUNC
+#undef VDDNAKED
 
 #define VDDPROC(_fnname, _procname) void __stdcall _procname ## _proc(PCRS_32 state)
 

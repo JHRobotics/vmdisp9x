@@ -11,9 +11,15 @@ OBJS += &
 
 INCS = -I$(%WATCOM)\h\win -Iddk -Ivmware
 
-VER_BUILD = 45
+VER_BUILD = 47
 
 FLAGS = -DDRV_VER_BUILD=$(VER_BUILD)
+
+# Watcom resource compiler haven't -40 option, but without it DIB engine displays
+# wrong some national fonts and denies to use font smooth edge.
+# This option allow to use MS 16-bit RC.EXE from DDK98 but you need
+# 32 bit Windows to run this (and DDK98 installed of course).
+#DDK98_PATH = C:\98DDK
 
 # Define HWBLT if BitBlt can be accelerated.
 #FLAGS += -DHWBLT
@@ -43,7 +49,20 @@ CFLAGS32 += -DCOM2
 CFLAGS32 += -d0
 !endif
 
-#all : boxvmini.drv vmwsmini.drv qemumini.drv vmwsmini.vxd qemumini.vxd
+# 16bit RC.EXE from DDK98
+!ifdef DDK98_PATH
+RC16 = $(DDK98_PATH)\bin\win98\bin16\RC.EXE
+RC16_FLAGS = -40 -i $(DDK98_PATH)\inc\win98\inc16 -i res -d DRV_VER_BUILD=$(VER_BUILD)
+
+BOXVMINI_DRV_RC = $(RC16) $(RC16_FLAGS) res\boxvmini.rc $@
+VMWSMINI_DRV_RC = $(RC16) $(RC16_FLAGS) res\vmwsmini.rc $@
+QEMUMINI_DRV_RC = $(RC16) $(RC16_FLAGS) res\qemumini.rc $@
+!else
+BOXVMINI_DRV_RC = wrc -q boxvmini.res $@
+VMWSMINI_DRV_RC = wrc -q vmwsmini.res $@
+QEMUMINI_DRV_RC = wrc -q qemumini.res $@
+!endif
+
 all : vmwsmini.drv vmwsmini.vxd qemumini.drv qemumini.vxd boxvmini.drv boxvmini.vxd
 
 # Object files: PM16 RING-3
@@ -155,9 +174,6 @@ vmwsmini.res : res/vmwsmini.rc res/colortab.bin res/config.bin res/fonts.bin res
 qemumini.res : res/qemumini.rc res/colortab.bin res/config.bin res/fonts.bin res/fonts120.bin .autodepend
 	wrc -q -r -ad -bt=windows -fo=$@ -Ires -I$(%WATCOM)/h/win $(FLAGS) res/qemumini.rc
 
-vmws_vxd.res : res/vmws_vxd.rc .autodepend
-	wrc -q -r -ad -bt=nt -fo=$@ -Ires -I$(%WATCOM)/h/win $(FLAGS) res/vmws_vxd.rc
-
 res/colortab.bin : res/colortab.c
 	wcc -q $(INCS) $<
 	wlink op quiet disable 1014, 1023 name $@ sys dos output raw file colortab.obj
@@ -243,7 +259,7 @@ export UserRepaintDisable.500
 export ValidateMode.700
 import GlobalSmartPageLock  KERNEL.230
 <<
-	wrc -q boxvmini.res $@
+	$(BOXVMINI_DRV_RC)
 
 vmwsmini.drv : $(OBJS) vmwsmini.res dibeng.lib
 	wlink op quiet, start=DriverInit_ disable 2055 $(DBGFILE) @<<vmwsmini.lnk
@@ -310,7 +326,7 @@ export UserRepaintDisable.500
 export ValidateMode.700
 import GlobalSmartPageLock  KERNEL.230
 <<
-	wrc -q vmwsmini.res $@
+	$(VMWSMINI_DRV_RC)
 
 qemumini.drv : $(OBJS) qemumini.res dibeng.lib
 	wlink op quiet, start=DriverInit_ disable 2055 $(DBGFILE) @<<qemumini.lnk
@@ -377,9 +393,9 @@ export UserRepaintDisable.500
 export ValidateMode.700
 import GlobalSmartPageLock  KERNEL.230
 <<
-	wrc -q qemumini.res $@
+	$(QEMUMINI_DRV_RC)
 
-vmwsmini.vxd : $(OBJS) vmws_vxd.res
+vmwsmini.vxd : $(OBJS)
 	wlink op quiet $(DBGFILE32) @<<vmwsmini.lnk
 system win_vxd dynamic
 option map=vmwsvxd.map

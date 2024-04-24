@@ -74,18 +74,21 @@ DDB VXD_DDB = {
 	VXD_MINOR_VER,              // Minor Version
 	NULL,
 	VXD_DEVICE_NAME,
-	VDD_Init_Order, //Undefined_Init_Order,
+	VDD_Init_Order,
 	(DWORD)VXD_control,
 	(DWORD)VXD_API_entry,
 	(DWORD)VXD_API_entry,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
+	NULL,// CS:IP of API entry point
+	NULL,// CS:IP of API entry point
+	NULL,// Reference data from real mode
+	NULL,// Pointer to service table
+	NULL,// Number of services
 	NULL, // DDB_Win32_Service_Table
-	NULL, // prev
-	sizeof(DDB)
+	'Prev', //NULL, // prev
+	sizeof(DDB),
+	'Rsv1',
+	'Rsv2',
+	'Rsv3',
 };
 
 #include "vxd_strings.h"
@@ -426,17 +429,30 @@ static void configure_FBHDA()
 	_asm { call _procname ## _proc }; \
 	_asm { retn }; \
 	}
+
+#define VDDNAKED(_fnname, _procname) void __declspec(naked) _procname ## _entry() { \
+	_asm { pushad }; \
+	_asm { mov eax, esp }; \
+	_asm { add eax, 32 }; \
+	_asm { push eax }; \
+	_asm { call _procname ## _proc }; \
+	_asm { popad }; \
+	_asm { retn }; \
+	}
+
 #include "vxd_vdd_list.h"
 #undef VDDFUNC
+#undef VDDNAKED
 
 #define VDDFUNC(id, procname) DispatchTable[id] = (DWORD)(procname ## _entry);
+#define VDDNAKED VDDFUNC
 
 /* init device and fill dispatch table */
 void Device_Dynamic_Init_proc(DWORD VM)
 {
 	dbg_printf(dbg_Device_Init_proc);
 
-	// VMMCall _Allocate_Device_CB_Area
+	VMMCall(_Allocate_Device_CB_Area);
  	ThisVM = VM;
  	
 #ifdef SVGA
@@ -464,6 +480,7 @@ void Device_Dynamic_Init_proc(DWORD VM)
 	configure_FBHDA();
 }
 #undef VDDFUNC
+#undef VDDNAKED
 
 /* process user space (PM32, RING-3) call */
 DWORD __stdcall Device_IO_Control_proc(DWORD vmhandle, struct DIOCParams *params)

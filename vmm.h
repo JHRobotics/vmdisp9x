@@ -67,8 +67,8 @@ typedef struct tagVxD_Desc_Block
 } DDB ;
 #pragma pack(pop)
 
-#define DDK_VERSION 0x30A
-//#define DDK_VERSION 0x400
+//#define DDK_VERSION 0x30A
+#define DDK_VERSION 0x400
 //#define DDK_VERSION 0x40A
 // version 3.10 is required or Windows 95 can't load VXD
 

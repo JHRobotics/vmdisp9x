@@ -184,7 +184,6 @@ UINT WINAPI __loadds Enable( LPVOID lpDevice, UINT style, LPSTR lpDeviceType,
         LPDIBENGINE     lpEng = lpDevice;
         LPBITMAPINFO    lpInfo;
         WORD            wFlags;
-        DWORD           dwRet;
 
         /* Initialize the PDEVICE. */
         lpDriverPDevice = lpDevice;
@@ -255,20 +254,43 @@ UINT WINAPI __loadds Enable( LPVOID lpDevice, UINT style, LPSTR lpDeviceType,
         wFlags = wPDeviceFlags;
         if( wPalettized )
             wFlags |= PALETTIZED;
-
+#if 1
+				/* JH: It looks like CreateDIBPDevice is not needed and you have to only
+				 *     fill the LPDIBENGINE structure.
+				 */
+        lpEng->deType         = TYPE_DIBENG;
+        lpEng->deFlags        = wFlags;
+        lpEng->deWidth        = wScreenX;
+        lpEng->deHeight       = wScreenY;
+        lpEng->deWidthBytes   = hda->pitch;
+        lpEng->deDeltaScan    = hda->pitch;
+        lpEng->dePlanes       = 1;
+        lpEng->deBitsPixel    = wBpp;
+        lpEng->deReserved1    = 0;
+        lpEng->delpPDevice    = 0;
+        lpEng->deBitsOffset   = 0;
+        lpEng->deBitsSelector = ScreenSelector;
+        lpEng->deBitmapInfo   = lpInfo;
+        lpEng->deVersion      = 0x400;
+        lpEng->deBeginAccess  = BeginAccess_VXD;
+        lpEng->deEndAccess    = EndAccess_VXD;
+#else
         /* Call the DIB Engine to set up the PDevice. */
         dbg_printf( "lpInfo=%WP lpDevice=%WP lpColorTable=%WP wFlags=%X ScreenSelector=%X\n", lpInfo, lpDevice, lpColorTable, wFlags, ScreenSelector );
-        dwRet = CreateDIBPDeviceX( lpInfo, lpDevice, ScreenSelector :> 0, wFlags );
-        if( !dwRet ) {
-            dbg_printf( "Enable: CreateDIBPDevice failed!\n" );
-            return( 0 );
+        {
+            DWORD           dwRet;
+            dwRet = CreateDIBPDeviceX( lpInfo, lpDevice, ScreenSelector :> 0, wFlags );
+            if( !dwRet ) {
+                dbg_printf( "Enable: CreateDIBPDevice failed!\n" );
+                return( 0 );
+            }
+            dbg_printf( "Enable: CreateDIBPDevice returned %lX\n", dwRet );
         }
-        dbg_printf( "Enable: CreateDIBPDevice returned %lX\n", dwRet );
 
         /* Now fill out the begin/end access callbacks. */
         lpEng->deBeginAccess = BeginAccess_VXD;
         lpEng->deEndAccess   = EndAccess_VXD;
-
+#endif
         /* Program the DAC in non-direct color modes. */
         if( wBpp <= 8 ) {
             switch( wBpp ) {
@@ -289,6 +311,7 @@ UINT WINAPI __loadds Enable( LPVOID lpDevice, UINT style, LPSTR lpDeviceType,
         if( !bReEnabling ) {
             HookInt2Fh();
         }
+        
         DDCreateDriverObject(1);
         
         wEnabled = 1;
@@ -310,7 +333,7 @@ UINT WINAPI __loadds Enable( LPVOID lpDevice, UINT style, LPSTR lpDeviceType,
         lpInfo->dpHorzSize   = DISPLAY_HORZ_MM;
         lpInfo->dpVertSize   = DISPLAY_VERT_MM;
         lpInfo->dpPlanes     = 1;
-        lpInfo->dpCapsFE     = 0;
+        //lpInfo->dpCapsFE     = 0;
         lpInfo->dpNumFonts   = 0;
 
         /* Now set the fields that depend on current mode. */
@@ -330,17 +353,17 @@ UINT WINAPI __loadds Enable( LPVOID lpDevice, UINT style, LPSTR lpDeviceType,
         /* These calculations are a wild guess and probably don't matter. */
         lpInfo->dpELoWin.xcoord = DISPLAY_SIZE_EN;
         lpInfo->dpELoWin.ycoord = DISPLAY_SIZE_EN;
-        lpInfo->dpELoVpt.xcoord = wScrX / 5;
+        lpInfo->dpELoVpt.xcoord = wScrX;
         lpInfo->dpELoVpt.ycoord = -lpInfo->dpELoVpt.xcoord;
 
         lpInfo->dpELoWin.xcoord = DISPLAY_SIZE_EN * 5;
         lpInfo->dpELoWin.ycoord = DISPLAY_SIZE_EN * 5;
-        lpInfo->dpEHiVpt.xcoord = wScrX / 10;
+        lpInfo->dpEHiVpt.xcoord = -wScrX / 2;
         lpInfo->dpEHiVpt.ycoord = -lpInfo->dpEHiVpt.xcoord;
 
         lpInfo->dpTwpWin.xcoord = DISPLAY_SIZE_TWP;
         lpInfo->dpTwpWin.ycoord = DISPLAY_SIZE_TWP;
-        lpInfo->dpTwpVpt.xcoord = wScrX / 10;
+        lpInfo->dpTwpVpt.xcoord = -wScrX / 2;
         lpInfo->dpTwpVpt.ycoord = -lpInfo->dpTwpVpt.xcoord;
 
         /* Update more GDIINFO bits. */
@@ -353,7 +376,7 @@ UINT WINAPI __loadds Enable( LPVOID lpDevice, UINT style, LPSTR lpDeviceType,
          * Realistically, software rendering in a VM on a modern system is going to be a lot
          * faster than most mid-1990s graphics cards.
          */
-        lpInfo->dpCaps1 |= C1_COLORCURSOR | C1_REINIT_ABLE; /* | C1_SLOW_CARD */;
+        lpInfo->dpCaps1 |= C1_COLORCURSOR | C1_REINIT_ABLE | C1_BYTE_PACKED | C1_GLYPH_INDEX; /* | C1_SLOW_CARD */;
         //lpInfo->dpCaps1 &= ~C1_GLYPH_INDEX;
         lpInfo->dpText |= TC_CP_STROKE | TC_RA_ABLE;
         
@@ -409,6 +432,7 @@ UINT WINAPI __loadds Enable( LPVOID lpDevice, UINT style, LPSTR lpDeviceType,
         //DIB_Enable( lpInfo, 1, NULL, NULL, NULL );
         
         dbg_printf( "sizeof(GDIINFO)=%d (%X), dpDEVICEsize=%X\n", sizeof( GDIINFO ), sizeof( GDIINFO ), lpInfo->dpDEVICEsize );
+        
         return( sizeof( GDIINFO ) );
     }
 }

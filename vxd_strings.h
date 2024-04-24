@@ -117,6 +117,14 @@ DSTR(dbg_cache, "Cache enabled: %d\n");
 
 DSTR(dbg_mob_size, "sizeof(SVGA3dCmdDefineGBMob) = %d\n");
 
+DSTR(dbg_map_pm16, "map_pm16: vm = %ld, linear = %lX, size = %ld\n");
+
+DSTR(dbg_map_pm16_sel, "map_pm16: selector %lX\n");
+
+DSTR(dbg_register, "register: ebx = %ld, ecx = %ld, VM = %lX\n");
+
+DSTR(dbg_map_pm16_qw, "map_pm16: high=%lX, low=%lX\n");
+
 #undef DSTR
 
 #endif

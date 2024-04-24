@@ -309,6 +309,83 @@ DWORD __cdecl _GetFreePageCount(DWORD *pLockablePages)
 	return sFreePages;
 }
 
+static void __declspec(naked) __cdecl _BuildDescriptorDWORDs_(ULONG DESCBase, ULONG DESCLimit, ULONG DESCType, ULONG DESCSize, ULONG flags)
+{
+	VMMJmp(_BuildDescriptorDWORDs);
+}
+
+void __cdecl _BuildDescriptorDWORDs(ULONG DESCBase, ULONG DESCLimit, ULONG DESCType, ULONG DESCSize, ULONG flags, DWORD *outDescHigh, DWORD *outDescLow)
+{
+	static DWORD sHigh;
+	static DWORD sLow;
+	
+	_BuildDescriptorDWORDs_(DESCBase, DESCLimit, DESCType, DESCSize, flags);
+	_asm
+	{
+		mov [sHigh], edx
+		mov [sLow],  eax
+	}
+	
+	*outDescHigh = sHigh;
+	*outDescLow  = sLow;
+}
+
+static void __declspec(naked) __cdecl _Allocate_LDT_Selector_(ULONG vm, ULONG DescHigh, ULONG DescLow, ULONG Count, ULONG flags)
+{
+	VMMJmp(_Allocate_LDT_Selector);
+}
+
+void __cdecl _Allocate_LDT_Selector(ULONG vm, ULONG DescHigh, ULONG DescLow, ULONG Count, ULONG flags, DWORD *outFirstSelector, DWORD *outSelectorTable)
+{
+	static DWORD firstSelector;
+	static DWORD selectorTable;
+	
+	_Allocate_LDT_Selector_(vm, DescHigh, DescLow, Count, flags);
+	_asm
+	{
+		mov [firstSelector], eax
+		mov [selectorTable], edx
+	}
+	
+	if(outFirstSelector != NULL)
+	{
+		*outFirstSelector = firstSelector;
+	}
+	
+	if(outSelectorTable != NULL)
+	{
+		*outSelectorTable = selectorTable;
+	}
+}
+
+static void __declspec(naked) __cdecl _Allocate_GDT_Selector_(ULONG DescHigh, ULONG DescLow, ULONG flags)
+{
+	VMMJmp(_Allocate_GDT_Selector);
+}
+
+void __cdecl _Allocate_GDT_Selector(ULONG DescHigh, ULONG DescLow, ULONG flags, DWORD *outFirstSelector, DWORD *outSelectorTable)
+{
+	static DWORD firstSelector;
+	static DWORD selectorTable;
+	
+	_Allocate_GDT_Selector_(DescHigh, DescLow, flags);
+	_asm
+	{
+		mov [firstSelector], eax
+		mov [selectorTable], edx
+	}
+	
+	if(outFirstSelector != NULL)
+	{
+		*outFirstSelector = firstSelector;
+	}
+	
+	if(outSelectorTable != NULL)
+	{
+		*outSelectorTable = selectorTable;
+	}
+}
+
 ULONG __declspec(naked) __cdecl _PageAllocate(ULONG nPages, ULONG pType, ULONG VM, ULONG AlignMask, ULONG minPhys, ULONG maxPhys, ULONG *PhysAddr, ULONG flags)
 {
 	VMMJmp(_PageAllocate);

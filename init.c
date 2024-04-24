@@ -192,6 +192,12 @@ UINT FAR DriverInit( UINT cbHeap, UINT hModule, LPSTR lpCmdLine )
 		dbg_printf("VXD connect success!\n");
 		FBHDA_setup(&hda, &hda_linear);
 		
+		if(hda == NULL)
+		{
+			dbg_printf("DriverInit: failed to get FBHDA!\n");
+			return 0;
+		}
+
 		mouse_buffer(&mouse_buf, &mouse_buf_lin);
 		if(mouse_buf != NULL)
 		{
@@ -199,11 +205,5 @@ UINT FAR DriverInit( UINT cbHeap, UINT hModule, LPSTR lpCmdLine )
 			mouse_vxd = TRUE;
 		}
 		
-		if(hda == NULL)
-		{
-			dbg_printf("DriverInit: failed to get FBHDA!\n");
-			return 0;
-		}
-
     return( 1 );    /* Success. */
 }

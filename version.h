@@ -5,7 +5,7 @@
 #define DRV_STR(x) DRV_STR_(x)
 
 /* on binaries equals 1 and for INF is 1 = separate driver, 2 = softgpu pack */
-#define DRV_VER_MAJOR 1
+#define DRV_VER_MAJOR 4
 
 /* the YEAR */
 #define DRV_VER_MINOR 2024
