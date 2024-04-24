@@ -11,15 +11,24 @@ OBJS += &
 
 INCS = -I$(%WATCOM)\h\win -Iddk -Ivmware
 
-VER_BUILD = 47
+VER_BUILD = 48
 
 FLAGS = -DDRV_VER_BUILD=$(VER_BUILD)
 
-# Watcom resource compiler haven't -40 option, but without it DIB engine displays
-# wrong some national fonts and denies to use font smooth edge.
+# Watcom resource compiler haven't -40 option, but without it DIB engine
+# displays wrong some national fonts and denies to use font smooth edge.
 # This option allow to use MS 16-bit RC.EXE from DDK98 but you need
 # 32 bit Windows to run this (and DDK98 installed of course).
 #DDK98_PATH = C:\98DDK
+
+# Alternative to DDK 98 (and 16bit subsystem) on HOST is fix output exe
+# (new executable) flags. Utility source is in drvfix.c but if your
+# HOST machine isn't Windows, you've to adjust these 2 variables:
+# executable file name
+FIXER_EXE = drvfix.exe
+# command line to produce executable
+FIXER_CC  = wcl386 -q drvfix.c -fe=$(FIXER_EXE)
+# FIXER_CC = gcc drvfix.c -o drvfix
 
 # Define HWBLT if BitBlt can be accelerated.
 #FLAGS += -DHWBLT
@@ -57,10 +66,12 @@ RC16_FLAGS = -40 -i $(DDK98_PATH)\inc\win98\inc16 -i res -d DRV_VER_BUILD=$(VER_
 BOXVMINI_DRV_RC = $(RC16) $(RC16_FLAGS) res\boxvmini.rc $@
 VMWSMINI_DRV_RC = $(RC16) $(RC16_FLAGS) res\vmwsmini.rc $@
 QEMUMINI_DRV_RC = $(RC16) $(RC16_FLAGS) res\qemumini.rc $@
+NEED_FIXER = 
 !else
-BOXVMINI_DRV_RC = wrc -q boxvmini.res $@
-VMWSMINI_DRV_RC = wrc -q vmwsmini.res $@
-QEMUMINI_DRV_RC = wrc -q qemumini.res $@
+BOXVMINI_DRV_RC = wrc -q boxvmini.res $@ && $(FIXER_EXE) $@
+VMWSMINI_DRV_RC = wrc -q vmwsmini.res $@ && $(FIXER_EXE) $@
+QEMUMINI_DRV_RC = wrc -q qemumini.res $@ && $(FIXER_EXE) $@
+NEED_FIXER = $(FIXER_EXE)
 !endif
 
 all : vmwsmini.drv vmwsmini.vxd qemumini.drv qemumini.vxd boxvmini.drv boxvmini.vxd
@@ -194,7 +205,11 @@ res/fonts120.bin : res/fonts120.c .autodepend
 dibeng.lib : ddk/dibeng.lbc
 	wlib -b -q -n -fo -ii @$< $@
 
-boxvmini.drv : $(OBJS) boxvmini.res dibeng.lib
+# Fixer
+$(NEED_FIXER): drvfix.c
+	$(FIXER_CC)
+
+boxvmini.drv : $(OBJS) boxvmini.res dibeng.lib $(NEED_FIXER)
 	wlink op quiet, start=DriverInit_ disable 2055 $(DBGFILE) @<<boxvmini.lnk
 system windows dll initglobal
 file dibcall.obj
@@ -261,7 +276,7 @@ import GlobalSmartPageLock  KERNEL.230
 <<
 	$(BOXVMINI_DRV_RC)
 
-vmwsmini.drv : $(OBJS) vmwsmini.res dibeng.lib
+vmwsmini.drv : $(OBJS) vmwsmini.res dibeng.lib $(NEED_FIXER)
 	wlink op quiet, start=DriverInit_ disable 2055 $(DBGFILE) @<<vmwsmini.lnk
 system windows dll initglobal
 file dibcall.obj
@@ -328,7 +343,7 @@ import GlobalSmartPageLock  KERNEL.230
 <<
 	$(VMWSMINI_DRV_RC)
 
-qemumini.drv : $(OBJS) qemumini.res dibeng.lib
+qemumini.drv : $(OBJS) qemumini.res dibeng.lib $(NEED_FIXER)
 	wlink op quiet, start=DriverInit_ disable 2055 $(DBGFILE) @<<qemumini.lnk
 system windows dll initglobal
 file dibcall.obj
@@ -469,6 +484,7 @@ clean : .symbolic
     rm res/*.obj
     rm res/*.bin
     rm vmware/*.obj
+    -rm -f $(FIXER_EXE)
 
 image : .symbolic boxv9x.img
 
