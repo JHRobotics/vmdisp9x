@@ -54,6 +54,7 @@ extern void dbg_printf( const char *s, ... );
 
 static DWORD VXD_VM = 0;
 static DWORD vxd_fbhda16 = 0;
+static DWORD vxd_fbhda32 = 0;
 static DWORD vxd_mouse16  = 0;
 
 #pragma code_seg( _INIT )
@@ -96,6 +97,7 @@ BOOL VXD_VM_connect()
     push   ebx
     push   ecx
     push   edx
+    push   esi
     
     mov    eax, VDD_REGISTER_DISPLAY_DRIVER_INFO
     movzx  ebx, word ptr [OurVMHandle]
@@ -103,7 +105,9 @@ BOOL VXD_VM_connect()
     
     mov  [vxd_fbhda16], edx
     mov  [vxd_mouse16], ecx
+    mov  [vxd_fbhda32], esi
     
+    pop    esi
     pop    edx
     pop    ecx
     pop    ebx
@@ -117,40 +121,8 @@ BOOL VXD_VM_connect()
 
 void FBHDA_setup(FBHDA_t __far* __far* FBHDA, DWORD __far* FBHDA_linear)
 {
-#if 0
-	static DWORD linear;
-	linear = 0;
-	
-	_asm
-	{
-		.386
-		push eax
-		push edx
-		push ecx
-	  
-	  mov edx, OP_FBHDA_SETUP
-	  call dword ptr [VXD_VM]
-	  mov  [linear], ecx
-	  
-	  pop ecx
-		pop edx
-		pop eax
-	}
-	
-	if(linear)
-	{
-		void __far *longptr = NULL;
-		WORD desc = DPMI_AllocLDTDesc(1);
-		DPMI_SetSegBase(desc,  linear);
-		DPMI_SetSegLimit(desc, sizeof(FBHDA_t)-1);
-		
-		longptr = desc :> 0;
-			
-		*FBHDA = (FBHDA_t __far*)longptr;
-		*FBHDA_linear = linear;
-	}
-#endif
 	*FBHDA = (FBHDA_t __far*)vxd_fbhda16;
+	*FBHDA_linear = vxd_fbhda32;
 }
 
 void FBHDA_access_begin(DWORD flags)
@@ -323,38 +295,6 @@ BOOL mouse_load()
 
 void mouse_buffer(void __far* __far* pBuf, DWORD __far* pLinear)
 {
-#if 0
-	static DWORD buffer;
-	
-	_asm
-	{
-		.386
-		push eax
-		push edx
-		push ecx
-		
-		mov edx, OP_MOUSE_BUFFER
-		call dword ptr [VXD_VM]
-		mov [buffer],ecx
-		
-		pop ecx
-		pop edx
-		pop eax
-	}
-	
-	if(buffer)
-	{
-		void __far *longptr = NULL;
-		WORD desc = DPMI_AllocLDTDesc(1);
-		DPMI_SetSegBase(desc,  buffer);
-		DPMI_SetSegLimit(desc, MOUSE_BUFFER_SIZE);
-		
-		longptr = desc :> 0;
-			
-		*pBuf = longptr;
-		*pLinear = buffer;
-	}
-#endif
 	*pBuf = (void __far*)vxd_mouse16;
 }
 

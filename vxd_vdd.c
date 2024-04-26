@@ -152,10 +152,12 @@ VDDPROC(REGISTER_DISPLAY_DRIVER, register_display_driver)
 		EAX -> VXD_VM (thisVM)
 		EDX -> fbhda
 		ECX -> mouse_buffer
+		ESI -> fbhda linear
 	*/
 	state->Client_EAX = ThisVM;
 	state->Client_EDX = hda_pm16;
 	state->Client_ECX = mouse_pm16;
+	state->Client_ESI = (DWORD)hda;
 	
 	VDD_CY;
 }

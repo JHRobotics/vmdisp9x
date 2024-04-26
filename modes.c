@@ -254,22 +254,6 @@ int PhysicalEnable( void )
     /* Allocate an LDT selector for the screen. */
     if( !ScreenSelector ) {
     	  ScreenSelector = ((DWORD)hda->vram_pm16) >> 16;
-#if 0
-    	  if(ScreenSelector == 0)
-    	  {
-        	ScreenSelector = DPMI_AllocLDTDesc(1);
-					DPMI_SetSegBase(ScreenSelector,  hda->vram_pm32);
-					DPMI_SetSegLimit(ScreenSelector, hda->vram_size-1);
-					
-					/* update pointer in HDA */
-					hda->vram_pm16 = ScreenSelector :> 0;
-        }
-        
-        if( !ScreenSelector ) {
-            dbg_printf( "PhysicalEnable: Invalid VRAM selector failed!\n" );
-            return( 0 );
-        }
-#endif
     }
     
     /* NB: Currently not used. DirectDraw would need the segment base. */

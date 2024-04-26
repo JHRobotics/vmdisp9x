@@ -1808,7 +1808,6 @@ void FBHDA_access_end(DWORD flags)
 	
 	if(fb_lock_cnt == 0)
 	{
-		/*BOOL need_sync = */
 		mouse_blit();
 		
 	  if(hda->bpp == 32)
@@ -1823,18 +1822,8 @@ void FBHDA_access_end(DWORD flags)
 	  	cmd_update->y = 0;
 	  	cmd_update->width  = hda->width;
 	  	cmd_update->height = hda->height;
-#if 0
-	  	if(need_sync)
-	  	{
-	  		SVGA_CMB_submit(cmdbuf, cmd_offset, NULL, SVGA_CB_SYNC, 0);
-	  	}
-	  	else
-	  	{
-	  		SVGA_CMB_submit(cmdbuf, cmd_offset, NULL, 0, 0);
-	  	}
-#else
+	  	
 			SVGA_CMB_submit(cmdbuf, cmd_offset, NULL, SVGA_CB_SYNC, 0);
-#endif
 	  }
 	}
 	
