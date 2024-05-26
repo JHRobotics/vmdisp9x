@@ -38,6 +38,8 @@ THE SOFTWARE.
 
 #include "code32.h"
 
+#include "vxd_svga.h"
+
 #include "vxd_strings.h"
 
 /*
@@ -123,7 +125,7 @@ static BOOL cb_support = FALSE;
 static BOOL cb_context0 = FALSE;
 
 /* for GPU9 is FIFO more stable (VMWARE) or faster (VBOX) */
-static DWORD prefer_fifo = 1; 
+static DWORD prefer_fifo = 1;
 
 static BOOL SVGA_is_valid = FALSE;
 
@@ -131,11 +133,17 @@ static volatile SVGACBHeader *last_cb = NULL;
 
 static uint64 cb_next_id = {0, 0};
 static DWORD fence_next_id = 1;
-static void *cmdbuf = NULL;
+void *cmdbuf = NULL;
+static DWORD cb_sem;
 
 static svga_cache_state_t cache_state = {0, 0};
 
 static BOOL cache_enabled = FALSE;
+
+/* guest frame buffer is dirty */
+static BOOL ST_FB_invalid = FALSE;
+
+static DWORD present_fence = 0;
 
 /* object table for GPU10 */
 static SVGA_OT_info_entry_t otable_setup[SVGA_OTABLE_DX_MAX] = {
@@ -379,7 +387,7 @@ static void SVGA_Flush_CB_critical()
 	SVGA_Flush();
 }
 
-static void wait_for_cmdbuf()
+void wait_for_cmdbuf()
 {
 	SVGACBHeader *cb = ((SVGACBHeader *)cmdbuf)-1;
 	WAIT_FOR_CB(cb, 0);
@@ -500,6 +508,14 @@ static void SVGA_DB_alloc()
 	}
 }
 
+SVGA_DB_surface_t *SVGA_GetSurfaceInfo(uint32 sid)
+{
+	if(sid > 0 && sid < SVGA3D_MAX_SURFACE_IDS)	
+		return &(svga_db->surfaces[sid-1]);
+	
+	return NULL;
+}
+
 SVGA_DB_t *SVGA_DB_setup()
 {
 	return svga_db;
@@ -547,21 +563,33 @@ void SVGA_fence_query(DWORD FBPTR ptr_fence_passed, DWORD FBPTR ptr_fence_last)
 	}
 }
 
-void SVGA_fence_wait(DWORD fence_id)
+static BOOL SVGA_fence_is_passed(DWORD fence_id)
 {
 	DWORD last_pased;
 	DWORD last_fence;
-	DWORD cnt = 0;
 	
-	for(cnt = 0; cnt < SVGA_TIMEOUT; cnt++)
+	SVGA_fence_query(&last_pased, &last_fence);
+	if(fence_id > last_fence)
 	{
-		SVGA_fence_query(&last_pased, &last_fence);
-		if(fence_id > last_fence)
-		{
-			break;
-		}
+		return TRUE;
+	}
 		
-		if(fence_id <= last_pased)
+	if(fence_id <= last_pased)
+	{
+		return TRUE;
+	}
+	
+	return FALSE;
+}
+
+void SVGA_fence_wait(DWORD fence_id)
+{
+	//DWORD cnt = 0;
+	
+	//for(cnt = 0; cnt < SVGA_TIMEOUT; cnt++)
+	for(;;)
+	{
+		if(SVGA_fence_is_passed(fence_id))
 		{
 			break;
 		}
@@ -569,11 +597,11 @@ void SVGA_fence_wait(DWORD fence_id)
 		SVGA_Sync();
 	}
 	
-	
+	/*
 	if(cnt == SVGA_TIMEOUT)
 	{
 		SVGA_Flush();
-	}
+	}*/
 }
 
 /**
@@ -621,7 +649,7 @@ void SVGA_CMB_free(DWORD *cmb)
 	End_Critical_Section();
 }
 
-static void *SVGA_cmd_ptr(DWORD *buf, DWORD *pOffset, DWORD cmd, DWORD cmdsize)
+void *SVGA_cmd_ptr(DWORD *buf, DWORD *pOffset, DWORD cmd, DWORD cmdsize)
 {
 	DWORD pp = (*pOffset)/sizeof(DWORD);
 	buf[pp] = cmd;
@@ -630,7 +658,7 @@ static void *SVGA_cmd_ptr(DWORD *buf, DWORD *pOffset, DWORD cmd, DWORD cmdsize)
 	return (void*)(buf + pp + 1);
 }
 
-static void *SVGA_cmd3d_ptr(DWORD *buf, DWORD *pOffset, DWORD cmd, DWORD cmdsize)
+void *SVGA_cmd3d_ptr(DWORD *buf, DWORD *pOffset, DWORD cmd, DWORD cmdsize)
 {
 	DWORD pp = (*pOffset)/sizeof(DWORD);
 	buf[pp] = cmd;
@@ -650,10 +678,51 @@ static void SVGA_cb_id_inc()
 	}
 }
 
+#ifdef DBGPRINT
+#include "vxd_svga_debug.h"
+#endif
+
 void SVGA_CMB_submit(DWORD FBPTR cmb, DWORD cmb_size, SVGA_CMB_status_t FBPTR status, DWORD flags, DWORD DXCtxId)
 {
+	DWORD fence = 0;
 	SVGACBHeader *cb = ((SVGACBHeader *)cmb)-1;
+		
+	if(status)
+	{
+		cb->status = SVGA_CB_STATUS_NONE;
+		status->sStatus = SVGA_PROC_NONE;
+		status->qStatus = (volatile DWORD*)&cb->status;
+	}
+	
 	Begin_Critical_Section(0);
+	
+#ifdef DBGPRINT
+//	debug_cmdbuf(cmb, cmb_size);
+//	debug_cmdbuf_trace(cmb, cmb_size, SVGA_3D_CMD_BLIT_SURFACE_TO_SCREEN);
+//		debug_draw(cmb, cmb_size);
+#endif
+
+	if(flags & SVGA_CB_PRESENT_ASYNC)
+	{
+		if(present_fence != 0)
+		{
+			SVGA_fence_wait(present_fence);
+		}
+		
+		flags |= SVGA_CB_FORCE_FENCE;
+	}
+	else if(present_fence)
+	{
+		if(SVGA_fence_is_passed(present_fence))
+		{
+			present_fence = 0;
+		}
+	}
+	
+	if(flags & SVGA_CB_PRESENT_GPU)
+	{
+		ST_FB_invalid = TRUE;
+	}
 	
 	if(  /* CB are supported and enabled */
 		cb_support &&
@@ -662,7 +731,6 @@ void SVGA_CMB_submit(DWORD FBPTR cmb, DWORD cmb_size, SVGA_CMB_status_t FBPTR st
 	)
 	{
 		DWORD cbhwctxid = SVGA_CB_CONTEXT_0;
-		DWORD fence = 0;
 		
 		if(flags & SVGA_CB_USE_CONTEXT_DEVICE)
 		{
@@ -689,7 +757,7 @@ void SVGA_CMB_submit(DWORD FBPTR cmb, DWORD cmb_size, SVGA_CMB_status_t FBPTR st
 			}
 		}
 		else
-		{
+		{			
 			cb->status = SVGA_CB_STATUS_NONE;
 			cb->errorOffset = 0;
 			cb->offset = 0; /* VMware modified this, needs to be clear */
@@ -708,14 +776,7 @@ void SVGA_CMB_submit(DWORD FBPTR cmb, DWORD cmb_size, SVGA_CMB_status_t FBPTR st
 			cb->id.low = cb_next_id.low;
 			cb->id.hi  = cb_next_id.hi;
 			cb->length = cmb_size;
-			
-#if 0
-			/* wait for last CB to complete */
-			if(last_cb)
-			{
-				WAIT_FOR_CB(last_cb, 0);
-			}
-#endif
+						
 			SVGA_WriteReg(SVGA_REG_COMMAND_HIGH, 0); // high part of 64-bit memory address...
 			SVGA_WriteReg(SVGA_REG_COMMAND_LOW, (cb->ptr.pa.low - sizeof(SVGACBHeader)) | cbhwctxid);
 			SVGA_Sync(); /* notify HV to read registers (VMware needs it) */
@@ -725,7 +786,7 @@ void SVGA_CMB_submit(DWORD FBPTR cmb, DWORD cmb_size, SVGA_CMB_status_t FBPTR st
 			if(flags & SVGA_CB_SYNC)
 			{
 				WAIT_FOR_CB(cb, 0);
-
+				
 				if(cb->status != SVGA_CB_STATUS_COMPLETED)
 				{
 					dbg_printf(dbg_cmd_error, cb->status, cmb[0], cb->errorOffset);
@@ -763,7 +824,6 @@ void SVGA_CMB_submit(DWORD FBPTR cmb, DWORD cmb_size, SVGA_CMB_status_t FBPTR st
 		DWORD *ptr = cmb;
 		DWORD dwords = cmb_size/sizeof(DWORD);
 		DWORD nextCmd, max, min;
-		DWORD fence;
 		
 		/* insert fence CMD */
 		fence = SVGA_fence_get();
@@ -820,10 +880,32 @@ void SVGA_CMB_submit(DWORD FBPTR cmb, DWORD cmb_size, SVGA_CMB_status_t FBPTR st
 		status->fifo_fence_last = SVGA_fence_passed();
 	}
 	
+	if(flags & SVGA_CB_PRESENT_ASYNC)
+	{
+		present_fence = fence;
+	}
+	
 	End_Critical_Section();
 	
 	//dbg_printf(dbg_cmd_off, cmb[0]);
 }
+
+BOOL SVGA_vxdcmd(DWORD cmd)
+{
+	switch(cmd)
+	{
+		case SVGA_CMD_INVALIDATE_FB:
+			ST_FB_invalid = TRUE;
+			return TRUE;
+	}
+	
+	return FALSE;
+}
+
+
+static DWORD fb_pm16 = 0;
+static DWORD st_pm16 = 0;
+static DWORD st_address = 0;
 
 /**
  * Init SVGA-II hardware
@@ -953,15 +1035,44 @@ BOOL SVGA_init_hw()
 			}
 		}
 		
-		SVGA_DB_alloc();
+		cb_sem = Create_Semaphore(1);
 		
-		/* fill address in FBHDA */
-		hda->vram_pm32 = (void*)gSVGA.fbLinear;
-		hda->vram_size = gSVGA.vramSize;
- 		memcpy(hda->vxdname, SVGA_vxd_name, sizeof(SVGA_vxd_name));
+		SVGA_DB_alloc();
 		
 		/* allocate CB for this driver */
 		cmdbuf = SVGA_CMB_alloc();
+		
+		/* vGPU10 */
+		if(gb_support)
+		{
+			SVGA_OTable_load();
+			
+			if(st_memory_allocate(64*1024*1024, &st_address))
+			{
+				st_used = TRUE;
+			}
+		}
+		
+		/* allocate 16bit selector for FB */
+		fb_pm16 = map_pm16(1, gSVGA.fbLinear, gSVGA.vramSize);
+		
+		/* fill address in FBHDA */
+		if(st_used)
+		{
+			st_pm16 = map_pm16(1, st_address, 64*1024*1024);
+			
+			hda->vram_pm32 = (void*)st_address;
+			hda->vram_size = 64*1024*1024;
+			hda->vram_pm16 = st_pm16;
+		}
+		else
+		{
+			hda->vram_pm32 = (void*)gSVGA.fbLinear;
+			hda->vram_size = gSVGA.vramSize;
+			hda->vram_pm16 = fb_pm16;
+		}
+		
+ 		memcpy(hda->vxdname, SVGA_vxd_name, sizeof(SVGA_vxd_name));
 		
 		hda->flags |= FB_ACCEL_VMSVGA;
 		
@@ -1245,7 +1356,7 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 	
 	End_Critical_Section();
 	
-	dbg_printf(dbg_gmr_succ, rinfo->region_id, rinfo->size);
+	//dbg_printf(dbg_gmr_succ, rinfo->region_id, rinfo->size);
 	
 	return TRUE;
 }
@@ -1312,7 +1423,7 @@ void SVGA_region_free(SVGA_region_info_t *rinfo)
 	}
 	End_Critical_Section();
 		
-	dbg_printf(dbg_pagefree_end, rinfo->region_id, rinfo->size, saved_in_cache);
+	//dbg_printf(dbg_pagefree_end, rinfo->region_id, rinfo->size, saved_in_cache);
 		
 	rinfo->address        = NULL;
 	rinfo->region_address = NULL;
@@ -1467,7 +1578,7 @@ BOOL SVGA3D_Init(void)
 	return TRUE;
 }
 
-static DWORD SVGA_pitch(DWORD width, DWORD bpp)
+DWORD SVGA_pitch(DWORD width, DWORD bpp)
 {
 	DWORD bp = (bpp + 7) / 8;
 	return (bp * width + 3) & 0xFFFFFFFC;
@@ -1528,6 +1639,46 @@ static void SVGA_defineScreen(DWORD w, DWORD h, DWORD bpp)
 	}
 	
 	SVGA_CMB_submit(cmdbuf, cmdoff, NULL, SVGA_CB_SYNC/*|SVGA_CB_FORCE_FIFO*/, 0);
+}
+
+/**
+ * Apply tables to VGPU
+ **/
+void SVGA_OTable_load()
+{
+	DWORD i;
+	DWORD cmd_offset = 0;
+	SVGA3dCmdSetOTableBase *cmd;
+
+	SVGA_OT_info_entry_t *ot = SVGA_OT_setup();
+	if(ot == NULL)
+	{
+		return;
+	}
+	
+	wait_for_cmdbuf();
+
+	for(i = SVGA_OTABLE_MOB; i < SVGA_OTABLE_DX_MAX; i++)
+	{
+		SVGA_OT_info_entry_t *entry = &(ot[i]);
+
+		if((entry->flags & SVGA_OT_FLAG_ACTIVE) == 0)
+		{
+			if(entry->size > 0)
+			{
+				cmd = SVGA_cmd3d_ptr(cmdbuf, &cmd_offset, SVGA_3D_CMD_SET_OTABLE_BASE, sizeof(SVGA3dCmdSetOTableBase));
+				cmd->type = i;
+				cmd->baseAddress = entry->phy / P_SIZE;
+				cmd->sizeInBytes = entry->size;
+			  cmd->validSizeInBytes = 0;
+			  cmd->ptDepth = SVGA3D_MOBFMT_RANGE;
+
+			  entry->flags |= SVGA_OT_FLAG_ACTIVE;
+			}
+		}
+	}
+
+	SVGA_CMB_submit(cmdbuf, cmd_offset, NULL, SVGA_CB_SYNC, 0);
 }
 
 /**
@@ -1596,8 +1747,26 @@ BOOL SVGA_setmode(DWORD w, DWORD h, DWORD bpp)
       
 	/* stop command buffer context 0 */
 	SVGA_CB_stop();
-            
-	SVGA_SetModeLegacy(w, h, bpp); /* setup by legacy registry */
+	
+	/* delete old screen at its objects */
+	if(SVGA_hasAccelScreen())
+	{
+		if(st_used)
+		{
+			st_destroyScreen();
+		}
+	}
+  
+   /* setup by legacy registry */
+  if(st_useable(bpp))
+  {
+		SVGA_SetModeLegacy(w, h, 32);
+	}
+	else
+	{
+		SVGA_SetModeLegacy(w, h, bpp);
+	}
+	
 	SVGA_Flush_CB_critical(); /* make sure, that is really set */
 	
 	has3D = SVGA3D_Init();
@@ -1605,13 +1774,14 @@ BOOL SVGA_setmode(DWORD w, DWORD h, DWORD bpp)
 	/* setting screen by fifo, this method is required in VB 6.1 */
 	if(SVGA_hasAccelScreen())
 	{
-		SVGA_defineScreen(w, h, bpp);
+		if(!st_useable(bpp))
+		{
+			SVGA_defineScreen(w, h, bpp);
+		}
+		
 		SVGA_Flush_CB_critical();
 	}
 	
-	/* start command buffer context 0 */
-	SVGA_CB_start();
-     
 	/*
 	 * JH: this is a bit stupid = all SVGA command cannot work with non 32 bpp. 
 	 * SVGA_CMD_UPDATE included. So if we're working in 32 bpp, we'll disable
@@ -1621,26 +1791,60 @@ BOOL SVGA_setmode(DWORD w, DWORD h, DWORD bpp)
 	 * QEMU hasn't SVGA_REG_TRACES register and framebuffer cannot be se to
 	 * 16 or 8 bpp = we supporting only 32 bpp moders if we're running under it.
 	 */
-	if(bpp == 32)
+	if(!st_useable(bpp))
 	{
-		SVGA_WriteReg(SVGA_REG_TRACES, FALSE);
+		if(bpp == 32)
+		{
+			SVGA_WriteReg(SVGA_REG_TRACES, FALSE);
+		}
+		else
+		{
+			SVGA_WriteReg(SVGA_REG_TRACES, TRUE);
+		}
 	}
 	else
 	{
-		SVGA_WriteReg(SVGA_REG_TRACES, TRUE);
+		SVGA_WriteReg(SVGA_REG_TRACES, FALSE);
 	}
-      
+	
 	SVGA_WriteReg(SVGA_REG_ENABLE, TRUE);
 	SVGA_Sync();
+		
 	SVGA_Flush_CB_critical();
 	
+	/* start command buffer context 0 */
+	SVGA_CB_start();
+	
+	if(st_useable(bpp))
+	{
+		st_defineScreen(w, h, bpp);
+		hda->flags |= FB_ACCEL_VMSVGA10_ST;
+	}
+	else
+	{
+		hda->flags &= ~((DWORD)FB_ACCEL_VMSVGA10_ST);
+	}
+	
+	if(st_useable(bpp))
+	{		
+		hda->vram_pm32 = (void*)st_address;
+		hda->vram_size = 64*1024*1024;
+		hda->vram_pm16 = st_pm16;
+	}
+	else
+	{
+		hda->vram_pm32 = (void*)gSVGA.fbLinear;
+		hda->vram_size = gSVGA.vramSize;
+		hda->vram_pm16 = fb_pm16;
+	}
+
 	hda->width   = SVGA_ReadReg(SVGA_REG_WIDTH);
 	hda->height  = SVGA_ReadReg(SVGA_REG_HEIGHT);
 	hda->bpp     = SVGA_ReadReg(SVGA_REG_BITS_PER_PIXEL);
 	hda->pitch   = SVGA_ReadReg(SVGA_REG_BYTES_PER_LINE);
 	hda->stride  = hda->height * hda->pitch;
 	hda->surface = 0;
-		
+
 	if(has3D && SVGA_GetDevCap(SVGA3D_DEVCAP_3D) > 0)
 	{
 		hda->flags |= FB_ACCEL_VMSVGA3D;
@@ -1800,34 +2004,95 @@ BOOL FBHDA_swap(DWORD offset)
 	return FALSE;
 }
 
+void FBHDA_access_begin(DWORD flags)
+{
+	Wait_Semaphore(hda_sem, 0);
+	
+	if(fb_lock_cnt++ == 0)
+	{
+		BOOL readback = FALSE;
+				
+		if(present_fence != 0)
+		{
+			SVGA_fence_wait(present_fence);
+//			readback = TRUE;
+		}
+		
+		if(ST_FB_invalid)
+		{
+			readback = TRUE;		
+			ST_FB_invalid = FALSE;
+		}
+		
+		if(readback)
+		{
+			if(st_useable(hda->bpp))
+			{
+				DWORD cmd_offset = 0;
+				SVGA3dCmdReadbackGBSurface *gbreadback;
+				
+				wait_for_cmdbuf();
+				
+				gbreadback = SVGA_cmd3d_ptr(cmdbuf, &cmd_offset, SVGA_3D_CMD_READBACK_GB_SURFACE, sizeof(SVGA3dCmdReadbackGBSurface));
+				gbreadback->sid = ST_SURFACE_ID;
+				SVGA_CMB_submit(cmdbuf, cmd_offset, NULL, SVGA_CB_SYNC, 0);
+			}
+		}
+		
+		mouse_erase();
+	}
+	
+	Signal_Semaphore(hda_sem);
+}
+
 void FBHDA_access_end(DWORD flags)
 {
-	//dbg_printf(dbg_update, hda->width, hda->height, hda->bpp);
+	Wait_Semaphore(hda_sem, 0);
+
 	fb_lock_cnt--;
 	if(fb_lock_cnt < 0) fb_lock_cnt = 0;
 	
 	if(fb_lock_cnt == 0)
 	{
-		mouse_blit();
-		
-	  if(hda->bpp == 32)
+		mouse_blit();		
+		if(st_useable(hda->bpp))
+		{
+			SVGA3dCmdUpdateGBSurface *gbupdate;
+			SVGA3dCmdUpdateGBScreenTarget *stupdate;
+			DWORD cmd_offset = 0;
+
+		 	wait_for_cmdbuf();
+
+			gbupdate = SVGA_cmd3d_ptr(cmdbuf, &cmd_offset, SVGA_3D_CMD_UPDATE_GB_SURFACE, sizeof(SVGA3dCmdUpdateGBSurface));
+			gbupdate->sid = ST_SURFACE_ID;
+
+			stupdate = SVGA_cmd3d_ptr(cmdbuf, &cmd_offset, SVGA_3D_CMD_UPDATE_GB_SCREENTARGET, sizeof(SVGA3dCmdUpdateGBScreenTarget));
+			stupdate->stid = 0;
+	  	stupdate->rect.x = 0;
+	  	stupdate->rect.y = 0;
+	  	stupdate->rect.w = hda->width;
+	  	stupdate->rect.h = hda->height;
+
+			SVGA_CMB_submit(cmdbuf, cmd_offset, NULL, SVGA_CB_PRESENT_ASYNC, 0);
+		}
+	  else if(hda->bpp == 32)
 	  {
 	  	SVGAFifoCmdUpdate  *cmd_update;
 	  	DWORD cmd_offset = 0;
-	  	
+
 	  	wait_for_cmdbuf();
-	  	
+
 	  	cmd_update = SVGA_cmd_ptr(cmdbuf, &cmd_offset, SVGA_CMD_UPDATE, sizeof(SVGAFifoCmdUpdate));
 	  	cmd_update->x = 0;
 	  	cmd_update->y = 0;
 	  	cmd_update->width  = hda->width;
 	  	cmd_update->height = hda->height;
 	  	
-			SVGA_CMB_submit(cmdbuf, cmd_offset, NULL, SVGA_CB_SYNC, 0);
+			SVGA_CMB_submit(cmdbuf, cmd_offset, NULL, SVGA_CB_PRESENT_ASYNC, 0);
 	  }
-	}
+	} // fb_lock_cnt == 0
 	
-	//Signal_Semaphore(hda_sem);
+	Signal_Semaphore(hda_sem);
 }
 
 void  FBHDA_palette_set(unsigned char index, DWORD rgb)

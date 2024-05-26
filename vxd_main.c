@@ -582,6 +582,9 @@ DWORD __stdcall Device_IO_Control_proc(DWORD vmhandle, struct DIOCParams *params
 		case OP_SVGA_FLUSHCACHE:
 			SVGA_flushcache();
 			return 0;
+		case OP_SVGA_VXDCMD:
+			outBuf[0] = (DWORD)SVGA_vxdcmd(inBuf[0]);
+			return 0;
 #endif /* SVGA */
 	}
 		

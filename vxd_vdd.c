@@ -71,7 +71,7 @@ static void VDD_Register_Extra_Screen_Selector(DWORD selector)
 	_asm pop eax
 }
 
-static DWORD map_pm16(DWORD vm, DWORD linear, DWORD size)
+DWORD map_pm16(DWORD vm, DWORD linear, DWORD size)
 {
 	DWORD hi  = 0;
 	DWORD low = 0;

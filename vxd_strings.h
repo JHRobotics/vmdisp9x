@@ -125,6 +125,11 @@ DSTR(dbg_register, "register: ebx = %ld, ecx = %ld, VM = %lX\n");
 
 DSTR(dbg_map_pm16_qw, "map_pm16: high=%lX, low=%lX\n");
 
+DSTR(dbg_lock_cb, "Lock CB buffer: %ld (line: %ld)\n");
+DSTR(dbg_lock_fb, "Lock FB buffer: %ld (line: %ld)\n");
+
+DSTR(dbg_cpu_lock, "surface cpu lock for SID: %ld\n");
+
 #undef DSTR
 
 #endif

@@ -309,6 +309,15 @@ BOOL FBHDA_swap(DWORD offset)
 	return TRUE;
 }
 
+void FBHDA_access_begin(DWORD flags)
+{
+	//Wait_Semaphore(hda_sem, 0);
+	if(fb_lock_cnt++ == 0)
+	{
+		mouse_erase();
+	}
+}
+
 void FBHDA_access_end(DWORD flags)
 {
 	fb_lock_cnt--;

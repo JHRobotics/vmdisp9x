@@ -269,17 +269,17 @@ UINT WINAPI __loadds Enable( LPVOID lpDevice, UINT style, LPSTR lpDeviceType,
         lpEng->deReserved1    = 0;
         lpEng->delpPDevice    = 0;
         lpEng->deBitsOffset   = 0;
-        lpEng->deBitsSelector = ScreenSelector;
+        lpEng->deBitsSelector = ((DWORD)hda->vram_pm16) >> 16;
         lpEng->deBitmapInfo   = lpInfo;
         lpEng->deVersion      = 0x400;
         lpEng->deBeginAccess  = BeginAccess_VXD;
         lpEng->deEndAccess    = EndAccess_VXD;
 #else
         /* Call the DIB Engine to set up the PDevice. */
-        dbg_printf( "lpInfo=%WP lpDevice=%WP lpColorTable=%WP wFlags=%X ScreenSelector=%X\n", lpInfo, lpDevice, lpColorTable, wFlags, ScreenSelector );
+        dbg_printf( "lpInfo=%WP lpDevice=%WP lpColorTable=%WP wFlags=%X ScreenSelector=%X\n", lpInfo, lpDevice, lpColorTable, wFlags, ((DWORD)hda->vram_pm16) >> 16);
         {
             DWORD           dwRet;
-            dwRet = CreateDIBPDeviceX( lpInfo, lpDevice, ScreenSelector :> 0, wFlags );
+            dwRet = CreateDIBPDeviceX( lpInfo, lpDevice, hda->vram_pm16, wFlags );
             if( !dwRet ) {
                 dbg_printf( "Enable: CreateDIBPDevice failed!\n" );
                 return( 0 );

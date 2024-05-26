@@ -68,7 +68,10 @@ extern void dbg_printf( const char *s, ... );
 #endif
 
 extern LPDIBENGINE lpDriverPDevice; /* DIB Engine PDevice. */
-extern WORD ScreenSelector;         /* Selector of video memory. */
+#if 0
+extern WORD ScreenSelector;         /* Selector of video memory.  */
+// JH: ^removed, use hda->vram_pm16 instead
+#endif
 extern WORD wPalettized;            /* Non-zero if palettized device. */
 extern WORD wPDeviceFlags;          /* Current GDI device flags. */
 extern WORD wDpi;                   /* Current DPI. */

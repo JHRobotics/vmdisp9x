@@ -64,7 +64,7 @@ static int serial_inited = 0;
 static void init_serial() {
    outp(INFO_PORT + 1, 0x00);    // Disable all interrupts
    outp(INFO_PORT + 3, 0x80);    // Enable DLAB (set baud rate divisor)
-   outp(INFO_PORT + 0, 0x12);    // Set divisor to 3 (lo byte) 38400 baud
+   outp(INFO_PORT + 0, 0x01);    // Set divisor to 3 (lo byte) 38400 baud 0x0C = 9600, 0x01 = 115200
    outp(INFO_PORT + 1, 0x00);    //                  (hi byte)
    outp(INFO_PORT + 3, 0x03);    // 8 bits, no parity, one stop bit
    outp(INFO_PORT + 2, 0xC7);    // Enable FIFO, clear them, with 14-byte threshold

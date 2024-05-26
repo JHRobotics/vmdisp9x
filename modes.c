@@ -52,14 +52,12 @@ THE SOFTWARE.
 WORD wScreenX       = 0;
 WORD wScreenY       = 0;
 WORD BitBltDevProc  = 0;
-WORD ScreenSelector = 0;
 WORD wPDeviceFlags  = 0;
 
 /* FBHDA structure pointers */
 FBHDA_t __far * hda = NULL;
 DWORD hda_linear = 0;
 
-DWORD    dwVideoMemorySize = 0;  /* Installed VRAM in bytes. */
  WORD    wScreenPitchBytes = 0;  /* Current scanline pitch. */
 
 /* On Entry:
@@ -231,12 +229,6 @@ void __far RestoreDesktopMode( void );
 int PhysicalEnable( void )
 {
     DWORD   dwRegRet;
-
-    if( !ScreenSelector ) {
-        dwVideoMemorySize = hda->vram_size;
-
-        dbg_printf( "PhysicalEnable: Hardware detected, dwVideoMemorySize=%lX\n", dwVideoMemorySize );
-    }
     
     dbg_printf("PhysicalEnable: continue with %ux%u\n", wScrX, wScrY);
     if( !IsModeOK( wScrX, wScrY, wBpp ) ) {
@@ -249,11 +241,6 @@ int PhysicalEnable( void )
         /* This is not good. */
         dbg_printf( "PhysicalEnable: SetDisplayMode failed! wScrX=%u wScrY=%u wBpp=%u\n", wScrX, wScrY, wBpp );
         return( 0 );
-    }
-
-    /* Allocate an LDT selector for the screen. */
-    if( !ScreenSelector ) {
-    	  ScreenSelector = ((DWORD)hda->vram_pm16) >> 16;
     }
     
     /* NB: Currently not used. DirectDraw would need the segment base. */
@@ -298,7 +285,6 @@ UINT WINAPI __loadds ValidateMode( DISPVALMODE FAR *lpValMode )
 
     //dbg_printf( "ValidateMode: X=%u Y=%u bpp=%u\n", lpValMode->dvmXRes, lpValMode->dvmYRes, lpValMode->dvmBpp );
     do {
-        if( !ScreenSelector ) {
 #ifdef SVGA
             /* Check if we have SVGA HW */
             if(!SVGA_valid())
@@ -316,8 +302,6 @@ UINT WINAPI __loadds ValidateMode( DISPVALMODE FAR *lpValMode )
               break;
             }
 #endif
-            dwVideoMemorySize = hda->vram_size;
-        }
 
         if( !IsModeOK( lpValMode->dvmXRes, lpValMode->dvmYRes, lpValMode->dvmBpp ) ) {
             rc = VALMODE_NO_NOMEM;

@@ -3,6 +3,7 @@
 ;              VirtualBox SVGA Win9x display driver
 ;              VMWare SVGA-II  Win9x display driver
 ;              QEMU STD        Win9x display driver
+;              QEMU QXL        Win9x display driver
 ; Copyright 2012-2022, The OS/2 Museum
 ;           2023-2024, Jaroslav Hensl
 
@@ -31,6 +32,8 @@ vmwsmini.drv=1
 vmwsmini.vxd=1
 qemumini.drv=1
 qemumini.vxd=1
+qxlmini.drv=1
+qxlmini.vxd=1
 ;mesa:mesa3d.dll=1
 ;mesa:vmwsgl32.dll=1
 ;openglide:glide2x.dll=1
@@ -65,6 +68,7 @@ qemumini.vxd=1
 %VBoxVideoVM2.DeviceDesc%=VMSvga, PCI\VEN_15AD&DEV_0405&SUBSYS_040515AD
 ;svga3:%VBoxVideoVM3.DeviceDesc%=VMSvga, PCI\VEN_15AD&DEV_0406&SUBSYS_040615AD
 %QemuStd.DeviceDesc%=Qemu, PCI\VEN_1234&DEV_1111
+%QemuQXL.DeviceDesc%=QXL, PCI\VEN_1B36&DEV_0100
 
 [VBox]
 CopyFiles=VBox.Copy,Dx.Copy,DX.CopyBackup,Voodoo.Copy
@@ -75,6 +79,11 @@ AddReg=VBox.AddReg,VM.AddReg,DX.addReg
 CopyFiles=Qemu.Copy,Dx.Copy,DX.CopyBackup,Voodoo.Copy
 DelReg=VM.DelReg
 AddReg=Qemu.AddReg,VM.AddReg,DX.addReg
+
+[QXL]
+CopyFiles=QXL.Copy,Dx.Copy,DX.CopyBackup,Voodoo.Copy
+DelReg=VM.DelReg
+AddReg=QXL.AddReg,VM.AddReg,DX.addReg
 
 [VBoxSvga]
 CopyFiles=VMSvga.Copy,Dx.Copy,DX.CopyBackup,Voodoo.Copy
@@ -95,6 +104,12 @@ boxvmini.vxd,,,0x00000004
 [Qemu.Copy]
 qemumini.drv,,,0x00000004
 qemumini.vxd,,,0x00000004
+;mesa:mesa3d.dll,,,0x00000004
+;vmhal:vmhal9x.dll,,,0x00000004
+
+[QXL.Copy]
+qxlmini.drv,,,0x00000004
+qxlmini.vxd,,,0x00000004
 ;mesa:mesa3d.dll,,,0x00000004
 ;vmhal:vmhal9x.dll,,,0x00000004
 
@@ -138,6 +153,11 @@ vmwsmini.vxd,,,0x00000004
 HKR,DEFAULT,drv,,qemumini.drv
 HKR,DEFAULT,minivdd,,qemumini.vxd
 HKR,DEFAULT,Mode,,"8,640,480"
+
+[QXL.AddReg]
+HKR,DEFAULT,drv,,qxlmini.drv
+HKR,DEFAULT,minivdd,,qxlmini.vxd
+HKR,DEFAULT,Mode,,"32,640,480"
 
 [VBox.AddReg]
 HKR,DEFAULT,drv,,boxvmini.drv
@@ -236,8 +256,8 @@ HKLM,Software\Microsoft\Windows\CurrentVersion\OpenGLdrivers,QEMUFX,2,"qmfxgl32.
 ;mesa:HKLM,Software\Microsoft\Windows\CurrentVersion\OpenGLdrivers,SOFTWARE,2,"mesa3d.dll"
 ;mesa:HKLM,Software\Microsoft\Windows\CurrentVersion\OpenGLdrivers,VMWSVGA,2,"vmwsgl32.dll"
 ;mesa:HKLM,Software\Mesa3D\global,LP_NATIVE_VECTOR_WIDTH,,128
-;mesa:HKLM,Software\Mesa3D\global,SVGA_CLEAR_DX_FLAGS,,1
-;mesa:HKLM,Software\Mesa3D\global,SVGA_GMR_LIMIT,,160
+;mesa:HKLM,Software\Mesa3D\global,SVGA_CLEAR_DX_FLAGS,,0
+;mesa:HKLM,Software\Mesa3D\global,SVGA_GMR_LIMIT,,256
 
 [DX.addReg]
 ;mefix:HKLM,System\CurrentControlSet\Control\SessionManager\KnownDLLs,DDRAW,2,"ddrawme.dll"
@@ -377,3 +397,4 @@ VBoxVideoSVGA.DeviceDesc="VBox SVGA PCI Adapter"
 VBoxVideoVM2.DeviceDesc="VMWare SVGA-II PCI Adapter"
 VBoxVideoVM3.DeviceDesc="VMWare SVGA-III PCI Adapter"
 QemuStd.DeviceDesc="QEMU STD VGA PCI Adapter"
+QemuQXL.DeviceDesc="QEMU QXL VGA PCI Adapter"

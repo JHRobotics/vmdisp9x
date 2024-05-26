@@ -96,7 +96,7 @@ BOOL mouse_load()
 	DWORD cbw;
 	
 	if(!mouse_buffer_mem) return FALSE;
-	
+
 	cur = (CURSORSHAPE*)mouse_buffer_mem;
 	
 	/* erase cursor if present */

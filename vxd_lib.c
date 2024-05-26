@@ -228,6 +228,22 @@ void __cdecl Signal_Semaphore(ULONG SemHandle)
 	_asm pop eax
 }
 
+void __cdecl Resume_VM(ULONG VM)
+{
+	static ULONG sVM;
+	sVM = VM;
+	
+	_asm push ebx
+	_asm mov ebx, [sVM]
+	VMMCall(Resume_VM);
+	_asm pop ebx	
+}
+
+void Release_Time_Slice()
+{
+	VMMCall(Release_Time_Slice);
+}
+
 void __cdecl *Map_Flat(BYTE SegOffset, BYTE OffOffset)
 {
 	static BYTE sSegOffset;
