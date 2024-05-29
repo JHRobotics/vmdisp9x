@@ -85,9 +85,6 @@ DWORD map_pm16(DWORD vm, DWORD linear, DWORD size)
 	
 	//_Allocate_LDT_Selector(vm, hi, low, 1, 0, &selector, NULL);
 	_Allocate_GDT_Selector(hi, low, 0, &selector, NULL);
-	
-	dbg_printf(dbg_test, 2);
-	
 	VDD_Register_Extra_Screen_Selector(selector);
 	
 	dbg_printf(dbg_map_pm16_sel, selector);

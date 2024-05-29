@@ -3,9 +3,11 @@
 
 extern void *cmdbuf;
 void wait_for_cmdbuf();
+void submit_cmdbuf(DWORD cmdsize, DWORD flags, DWORD dx);
 void *SVGA_cmd_ptr(DWORD *buf, DWORD *pOffset, DWORD cmd, DWORD cmdsize);
 void *SVGA_cmd3d_ptr(DWORD *buf, DWORD *pOffset, DWORD cmd, DWORD cmdsize);
 DWORD SVGA_pitch(DWORD width, DWORD bpp);
+void SVGA_region_usage_reset();
 
 extern BOOL st_used;
 BOOL st_memory_allocate(DWORD size, DWORD *out);
@@ -17,7 +19,7 @@ SVGA_DB_surface_t *SVGA_GetSurfaceInfo(uint32 sid);
 #define ST_REGION_ID 1
 #define ST_SURFACE_ID 1
 
-#define st_useable(_bpp) (st_used && (_bpp) == 32)
+BOOL st_useable(DWORD bpp);
 
 DWORD map_pm16(DWORD vm, DWORD linear, DWORD size);
 

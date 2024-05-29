@@ -167,6 +167,8 @@ static char SVGA_conf_rgb565bug[]  = "RGB565bug";
 static char SVGA_conf_cb[]         = "CommandBuffers";
 static char SVGA_conf_pref_fifo[]  = "PreferFIFO";
 static char SVGA_conf_hw_version[] = "HWVersion";
+static char SVGA_conf_st_size[]    = "STSurface";
+static char SVGA_conf_st_16b[]     = "ST16bpp";
 static char SVGA_vxd_name[] = "vmwsmini.vxd";
 
 /* VM handle */
@@ -387,12 +389,6 @@ static void SVGA_Flush_CB_critical()
 	SVGA_Flush();
 }
 
-void wait_for_cmdbuf()
-{
-	SVGACBHeader *cb = ((SVGACBHeader *)cmdbuf)-1;
-	WAIT_FOR_CB(cb, 0);
-}
-
 #if 0
 static void SVGA_Flush_CB()
 {
@@ -506,6 +502,11 @@ static void SVGA_DB_alloc()
 			
 		svga_db->stat_regions_usage = 0;
 	}
+}
+
+void SVGA_region_usage_reset()
+{
+	svga_db->stat_regions_usage = 0;
 }
 
 SVGA_DB_surface_t *SVGA_GetSurfaceInfo(uint32 sid)
@@ -682,7 +683,7 @@ static void SVGA_cb_id_inc()
 #include "vxd_svga_debug.h"
 #endif
 
-void SVGA_CMB_submit(DWORD FBPTR cmb, DWORD cmb_size, SVGA_CMB_status_t FBPTR status, DWORD flags, DWORD DXCtxId)
+void SVGA_CMB_submit_critical(DWORD FBPTR cmb, DWORD cmb_size, SVGA_CMB_status_t FBPTR status, DWORD flags, DWORD DXCtxId)
 {
 	DWORD fence = 0;
 	SVGACBHeader *cb = ((SVGACBHeader *)cmb)-1;
@@ -693,9 +694,7 @@ void SVGA_CMB_submit(DWORD FBPTR cmb, DWORD cmb_size, SVGA_CMB_status_t FBPTR st
 		status->sStatus = SVGA_PROC_NONE;
 		status->qStatus = (volatile DWORD*)&cb->status;
 	}
-	
-	Begin_Critical_Section(0);
-	
+
 #ifdef DBGPRINT
 //	debug_cmdbuf(cmb, cmb_size);
 //	debug_cmdbuf_trace(cmb, cmb_size, SVGA_3D_CMD_BLIT_SURFACE_TO_SCREEN);
@@ -757,7 +756,7 @@ void SVGA_CMB_submit(DWORD FBPTR cmb, DWORD cmb_size, SVGA_CMB_status_t FBPTR st
 			}
 		}
 		else
-		{			
+		{
 			cb->status = SVGA_CB_STATUS_NONE;
 			cb->errorOffset = 0;
 			cb->offset = 0; /* VMware modified this, needs to be clear */
@@ -885,9 +884,29 @@ void SVGA_CMB_submit(DWORD FBPTR cmb, DWORD cmb_size, SVGA_CMB_status_t FBPTR st
 		present_fence = fence;
 	}
 	
-	End_Critical_Section();
-	
 	//dbg_printf(dbg_cmd_off, cmb[0]);
+}
+
+void wait_for_cmdbuf()
+{
+	SVGACBHeader *cb;
+	
+	Begin_Critical_Section(0);
+	cb = ((SVGACBHeader *)cmdbuf)-1;
+	WAIT_FOR_CB(cb, 0);
+}
+
+void submit_cmdbuf(DWORD cmdsize, DWORD flags, DWORD dx)
+{
+	SVGA_CMB_submit_critical(cmdbuf, cmdsize, NULL, flags, dx);
+	End_Critical_Section();
+}
+
+void SVGA_CMB_submit(DWORD FBPTR cmb, DWORD cmb_size, SVGA_CMB_status_t FBPTR status, DWORD flags, DWORD DXCtxId)
+{
+	Begin_Critical_Section(0);
+	SVGA_CMB_submit_critical(cmb, cmb_size, status, flags, DXCtxId);
+	End_Critical_Section();
 }
 
 BOOL SVGA_vxdcmd(DWORD cmd)
@@ -902,10 +921,27 @@ BOOL SVGA_vxdcmd(DWORD cmd)
 	return FALSE;
 }
 
-
 static DWORD fb_pm16 = 0;
 static DWORD st_pm16 = 0;
 static DWORD st_address = 0;
+static DWORD st_surface_mb = 0;
+static DWORD st_16bpp = 0;
+
+BOOL st_useable(DWORD bpp)
+{
+	if(st_used)
+	{
+		if(bpp == 32) return TRUE;
+			
+		if(bpp == 16 && st_16bpp)
+		{
+			return TRUE;
+		}
+	}
+	
+	return FALSE;
+}
+
 
 /**
  * Init SVGA-II hardware
@@ -920,6 +956,7 @@ BOOL SVGA_init_hw()
 	DWORD conf_rgb565bug = 1;
 	DWORD conf_cb = 1;
 	DWORD conf_hw_version = SVGA_VERSION_2;
+
 	int rc;
 	
 	/* configs in registry */
@@ -929,6 +966,9 @@ BOOL SVGA_init_hw()
  	RegReadConf(HKEY_LOCAL_MACHINE, SVGA_conf_path, SVGA_conf_cb,         &conf_cb); 
  	RegReadConf(HKEY_LOCAL_MACHINE, SVGA_conf_path, SVGA_conf_hw_version, &conf_hw_version);
  	RegReadConf(HKEY_LOCAL_MACHINE, SVGA_conf_path, SVGA_conf_pref_fifo,  &prefer_fifo);
+ 	
+ 	RegReadConf(HKEY_LOCAL_MACHINE, SVGA_conf_path, SVGA_conf_st_size,    &st_surface_mb);
+ 	RegReadConf(HKEY_LOCAL_MACHINE, SVGA_conf_path, SVGA_conf_st_16b,     &st_16bpp);
  	
  	if(!FBHDA_init_hw())
  	{
@@ -1047,9 +1087,12 @@ BOOL SVGA_init_hw()
 		{
 			SVGA_OTable_load();
 			
-			if(st_memory_allocate(64*1024*1024, &st_address))
+			if(st_surface_mb >= 8)
 			{
-				st_used = TRUE;
+				if(st_memory_allocate(st_surface_mb*1024*1024, &st_address))
+				{
+					st_used = TRUE;
+				}
 			}
 		}
 		
@@ -1059,10 +1102,10 @@ BOOL SVGA_init_hw()
 		/* fill address in FBHDA */
 		if(st_used)
 		{
-			st_pm16 = map_pm16(1, st_address, 64*1024*1024);
+			st_pm16 = map_pm16(1, st_address, st_surface_mb*1024*1024);
 			
 			hda->vram_pm32 = (void*)st_address;
-			hda->vram_size = 64*1024*1024;
+			hda->vram_size = st_surface_mb*1024*1024;
 			hda->vram_pm16 = st_pm16;
 		}
 		else
@@ -1343,7 +1386,7 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 			mob->ptDepth     = SVGA3D_MOBFMT_PTDEPTH_2;
 		}
 		
-		SVGA_CMB_submit(cmdbuf, cmdoff, NULL, SVGA_CB_SYNC, 0);
+		submit_cmdbuf(cmdoff, SVGA_CB_SYNC, 0);
 		
   	rinfo->is_mob = 1;
 	}
@@ -1385,9 +1428,9 @@ void SVGA_region_free(SVGA_region_info_t *rinfo)
   	mob->mobid       = rinfo->region_id;
   	
   	if(saved_in_cache)
-  		SVGA_CMB_submit(cmdbuf, cmdoff, NULL, 0, 0);
+  		submit_cmdbuf(cmdoff, 0, 0);
   	else
-			SVGA_CMB_submit(cmdbuf, cmdoff, NULL, SVGA_CB_SYNC, 0);
+			submit_cmdbuf(cmdoff, SVGA_CB_SYNC, 0);
 	}
 	
 	if(!rinfo->mobonly)
@@ -1499,7 +1542,7 @@ static void SVGA_CB_start()
 		cbe->cbstart.enable  = 1;
 		cbe->cbstart.context = SVGA_CB_CONTEXT_0;
 		
-		SVGA_CMB_submit(cmdbuf, sizeof(cb_enable_t), NULL, SVGA_CB_USE_CONTEXT_DEVICE|SVGA_CB_SYNC, 0);
+		submit_cmdbuf(sizeof(cb_enable_t), SVGA_CB_USE_CONTEXT_DEVICE|SVGA_CB_SYNC, 0);
 		
 		cb_context0 = TRUE;
 	}
@@ -1523,7 +1566,7 @@ static void SVGA_CB_stop()
 		cbe->cbstart.enable  = 0;
 		cbe->cbstart.context = SVGA_CB_CONTEXT_0;
 		
-		SVGA_CMB_submit(cmdbuf, sizeof(cb_enable_t), NULL, SVGA_CB_USE_CONTEXT_DEVICE|SVGA_CB_SYNC, 0);
+		submit_cmdbuf(sizeof(cb_enable_t), SVGA_CB_USE_CONTEXT_DEVICE|SVGA_CB_SYNC, 0);
 	}
 }
 
@@ -1638,7 +1681,7 @@ static void SVGA_defineScreen(DWORD w, DWORD h, DWORD bpp)
 	  }
 	}
 	
-	SVGA_CMB_submit(cmdbuf, cmdoff, NULL, SVGA_CB_SYNC/*|SVGA_CB_FORCE_FIFO*/, 0);
+	submit_cmdbuf(cmdoff, SVGA_CB_SYNC/*|SVGA_CB_FORCE_FIFO*/, 0);
 }
 
 /**
@@ -1678,7 +1721,7 @@ void SVGA_OTable_load()
 		}
 	}
 
-	SVGA_CMB_submit(cmdbuf, cmd_offset, NULL, SVGA_CB_SYNC, 0);
+	submit_cmdbuf(cmd_offset, SVGA_CB_SYNC, 0);
 }
 
 /**
@@ -1828,7 +1871,7 @@ BOOL SVGA_setmode(DWORD w, DWORD h, DWORD bpp)
 	if(st_useable(bpp))
 	{		
 		hda->vram_pm32 = (void*)st_address;
-		hda->vram_size = 64*1024*1024;
+		hda->vram_size = st_surface_mb*1024*1024;
 		hda->vram_pm16 = st_pm16;
 	}
 	else
@@ -1840,8 +1883,20 @@ BOOL SVGA_setmode(DWORD w, DWORD h, DWORD bpp)
 
 	hda->width   = SVGA_ReadReg(SVGA_REG_WIDTH);
 	hda->height  = SVGA_ReadReg(SVGA_REG_HEIGHT);
-	hda->bpp     = SVGA_ReadReg(SVGA_REG_BITS_PER_PIXEL);
-	hda->pitch   = SVGA_ReadReg(SVGA_REG_BYTES_PER_LINE);
+	if(st_useable(bpp))
+	{
+		/*
+		 when screen target is used, screen bpp and pitch may be different from 
+		 backscreen surface.
+		 */
+		hda->bpp     = bpp;
+		hda->pitch   = SVGA_pitch(hda->width, bpp);
+	}
+	else
+	{
+		hda->bpp     = SVGA_ReadReg(SVGA_REG_BITS_PER_PIXEL);
+		hda->pitch   = SVGA_ReadReg(SVGA_REG_BYTES_PER_LINE);
+	}
 	hda->stride  = hda->height * hda->pitch;
 	hda->surface = 0;
 
@@ -2035,7 +2090,7 @@ void FBHDA_access_begin(DWORD flags)
 				
 				gbreadback = SVGA_cmd3d_ptr(cmdbuf, &cmd_offset, SVGA_3D_CMD_READBACK_GB_SURFACE, sizeof(SVGA3dCmdReadbackGBSurface));
 				gbreadback->sid = ST_SURFACE_ID;
-				SVGA_CMB_submit(cmdbuf, cmd_offset, NULL, SVGA_CB_SYNC, 0);
+				submit_cmdbuf(cmd_offset, SVGA_CB_SYNC, 0);
 			}
 		}
 		
@@ -2073,7 +2128,7 @@ void FBHDA_access_end(DWORD flags)
 	  	stupdate->rect.w = hda->width;
 	  	stupdate->rect.h = hda->height;
 
-			SVGA_CMB_submit(cmdbuf, cmd_offset, NULL, SVGA_CB_PRESENT_ASYNC, 0);
+			submit_cmdbuf(cmd_offset, SVGA_CB_PRESENT_ASYNC, 0);
 		}
 	  else if(hda->bpp == 32)
 	  {
@@ -2088,7 +2143,7 @@ void FBHDA_access_end(DWORD flags)
 	  	cmd_update->width  = hda->width;
 	  	cmd_update->height = hda->height;
 	  	
-			SVGA_CMB_submit(cmdbuf, cmd_offset, NULL, SVGA_CB_PRESENT_ASYNC, 0);
+			submit_cmdbuf(cmd_offset, SVGA_CB_PRESENT_ASYNC, 0);
 	  }
 	} // fb_lock_cnt == 0
 	
