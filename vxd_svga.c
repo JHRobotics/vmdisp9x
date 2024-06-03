@@ -1735,6 +1735,9 @@ BOOL SVGA_validmode(DWORD w, DWORD h, DWORD bpp)
 		case 16:
 		case 32:
 			break;
+		case 24:
+			if(!st_useable(24)) return FALSE;
+			break;
 		default:
 			return FALSE;
 	}
@@ -1787,18 +1790,28 @@ BOOL SVGA_setmode(DWORD w, DWORD h, DWORD bpp)
 	/* Make sure, that we drain full FIFO */
 	SVGA_Sync();
 	SVGA_Flush_CB_critical(); 
-      
-	/* stop command buffer context 0 */
-	SVGA_CB_stop();
 	
+#if 0
 	/* delete old screen at its objects */
 	if(SVGA_hasAccelScreen())
 	{
 		if(st_used)
 		{
 			st_destroyScreen();
+			SVGA_Sync();
+			SVGA_Flush_CB_critical(); 
 		}
 	}
+	/* JH: OK, we should normally clean after ourselves,
+	       but VirtualBox GUI can crash if there are
+	       no surface to draw. Anyway, when we touch legacy
+	       screen registers all screen objects will be
+	       reset.
+	 */
+#endif
+
+	/* stop command buffer context 0 */
+	SVGA_CB_stop();
   
    /* setup by legacy registry */
   if(st_useable(bpp))
@@ -1869,7 +1882,7 @@ BOOL SVGA_setmode(DWORD w, DWORD h, DWORD bpp)
 	}
 	
 	if(st_useable(bpp))
-	{		
+	{
 		hda->vram_pm32 = (void*)st_address;
 		hda->vram_size = st_surface_mb*1024*1024;
 		hda->vram_pm16 = st_pm16;

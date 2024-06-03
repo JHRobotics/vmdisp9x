@@ -377,10 +377,18 @@ UINT WINAPI __loadds Enable( LPVOID lpDevice, UINT style, LPSTR lpDeviceType,
          * faster than most mid-1990s graphics cards.
          */
         lpInfo->dpCaps1 |= C1_COLORCURSOR | C1_REINIT_ABLE | C1_BYTE_PACKED | C1_GLYPH_INDEX; /* | C1_SLOW_CARD */;
-        //lpInfo->dpCaps1 &= ~C1_GLYPH_INDEX;
         lpInfo->dpText |= TC_CP_STROKE | TC_RA_ABLE;
-        
+
+#if 0        
+        /* JH: screen target implementation is much slower for DIB than classical
+         * frame buffer access. So set C1_SLOW_CARD for this case.
+         */
+        if(hda->flags & FB_ACCEL_VMSVGA10_ST)
+        {
+          lpInfo->dpCaps1 |= C1_SLOW_CARD;
+        }
         dbg_printf( "lpInfo->dpCaps1: %lX\n", (DWORD)lpInfo->dpCaps1);
+#endif
 
         /* Grab the DIB Engine PDevice size before we add to it. */
         wDIBPdevSize = lpInfo->dpDEVICEsize;

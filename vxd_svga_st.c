@@ -174,19 +174,19 @@ void st_destroyScreen()
 	SVGA3dCmdDestroyGBScreenTarget *stid;
 	SVGA3dCmdDestroyGBSurface      *gbsurf;
 	DWORD cmdoff = 0;
-	
+
 	if(st_defined)
 	{
 		wait_for_cmdbuf();
-		
+
 		stid = SVGA_cmd3d_ptr(cmdbuf, &cmdoff, SVGA_3D_CMD_DESTROY_GB_SCREENTARGET, sizeof(SVGA3dCmdDestroyGBScreenTarget));
  		stid->stid = 0;
- 	
+
  		gbsurf = SVGA_cmd3d_ptr(cmdbuf, &cmdoff, SVGA_3D_CMD_DESTROY_GB_SURFACE, sizeof(SVGA3dCmdDestroyGBSurface));
  		gbsurf->sid = ST_SURFACE_ID;
- 		
+
  		submit_cmdbuf(cmdoff, SVGA_CB_SYNC, 0);
- 		
+
  		st_defined = FALSE;
  	}
 }
