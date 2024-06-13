@@ -31,6 +31,10 @@ THE SOFTWARE.
 
 #include "cursor.h"
 
+#ifdef SVGA
+#include "vxd_svga.h"
+#endif
+
 #include "code32.h"
 
 extern FBHDA_t *hda;
@@ -96,6 +100,16 @@ BOOL mouse_load()
 	DWORD cbw;
 	
 	if(!mouse_buffer_mem) return FALSE;
+		
+#ifdef SVGA
+	if(SVGA_mouse_hw())
+	{
+		BOOL r = SVGA_mouse_load();
+		mouse_valid = FALSE;
+		mouse_notify_accel();
+		return r;
+	}
+#endif
 
 	cur = (CURSORSHAPE*)mouse_buffer_mem;
 	
@@ -188,6 +202,14 @@ BOOL mouse_load()
 
 void mouse_move(int x, int y)
 {
+#ifdef SVGA
+	if(SVGA_mouse_hw())
+	{
+		SVGA_mouse_move(x, y);
+		return;
+	}
+#endif
+	
 	if(mouse_valid && mouse_visible && !mouse_empty)
 	{
 		FBHDA_access_begin(0);
@@ -204,6 +226,14 @@ void mouse_move(int x, int y)
 
 void mouse_show()
 {
+#ifdef SVGA
+	if(SVGA_mouse_hw())
+	{
+		SVGA_mouse_show();
+		return;
+	}
+#endif
+	
 	mouse_visible = TRUE;
 	
 	mouse_notify_accel();
@@ -211,6 +241,14 @@ void mouse_show()
 
 void mouse_hide()
 {
+#ifdef SVGA
+	if(SVGA_mouse_hw())
+	{
+		SVGA_mouse_hide();
+		return;
+	}
+#endif
+	
 	FBHDA_access_begin(0);
 	mouse_visible = FALSE;
 	FBHDA_access_end(0);
@@ -220,6 +258,14 @@ void mouse_hide()
 
 void mouse_invalidate()
 {
+#ifdef SVGA
+	if(SVGA_mouse_hw())
+	{
+		SVGA_mouse_hide();
+		return;
+	}
+#endif
+	
 	mouse_valid = FALSE;
 	
 	mouse_notify_accel();

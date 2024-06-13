@@ -14,7 +14,7 @@ BOOL st_memory_allocate(DWORD size, DWORD *out);
 void st_defineScreen(DWORD w, DWORD h, DWORD bpp);
 void st_destroyScreen();
 void SVGA_OTable_load();
-SVGA_DB_surface_t *SVGA_GetSurfaceInfo(uint32 sid);
+SVGA_DB_surface_t *SVGA_GetSurfaceInfo(DWORD sid);
 
 #define ST_REGION_ID 1
 #define ST_SURFACE_ID 1
@@ -22,5 +22,12 @@ SVGA_DB_surface_t *SVGA_GetSurfaceInfo(uint32 sid);
 BOOL st_useable(DWORD bpp);
 
 DWORD map_pm16(DWORD vm, DWORD linear, DWORD size);
+
+/* mouse */
+BOOL SVGA_mouse_hw();
+BOOL SVGA_mouse_load();
+void SVGA_mouse_move(int x, int y);
+void SVGA_mouse_show();
+void SVGA_mouse_hide();
 
 #endif /* __VXD_SVGA_H__INCLUDED__ */

@@ -509,7 +509,7 @@ void SVGA_region_usage_reset()
 	svga_db->stat_regions_usage = 0;
 }
 
-SVGA_DB_surface_t *SVGA_GetSurfaceInfo(uint32 sid)
+SVGA_DB_surface_t *SVGA_GetSurfaceInfo(DWORD sid)
 {
 	if(sid > 0 && sid < SVGA3D_MAX_SURFACE_IDS)	
 		return &(svga_db->surfaces[sid-1]);

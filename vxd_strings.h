@@ -130,6 +130,10 @@ DSTR(dbg_lock_fb, "Lock FB buffer: %ld (line: %ld)\n");
 
 DSTR(dbg_cpu_lock, "surface cpu lock for SID: %ld\n");
 
+DSTR(dbg_hw_mouse_move, "hw mouse: moving: %ld x %ld (visible: %d, valid: %d)\n");
+DSTR(dbg_hw_mouse_show, "hw mouse: show (valid: %d)\n");
+DSTR(dbg_hw_mouse_hide, "hw mouse: hide\n");
+
 #undef DSTR
 
 #endif

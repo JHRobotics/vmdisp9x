@@ -117,6 +117,7 @@ void st_defineScreen(DWORD w, DWORD h, DWORD bpp)
 	stid->height = h;
 	stid->xRoot = 0;
 	stid->yRoot = 0;
+	stid->dpi   = 96;
 	
 	submit_cmdbuf(cmdoff, SVGA_CB_SYNC, 0);
 	
