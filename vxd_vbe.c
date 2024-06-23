@@ -318,6 +318,11 @@ void FBHDA_access_begin(DWORD flags)
 	}
 }
 
+void FBHDA_access_rect(DWORD left, DWORD top, DWORD right, DWORD bottom)
+{
+	FBHDA_access_begin(0);
+}
+
 void FBHDA_access_end(DWORD flags)
 {
 	fb_lock_cnt--;

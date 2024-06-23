@@ -33,25 +33,28 @@ THE SOFTWARE.
 #endif
 #endif
 
-#define API_3DACCEL_VER 20240514
+#define API_3DACCEL_VER 20240621
+
+#define ESCAPE_DRV_NT         0x1103 /* (4355) */
 
 /* function codes */
 #define OP_FBHDA_SETUP        0x110B /* VXD, DRV, ExtEscape */
-#define OP_FBHDA_ACCESS_BEGIN 0x110C /* VXD, DRV */
-#define OP_FBHDA_ACCESS_END   0x110D /* VXD, DRV */
-#define OP_FBHDA_SWAP         0x110E /* VXD, DRV */
-#define OP_FBHDA_CLEAN        0x110F /* VXD, DRV */
-#define OP_FBHDA_PALETTE_SET  0x1110 /* VXD, DRV */
-#define OP_FBHDA_PALETTE_GET  0x1111 /* VXD, DRV */
+#define OP_FBHDA_ACCESS_BEGIN 0x110C /* VXD, DRV, ESCAPE_DRV_NT */
+#define OP_FBHDA_ACCESS_END   0x110D /* VXD, DRV, ESCAPE_DRV_NT */
+#define OP_FBHDA_SWAP         0x110E /* VXD, DRV, ESCAPE_DRV_NT */
+#define OP_FBHDA_CLEAN        0x110F /* VXD, DRV, ESCAPE_DRV_NT */
+#define OP_FBHDA_PALETTE_SET  0x1110 /* VXD, DRV, ESCAPE_DRV_NT */
+#define OP_FBHDA_PALETTE_GET  0x1111 /* VXD, DRV, ESCAPE_DRV_NT */
+#define OP_FBHDA_ACCESS_RECT  0x1112 /* VXD, DRV, ESCAPE_DRV_NT */
 
-#define OP_SVGA_VALID         0x2000  /* VXD, DRV */
+#define OP_SVGA_VALID         0x2000  /* VXD, DRV, ESCAPE_DRV_NT */
 #define OP_SVGA_SETMODE       0x2001  /* DRV */
 #define OP_SVGA_VALIDMODE     0x2002  /* DRV */
 #define OP_SVGA_HW_ENABLE     0x2003  /* DRV */
 #define OP_SVGA_HW_DISABLE    0x2004  /* DRV */
-#define OP_SVGA_CMB_ALLOC     0x2005  /* VXD, DRV */
-#define OP_SVGA_CMB_FREE      0x2006  /* VXD, DRV */
-#define OP_SVGA_CMB_SUBMIT    0x2007  /* VXD, DRV */
+#define OP_SVGA_CMB_ALLOC     0x2005  /* VXD, DRV, ESCAPE_DRV_NT */
+#define OP_SVGA_CMB_FREE      0x2006  /* VXD, DRV, ESCAPE_DRV_NT */
+#define OP_SVGA_CMB_SUBMIT    0x2007  /* VXD, DRV, ESCAPE_DRV_NT */
 #define OP_SVGA_FENCE_GET     0x2008  /* VXD */
 #define OP_SVGA_FENCE_QUERY   0x2009  /* VXD */
 #define OP_SVGA_FENCE_WAIT    0x200A  /* VXD */
@@ -64,11 +67,11 @@ THE SOFTWARE.
 #define OP_SVGA_FLUSHCACHE    0x2011  /* VXD */
 #define OP_SVGA_VXDCMD        0x2012  /* VXD */
 
-#define OP_VBE_VALID          0x3000 /* VXD, DRV */
+#define OP_VBE_VALID          0x3000 /* VXD, DRV, ESCAPE_DRV_NT */
 #define OP_VBE_SETMODE        0x3001 /* DRV */
 #define OP_VBE_VALIDMODE      0x3002 /* DRV */
 
-#define OP_VESA_VALID         0x4000 /* VXD, DRV */
+#define OP_VESA_VALID         0x4000 /* VXD, DRV, ESCAPE_DRV_NT */
 #define OP_VESA_SETMODE       0x4001 /* DRV */
 #define OP_VESA_VALIDMODE     0x4002 /* DRV */
 
@@ -107,7 +110,7 @@ typedef struct FBHDA
            void __far *vram_pm16;
 #endif
 	         DWORD vram_size;
-	         char vxdname[16];
+	         char vxdname[16]; /* file name or "NT" */
 } FBHDA_t;
 
 #define FB_SUPPORT_FLIPING     1
@@ -139,6 +142,7 @@ void FBHDA_free();
 
 void FBHDA_access_begin(DWORD flags);
 void FBHDA_access_end(DWORD flags);
+void FBHDA_access_rect(DWORD left, DWORD top, DWORD right, DWORD bottom);
 BOOL FBHDA_swap(DWORD offset);
 void FBHDA_clean();
 

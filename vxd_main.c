@@ -256,6 +256,10 @@ WORD __stdcall VXD_API_Proc(PCRS_32 state)
 			FBHDA_access_end(state->Client_ECX);
 			rc = 1;
 			break;
+		case OP_FBHDA_ACCESS_RECT:
+			FBHDA_access_rect(state->Client_EBX, state->Client_ECX, state->Client_ESI, state->Client_EDI);
+			rc = 1;
+			break;
 		case OP_FBHDA_SWAP:
 			{
 				BOOL rs;
@@ -505,6 +509,9 @@ DWORD __stdcall Device_IO_Control_proc(DWORD vmhandle, struct DIOCParams *params
 			return 0;
 		case OP_FBHDA_ACCESS_END:
 			FBHDA_access_end(inBuf[0]);
+			return 0;
+		case OP_FBHDA_ACCESS_RECT:
+			FBHDA_access_rect(inBuf[0], inBuf[1], inBuf[2], inBuf[3]);
 			return 0;
 		case OP_FBHDA_SWAP:
 			outBuf[0] = FBHDA_swap(inBuf[0]);

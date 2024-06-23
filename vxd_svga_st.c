@@ -47,6 +47,7 @@ THE SOFTWARE.
 #define SVGA3D_SURFACE_BIND_RENDER_TARGET     (1 << 24)
 
 BOOL st_used = FALSE;
+DWORD st_flags = 0;
 static BOOL st_defined = FALSE;
 
 static SVGA_region_info_t st_region;

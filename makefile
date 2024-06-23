@@ -12,7 +12,7 @@ OBJS += &
 
 INCS = -I$(%WATCOM)\h\win -Iddk -Ivmware
 
-VER_BUILD = 48
+VER_BUILD = 54
 
 FLAGS = -DDRV_VER_BUILD=$(VER_BUILD)
 
@@ -35,7 +35,7 @@ FIXER_CC  = wcl386 -q drvfix.c -fe=$(FIXER_EXE)
 #FLAGS += -DHWBLT
 
 # Set DBGPRINT to add debug printf logging.
-DBGPRINT = 1
+#DBGPRINT = 1
 
 !ifdef DBGPRINT
 FLAGS += -DDBGPRINT

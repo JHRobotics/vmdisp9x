@@ -169,6 +169,44 @@ void FBHDA_access_end(DWORD flags)
 	}
 }
 
+void FBHDA_access_rect(DWORD left, DWORD top, DWORD right, DWORD bottom)
+{
+	static DWORD sL;
+	static DWORD sTop;
+	static DWORD sR;
+	static DWORD sB;
+	
+	sL = left;
+	sTop = top;
+	sR = right;
+	sB = bottom;
+	
+	_asm
+	{
+		.386
+		push eax
+		push edx
+		push ebx
+		push ecx
+		push esi
+		push edi
+		
+	  mov edx, OP_FBHDA_ACCESS_RECT
+	  mov ebx, [sL]
+	  mov ecx, [sTop]
+	  mov esi, [sR]
+	  mov edi, [sB]
+	  call dword ptr [VXD_VM]
+	  
+	  pop edi
+	  pop esi
+	  pop ecx
+	  pop ebx
+	  pop edx
+		pop eax
+	}
+}
+
 BOOL FBHDA_swap(DWORD offset)
 {
 	static DWORD sOffset;

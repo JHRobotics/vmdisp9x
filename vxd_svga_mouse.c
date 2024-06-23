@@ -193,9 +193,12 @@ BOOL SVGA_mouse_hw()
 {
 	if(st_used)
 	{
-		if(SVGA_HasFIFOCap(SVGA_FIFO_CAP_CURSOR_BYPASS_3))
+		if(st_flags & ST_CURSOR)
 		{
-			return TRUE;
+			if(SVGA_HasFIFOCap(SVGA_FIFO_CAP_CURSOR_BYPASS_3))
+			{
+				return TRUE;
+			}
 		}
 	}
 	
@@ -232,15 +235,18 @@ void SVGA_mouse_show()
 void SVGA_mouse_hide()
 {
 	dbg_printf(dbg_hw_mouse_hide);
-	if(hw_cursor_valid)
+
+	gSVGA.fifoMem[SVGA_FIFO_CURSOR_SCREEN_ID] = 0;
+	gSVGA.fifoMem[SVGA_FIFO_CURSOR_ON] = 0;
+		
+	/* vbox bug, move cursor outside screen */
+	if((st_flags & ST_CURSOR_HIDEABLE) == 0)
 	{
-		gSVGA.fifoMem[SVGA_FIFO_CURSOR_SCREEN_ID] = 0;
-		gSVGA.fifoMem[SVGA_FIFO_CURSOR_ON] = 0;
-		/* vbox bug, move cursor outside screen */
 		gSVGA.fifoMem[SVGA_FIFO_CURSOR_X] = hda->width;
 		gSVGA.fifoMem[SVGA_FIFO_CURSOR_Y] = hda->height;
-		gSVGA.fifoMem[SVGA_FIFO_CURSOR_COUNT]++;
 	}
+		
+	gSVGA.fifoMem[SVGA_FIFO_CURSOR_COUNT]++;
 	
 	hw_cursor_visible = FALSE;
 }

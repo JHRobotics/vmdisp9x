@@ -9,7 +9,8 @@ void *SVGA_cmd3d_ptr(DWORD *buf, DWORD *pOffset, DWORD cmd, DWORD cmdsize);
 DWORD SVGA_pitch(DWORD width, DWORD bpp);
 void SVGA_region_usage_reset();
 
-extern BOOL st_used;
+extern BOOL  st_used;
+extern DWORD st_flags;
 BOOL st_memory_allocate(DWORD size, DWORD *out);
 void st_defineScreen(DWORD w, DWORD h, DWORD bpp);
 void st_destroyScreen();
@@ -18,6 +19,10 @@ SVGA_DB_surface_t *SVGA_GetSurfaceInfo(DWORD sid);
 
 #define ST_REGION_ID 1
 #define ST_SURFACE_ID 1
+
+#define ST_16BPP   1
+#define ST_CURSOR  2
+#define ST_CURSOR_HIDEABLE 3
 
 BOOL st_useable(DWORD bpp);
 
