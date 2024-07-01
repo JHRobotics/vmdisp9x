@@ -147,7 +147,7 @@ VOID WINAPI __loadds BeginAccess_VXD( LPPDEVICE lpDevice, WORD wLeft, WORD wTop,
 {
 	if(wFlags & CURSOREXCLUDE)
 	{
-		FBHDA_access_rect(wLeft, wTop, wRight, wBottom);
+		FBHDA_access_rect(wLeft, wTop, wRight+1, wBottom+1);
 //		FBHDA_access_begin(dflags);
 	}
 	if(!mouse_vxd)

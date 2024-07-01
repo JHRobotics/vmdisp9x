@@ -56,7 +56,6 @@ qxlmini.vxd=1
 ;syscopy:ddsys.dll=1,sys
 ;syscopy:msd3d8.dll=1,sys
 ;syscopy:msd3d9.dll=1,sys
-
 ;vmhal:vmhal9x.dll=1
 
 [Manufacturer]
@@ -68,32 +67,32 @@ qxlmini.vxd=1
 %VBoxVideoVM2.DeviceDesc%=VMSvga, PCI\VEN_15AD&DEV_0405&SUBSYS_040515AD
 ;svga3:%VBoxVideoVM3.DeviceDesc%=VMSvga, PCI\VEN_15AD&DEV_0406&SUBSYS_040615AD
 %QemuStd.DeviceDesc%=Qemu, PCI\VEN_1234&DEV_1111
-%QemuQXL.DeviceDesc%=QXL, PCI\VEN_1B36&DEV_0100
+;qxl;%QemuQXL.DeviceDesc%=QXL, PCI\VEN_1B36&DEV_0100
 
 [VBox]
 CopyFiles=VBox.Copy,Dx.Copy,DX.CopyBackup,Voodoo.Copy
 DelReg=VM.DelReg
-AddReg=VBox.AddReg,VM.AddReg,DX.addReg
+AddReg=VBox.AddReg,VM.AddReg,DX.addReg,VM.regextra
 
 [Qemu]
 CopyFiles=Qemu.Copy,Dx.Copy,DX.CopyBackup,Voodoo.Copy
 DelReg=VM.DelReg
-AddReg=Qemu.AddReg,VM.AddReg,DX.addReg
+AddReg=Qemu.AddReg,VM.AddReg,DX.addReg,VM.regextra
 
 [QXL]
 CopyFiles=QXL.Copy,Dx.Copy,DX.CopyBackup,Voodoo.Copy
 DelReg=VM.DelReg
-AddReg=QXL.AddReg,VM.AddReg,DX.addReg
+AddReg=QXL.AddReg,VM.AddReg,DX.addReg,VM.regextra
 
 [VBoxSvga]
 CopyFiles=VMSvga.Copy,Dx.Copy,DX.CopyBackup,Voodoo.Copy
 DelReg=VM.DelReg
-AddReg=VMSvga.AddReg,VM.AddReg,DX.addReg
+AddReg=VMSvga.AddReg,VM.AddReg,DX.addReg,VM.regextra
 
 [VMSvga]
 CopyFiles=VMSvga.Copy,Dx.Copy,DX.CopyBackup,Voodoo.Copy
 DelReg=VM.DelReg
-AddReg=VMSvga.AddReg,VM.AddReg,DX.addReg
+AddReg=VMSvga.AddReg,VM.AddReg,DX.addReg,VM.regextra
 
 [VBox.Copy]
 boxvmini.drv,,,0x00000004
@@ -257,7 +256,7 @@ HKLM,Software\Microsoft\Windows\CurrentVersion\OpenGLdrivers,QEMUFX,2,"qmfxgl32.
 ;mesa:HKLM,Software\Microsoft\Windows\CurrentVersion\OpenGLdrivers,VMWSVGA,2,"vmwsgl32.dll"
 ;mesa:HKLM,Software\Mesa3D\global,LP_NATIVE_VECTOR_WIDTH,,128
 ;mesa:HKLM,Software\Mesa3D\global,SVGA_CLEAR_DX_FLAGS,,0
-;mesa:HKLM,Software\Mesa3D\global,SVGA_GMR_LIMIT,,256
+
 
 [DX.addReg]
 ;mefix:HKLM,System\CurrentControlSet\Control\SessionManager\KnownDLLs,DDRAW,2,"ddrawme.dll"
@@ -398,3 +397,7 @@ VBoxVideoVM2.DeviceDesc="VMWare SVGA-II PCI Adapter"
 VBoxVideoVM3.DeviceDesc="VMWare SVGA-III PCI Adapter"
 QemuStd.DeviceDesc="QEMU STD VGA PCI Adapter"
 QemuQXL.DeviceDesc="QEMU QXL VGA PCI Adapter"
+
+[VM.regextra]
+; extra registry section for installers (eg. SoftGPU)
+; please do not add any other section below these lines!
