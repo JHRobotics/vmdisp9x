@@ -22,7 +22,7 @@ SVGA_DB_surface_t *SVGA_GetSurfaceInfo(DWORD sid);
 
 #define ST_16BPP   1
 #define ST_CURSOR  2
-#define ST_CURSOR_HIDEABLE 3
+#define ST_CURSOR_HIDEABLE 4
 
 BOOL st_useable(DWORD bpp);
 
@@ -33,6 +33,6 @@ BOOL SVGA_mouse_hw();
 BOOL SVGA_mouse_load();
 void SVGA_mouse_move(int x, int y);
 void SVGA_mouse_show();
-void SVGA_mouse_hide();
+void SVGA_mouse_hide(BOOL invalidate);
 
 #endif /* __VXD_SVGA_H__INCLUDED__ */

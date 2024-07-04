@@ -402,9 +402,26 @@ void __cdecl _Allocate_GDT_Selector(ULONG DescHigh, ULONG DescLow, ULONG flags, 
 	}
 }
 
-ULONG __declspec(naked) __cdecl _PageAllocate(ULONG nPages, ULONG pType, ULONG VM, ULONG AlignMask, ULONG minPhys, ULONG maxPhys, ULONG *PhysAddr, ULONG flags)
+static ULONG __declspec(naked) __cdecl _PageAllocate_call(ULONG nPages, ULONG pType, ULONG VM, ULONG AlignMask, ULONG minPhys, ULONG maxPhys, ULONG *PhysAddr, ULONG flags)
 {
 	VMMJmp(_PageAllocate);
+}
+
+ULONG __cdecl _PageAllocate(ULONG nPages, ULONG pType, ULONG VM, ULONG AlignMask, ULONG minPhys, ULONG maxPhys, ULONG *PhysAddr, ULONG flags)
+{
+	ULONG r = _PageAllocate_call(nPages, pType, VM, AlignMask, minPhys, maxPhys, PhysAddr, flags);
+	
+	/* do examplicit TLB flush, help much for stability.
+	 * There is probably another TLB bug in VMM...
+	 */
+	_asm
+	{
+		push eax
+		mov eax, cr3
+		mov cr3, eax
+		pop eax
+	};
+	return r;
 }
 
 ULONG __declspec(naked) __cdecl _PageFree(PVOID hMem, DWORD flags)

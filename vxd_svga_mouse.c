@@ -148,13 +148,14 @@ BOOL SVGA_mouse_load()
 	void *mb;
 	CURSORSHAPE *cur;
 	
-	SVGA_mouse_hide();
-	
-	hw_cursor_valid = FALSE;
+	SVGA_mouse_hide(TRUE);
 	
 	mb = mouse_buffer();
 	
-	if(!mb) return FALSE;
+	if(!mb)
+	{
+		return FALSE;
+	}
 	cur = (CURSORSHAPE*)mb;
 	
 	if(cur->cx == 0 || cur->cy == 0)
@@ -232,13 +233,13 @@ void SVGA_mouse_show()
 	}
 }
 
-void SVGA_mouse_hide()
+void SVGA_mouse_hide(BOOL invalidate)
 {
 	dbg_printf(dbg_hw_mouse_hide);
 
 	gSVGA.fifoMem[SVGA_FIFO_CURSOR_SCREEN_ID] = 0;
 	gSVGA.fifoMem[SVGA_FIFO_CURSOR_ON] = 0;
-		
+	
 	/* vbox bug, move cursor outside screen */
 	if((st_flags & ST_CURSOR_HIDEABLE) == 0)
 	{
@@ -247,6 +248,11 @@ void SVGA_mouse_hide()
 	}
 		
 	gSVGA.fifoMem[SVGA_FIFO_CURSOR_COUNT]++;
+	
+	if(invalidate)
+	{
+		hw_cursor_valid = FALSE;
+	}
 	
 	hw_cursor_visible = FALSE;
 }

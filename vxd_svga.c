@@ -868,14 +868,14 @@ void SVGA_CMB_submit_critical(DWORD FBPTR cmb, DWORD cmb_size, SVGA_CMB_status_t
 			if(status)
 			{
 				status->sStatus = SVGA_PROC_FENCE;
-				status->fifo_fence_used = fence;
 				status->qStatus = NULL;
+				status->fifo_fence_used = fence;
 			}
 		}
 		
 		cb->status = SVGA_PROC_COMPLETED;
 		last_cb = NULL;
-	}
+	} /* FIFO */
 	
 	if(status)
 	{
@@ -1152,14 +1152,24 @@ static DWORD getPPN(DWORD virtualaddr)
  **/
 BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 {
-	ULONG phy = 0;
+	//ULONG phy = 0;
 	ULONG laddr;
 	ULONG pgblk;
 	ULONG new_size = RoundTo4k(rinfo->size);	
 	ULONG nPages = RoundToPages(new_size);
 	//ULONG nPages = RoundToPages64k(rinfo->size);
-
+	ULONG pa_vm = ThisVM;
+	ULONG pa_type = PG_VM;
 	SVGAGuestMemDescriptor *desc;
+	ULONG size_total = 0;
+
+#if 0
+	if(svga_db->stat_regions_usage > (300*1024*1024))
+	{
+		pa_vm = 0;
+		pa_type = PG_SYS;
+	}
+#endif
 	
 	rinfo->size = new_size;
 	
@@ -1171,9 +1181,10 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 	}
 	
 	//dbg_printf(dbg_pages, rinfo->size, nPages, P_SIZE);
-	
+#if 0
+	/* JH: OK, using PAGECONTIG leads to very fast memory exhaustion, so using only slower way! */
 	/* first try to allocate continuous physical memory space, 1st page is used for GMR descriptor */
-	laddr = _PageAllocate(nPages+1, PG_VM, ThisVM, 0, 0x0, 0x100000, &phy, PAGECONTIG | PAGEUSEALIGN | PAGEFIXED);
+	laddr = _PageAllocate(nPages+1, pa_type, pa_vm, 0, 0x0, 0x100000, &phy, PAGECONTIG | PAGEUSEALIGN | PAGEFIXED);
 	
 	if(laddr)
 	{
@@ -1191,8 +1202,11 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 		rinfo->mob_ppn        = (phy/P_SIZE)+1;
 		
 		//dbg_printf(dbg_region_simple, laddr, rinfo->address);
+		
+		size_total = (nPages+1)*P_SIZE;
 	}
 	else
+#endif
 	{
 		/* memory is too fragmented to create this large continous region */
 		ULONG taddr;
@@ -1202,12 +1216,13 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 		ULONG base_cnt;
 		ULONG blocks = 1;
 		ULONG blk_pages = 0;
+		ULONG mob_pages = 0;
 		
 		DWORD *mob = NULL;
-		DWORD mobphy = 0;
+		//DWORD mobphy = 0;
 		
 		/* allocate user block */
-		laddr = _PageAllocate(nPages, PG_VM, ThisVM, 0, 0x0, 0x100000, NULL, PAGEFIXED);
+		laddr = _PageAllocate(nPages, pa_type, pa_vm, 0, 0x0, 0x100000, NULL, PAGEFIXED);
 		
 		if(!laddr)
 		{
@@ -1242,7 +1257,7 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 		blk_pages = ((blocks+blk_pages+1)/(P_SIZE/sizeof(SVGAGuestMemDescriptor))) + 1;
 		
 		/* allocate memory for GMR descriptor */
-		pgblk = _PageAllocate(blk_pages, PG_VM, ThisVM, 0, 0x0, 0x100000, NULL, PAGEFIXED);
+		pgblk = _PageAllocate(blk_pages, pa_type, pa_vm, 0, 0x0, 0x100000, NULL, PAGEFIXED);
 		if(!pgblk)
 		{
 			_PageFree((PVOID)laddr, 0);
@@ -1291,8 +1306,10 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 		{
 			int i;
 			/* for simplicity we're always creating table of depth 2, first page is page of PPN pages */
-			mob = (DWORD *)_PageAllocate(1 + (nPages + PTONPAGE - 1)/PTONPAGE, PG_VM, ThisVM, 0, 0x0, 0x100000, &mobphy, PAGECONTIG | PAGEUSEALIGN | PAGEFIXED);
-				
+			//mob = (DWORD *)_PageAllocate(1 + (nPages + PTONPAGE - 1)/PTONPAGE, pa_type, pa_vm, 0, 0x0, 0x100000, &mobphy, PAGECONTIG | PAGEUSEALIGN | PAGEFIXED);
+			mob_pages = 1 + (nPages + PTONPAGE - 1)/PTONPAGE;
+			mob = (DWORD *)_PageAllocate(mob_pages, pa_type, pa_vm, 0, 0x0, 0x100000, 0, PAGEFIXED);
+			
 			if(!mob)
 			{
 				_PageFree((PVOID)laddr, 0);
@@ -1302,9 +1319,10 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 			}
 			
 			/* dim 1 */
-			for(i = 0; i < (nPages + PTONPAGE - 1)/PTONPAGE; i++)
+			for(i = 0; i < mob_pages-1; i++)
 			{
-				mob[i] = (mobphy/P_SIZE) + i + 1;
+				//mob[i] = (mobphy/P_SIZE) + i + 1;
+				mob[i] = getPPN(((ULONG)mob) + ((i + 1)*P_SIZE));
 			}
 			/* dim 2 */
 			for(i = 0; i < nPages; i++)
@@ -1320,8 +1338,11 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 		rinfo->mob_ppn        = 0;
 		if(mob)
 		{
-			rinfo->mob_ppn        = mobphy/P_SIZE;
+			//rinfo->mob_ppn        = mobphy/P_SIZE;
+			rinfo->mob_ppn        = getPPN((ULONG)mob);
 		}
+		
+		size_total = (nPages + blk_pages + mob_pages)*P_SIZE;
 		
 		//dbg_printf(dbg_region_fragmented);
 	}

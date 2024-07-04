@@ -244,7 +244,7 @@ void mouse_hide()
 #ifdef SVGA
 	if(SVGA_mouse_hw())
 	{
-		SVGA_mouse_hide();
+		SVGA_mouse_hide(FALSE);
 		return;
 	}
 #endif
@@ -261,7 +261,7 @@ void mouse_invalidate()
 #ifdef SVGA
 	if(SVGA_mouse_hw())
 	{
-		SVGA_mouse_hide();
+		SVGA_mouse_hide(TRUE);
 		return;
 	}
 #endif
