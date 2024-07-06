@@ -247,7 +247,6 @@ WORD __stdcall VXD_API_Proc(PCRS_32 state)
 				}
 				break;
 			}
-			break;
 		case OP_FBHDA_ACCESS_BEGIN:
 			FBHDA_access_begin(state->Client_ECX);
 			rc = 1;
@@ -299,9 +298,11 @@ WORD __stdcall VXD_API_Proc(PCRS_32 state)
 			break;
 		case OP_MOUSE_SHOW:
 			mouse_show();
+			rc = 1;
 			break;
 		case OP_MOUSE_HIDE:
 			mouse_hide();
+			rc = 1;
 			break;
 #ifdef SVGA
 		case OP_SVGA_VALID:
@@ -592,6 +593,18 @@ DWORD __stdcall Device_IO_Control_proc(DWORD vmhandle, struct DIOCParams *params
 		case OP_SVGA_VXDCMD:
 			outBuf[0] = (DWORD)SVGA_vxdcmd(inBuf[0]);
 			return 0;
+#ifdef DBGPRINT
+		/* export some mouse function for debuging */
+		case OP_MOUSE_MOVE:
+			mouse_move(inBuf[0], inBuf[1]);
+			return 0;
+		case OP_MOUSE_SHOW:
+			mouse_show();
+			return 0;
+		case OP_MOUSE_HIDE:
+			mouse_hide();
+			return 0;
+#endif /*DBGPRINT */
 #endif /* SVGA */
 	}
 		
