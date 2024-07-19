@@ -834,6 +834,8 @@ void SVGA_CMB_submit_critical(DWORD FBPTR cmb, DWORD cmb_size, SVGA_CMB_status_t
 		
 		dwords += 2;
 		
+		//SVGA_Flush();
+		
 		nextCmd = gSVGA.fifoMem[SVGA_FIFO_NEXT_CMD];
 		max     = gSVGA.fifoMem[SVGA_FIFO_MAX];
 		min     = gSVGA.fifoMem[SVGA_FIFO_MIN];
@@ -852,6 +854,8 @@ void SVGA_CMB_submit_critical(DWORD FBPTR cmb, DWORD cmb_size, SVGA_CMB_status_t
 			gSVGA.fifoMem[SVGA_FIFO_NEXT_CMD] = nextCmd;
 			dwords--;
 		}
+		
+		//SVGA_Sync();
 		
 		if(flags & SVGA_CB_SYNC)
 		{
@@ -1140,6 +1144,14 @@ static DWORD getPPN(DWORD virtualaddr)
 	return phy/P_SIZE;
 }
 
+//#define GMR_CONTIG
+//#define GMR_SYSTEM
+
+//static DWORD pa_flags = PAGEFIXED | PAGEUSEALIGN;
+//static DWORD pa_align = 0x0000000F; // 64k
+
+static DWORD pa_flags = PAGEFIXED;
+static DWORD pa_align = 0x00000000;
 
 /**
  * Allocate guest memory region (GMR) - HW needs know memory physical
@@ -1152,7 +1164,9 @@ static DWORD getPPN(DWORD virtualaddr)
  **/
 BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 {
-	//ULONG phy = 0;
+#ifdef GMR_CONTIG
+	ULONG phy = 0;
+#endif
 	ULONG laddr;
 	ULONG pgblk;
 	ULONG new_size = RoundTo4k(rinfo->size);	
@@ -1163,12 +1177,9 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 	SVGAGuestMemDescriptor *desc;
 	ULONG size_total = 0;
 
-#if 0
-	if(svga_db->stat_regions_usage > (300*1024*1024))
-	{
+#ifdef GMR_SYSTEM
 		pa_vm = 0;
 		pa_type = PG_SYS;
-	}
 #endif
 	
 	rinfo->size = new_size;
@@ -1181,7 +1192,7 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 	}
 	
 	//dbg_printf(dbg_pages, rinfo->size, nPages, P_SIZE);
-#if 0
+#ifdef GMR_CONTIG
 	/* JH: OK, using PAGECONTIG leads to very fast memory exhaustion, so using only slower way! */
 	/* first try to allocate continuous physical memory space, 1st page is used for GMR descriptor */
 	laddr = _PageAllocate(nPages+1, pa_type, pa_vm, 0, 0x0, 0x100000, &phy, PAGECONTIG | PAGEUSEALIGN | PAGEFIXED);
@@ -1222,7 +1233,7 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 		//DWORD mobphy = 0;
 		
 		/* allocate user block */
-		laddr = _PageAllocate(nPages, pa_type, pa_vm, 0, 0x0, 0x100000, NULL, PAGEFIXED);
+		laddr = _PageAllocate(nPages, pa_type, pa_vm, pa_align, 0x0, 0x100000, NULL, pa_flags);
 		
 		if(!laddr)
 		{
@@ -1257,7 +1268,7 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 		blk_pages = ((blocks+blk_pages+1)/(P_SIZE/sizeof(SVGAGuestMemDescriptor))) + 1;
 		
 		/* allocate memory for GMR descriptor */
-		pgblk = _PageAllocate(blk_pages, pa_type, pa_vm, 0, 0x0, 0x100000, NULL, PAGEFIXED);
+		pgblk = _PageAllocate(blk_pages, pa_type, pa_vm, pa_align, 0x0, 0x100000, NULL, pa_flags);
 		if(!pgblk)
 		{
 			_PageFree((PVOID)laddr, 0);
@@ -1308,7 +1319,7 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 			/* for simplicity we're always creating table of depth 2, first page is page of PPN pages */
 			//mob = (DWORD *)_PageAllocate(1 + (nPages + PTONPAGE - 1)/PTONPAGE, pa_type, pa_vm, 0, 0x0, 0x100000, &mobphy, PAGECONTIG | PAGEUSEALIGN | PAGEFIXED);
 			mob_pages = 1 + (nPages + PTONPAGE - 1)/PTONPAGE;
-			mob = (DWORD *)_PageAllocate(mob_pages, pa_type, pa_vm, 0, 0x0, 0x100000, 0, PAGEFIXED);
+			mob = (DWORD *)_PageAllocate(mob_pages, pa_type, pa_vm, pa_align, 0x0, 0x100000, 0, pa_flags);
 			
 			if(!mob)
 			{
@@ -1947,8 +1958,14 @@ DWORD SVGA_FixDevCap(DWORD cap_id, DWORD cap_val)
 					}
 				}
 			}
+			break;
 		}
-		break;
+#if 0
+		/* VBox hasn't Z_DF16/Z_DF24, vmware has, for testing same behaviour */
+		case SVGA3D_DEVCAP_SURFACEFMT_Z_DF16:
+		case SVGA3D_DEVCAP_SURFACEFMT_Z_DF24:
+			return 0;
+#endif
 	}
 	
 	return cap_val;
