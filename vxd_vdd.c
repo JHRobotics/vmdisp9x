@@ -436,29 +436,6 @@ VDDPROC(VESA_SUPPORT, vesa_support)
 	
 }
 
-void Enable_Global_Trapping(DWORD port)
-{
-	static DWORD sPort = 0;
-	sPort = port;
-	
-	_asm push edx
-	_asm mov edx, [sPort];
-	VMMCall(Enable_Global_Trapping);
-	_asm pop edx
-}
-
-
-void Disable_Global_Trapping(DWORD port)
-{
-	static DWORD sPort = 0;
-	sPort = port;
-	
-	_asm push edx
-	_asm mov edx, [sPort];
-	VMMCall(Disable_Global_Trapping);
-	_asm pop edx
-}
-
 VDDPROC(PRE_HIRES_TO_VGA, pre_hires_to_vga)
 {
 	mode_changing = TRUE;

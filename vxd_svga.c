@@ -30,6 +30,7 @@ THE SOFTWARE.
 #include "winhack.h"
 #include "vmm.h"
 #include "vxd.h"
+#include "vpicd.h"
 #include "vxd_lib.h"
 
 #include "svga_all.h"
@@ -41,6 +42,8 @@ THE SOFTWARE.
 #include "vxd_svga.h"
 
 #include "vxd_strings.h"
+
+#include "svga_ver.h"
 
 /*
  * consts
@@ -71,6 +74,7 @@ THE SOFTWARE.
 #define WAIT_FOR_CB(_cb, _forcesync) \
 	do{ \
 		DWORD wcnt; \
+		/*dbg_printf(dbg_wait_cb, __LINE__);*/ \
 		for(wcnt = 0; (_cb)->status == SVGA_CB_STATUS_NONE; wcnt++){ \
 			/*if(wcnt >= SVGA_TIMEOUT) break;*/ \
 			WAIT_FOR_CB_SYNC_ ## _forcesync \
@@ -80,6 +84,8 @@ THE SOFTWARE.
 /* expansions of WAIT_FOR_CB */
 #define WAIT_FOR_CB_SYNC_0
 #define WAIT_FOR_CB_SYNC_1 SVGA_Sync();
+
+static void SVGA_CB_start();
 
 /*
  * types
@@ -134,6 +140,7 @@ static volatile SVGACBHeader *last_cb = NULL;
 static uint64 cb_next_id = {0, 0};
 static DWORD fence_next_id = 1;
 void *cmdbuf = NULL;
+void *ctlbuf = NULL;
 static DWORD cb_sem;
 
 static svga_cache_state_t cache_state = {0, 0};
@@ -147,12 +154,12 @@ static DWORD present_fence = 0;
 
 /* object table for GPU10 */
 static SVGA_OT_info_entry_t otable_setup[SVGA_OTABLE_DX_MAX] = {
-	{0, NULL, RoundToPages(SVGA3D_MAX_MOBS*sizeof(SVGAOTableMobEntry))*P_SIZE,                 0}, /* SVGA_OTABLE_MOB */
-	{0, NULL, RoundToPages(SVGA3D_MAX_SURFACE_IDS*sizeof(SVGAOTableSurfaceEntry))*P_SIZE,      0}, /* SVGA_OTABLE_SURFACE */
-	{0, NULL, RoundToPages(SVGA3D_MAX_CONTEXT_IDS*sizeof(SVGAOTableContextEntry))*P_SIZE,      0}, /* SVGA_OTABLE_CONTEXT */
-	{0, NULL, 0,                                                                               0}, /* SVGA_OTABLE_SHADER - not used */
-	{0, NULL, RoundToPages(VBOX_VIDEO_MAX_SCREENS*sizeof(SVGAOTableScreenTargetEntry))*P_SIZE, 0}, /* SVGA_OTABLE_SCREENTARGET (VBOX_VIDEO_MAX_SCREENS) */
-	{0, NULL, RoundToPages(SVGA3D_MAX_CONTEXT_IDS*sizeof(SVGAOTableDXContextEntry))*P_SIZE,    0}, /* SVGA_OTABLE_DXCONTEXT */
+	{0, NULL, RoundToPages(VMWGFX_NUM_MOB*sizeof(SVGAOTableMobEntry))*P_SIZE,                 0}, /* SVGA_OTABLE_MOB */
+	{0, NULL, RoundToPages(VMWGFX_NUM_GB_SURFACE*sizeof(SVGAOTableSurfaceEntry))*P_SIZE,      0}, /* SVGA_OTABLE_SURFACE */
+	{0, NULL, RoundToPages(VMWGFX_NUM_GB_CONTEXT*sizeof(SVGAOTableContextEntry))*P_SIZE,      0}, /* SVGA_OTABLE_CONTEXT */
+	{0, NULL, RoundToPages(VMWGFX_NUM_GB_SHADER *sizeof(SVGAOTableShaderEntry))*P_SIZE,       0}, /* SVGA_OTABLE_SHADER - not used */
+	{0, NULL, RoundToPages(VMWGFX_NUM_GB_SCREEN_TARGET*sizeof(SVGAOTableScreenTargetEntry))*P_SIZE, 0}, /* SVGA_OTABLE_SCREENTARGET (VBOX_VIDEO_MAX_SCREENS) */
+	{0, NULL, RoundToPages(VMWGFX_NUM_DXCONTEXT*sizeof(SVGAOTableDXContextEntry))*P_SIZE,    0}, /* SVGA_OTABLE_DXCONTEXT */
 };
 
 static SVGA_OT_info_entry_t *otable = NULL;
@@ -611,14 +618,14 @@ void SVGA_fence_wait(DWORD fence_id)
 /**
  * Allocate memory for command buffer
  **/
-DWORD *SVGA_CMB_alloc()
+static DWORD *SVGA_CMB_alloc_size(DWORD datasize)
 {
 	DWORD phy;
 	SVGACBHeader *cb;
 	
 	Begin_Critical_Section(0);
 	
-	cb = (SVGACBHeader*)_PageAllocate(RoundToPages(SVGA_CB_MAX_SIZE+sizeof(SVGACBHeader)), PG_SYS, 0, 0, 0x0, 0x100000, &phy, PAGECONTIG | PAGEUSEALIGN | PAGEFIXED);
+	cb = (SVGACBHeader*)_PageAllocate(RoundToPages(datasize+sizeof(SVGACBHeader)), PG_SYS, 0, 0, 0x0, 0x100000, &phy, PAGECONTIG | PAGEUSEALIGN | PAGEFIXED);
 	
 	if(cb)
 	{
@@ -651,6 +658,11 @@ void SVGA_CMB_free(DWORD *cmb)
 	_PageFree(cb, 0);
 	
 	End_Critical_Section();
+}
+
+DWORD *SVGA_CMB_alloc()
+{
+	return SVGA_CMB_alloc_size(SVGA_CB_MAX_SIZE);
 }
 
 void *SVGA_cmd_ptr(DWORD *buf, DWORD *pOffset, DWORD cmd, DWORD cmdsize)
@@ -699,7 +711,7 @@ void SVGA_CMB_submit_critical(DWORD FBPTR cmb, DWORD cmb_size, SVGA_CMB_status_t
 	}
 
 #ifdef DBGPRINT
-//	debug_cmdbuf(cmb, cmb_size);
+	debug_cmdbuf(cmb, cmb_size);
 //	debug_cmdbuf_trace(cmb, cmb_size, SVGA_3D_CMD_BLIT_SURFACE_TO_SCREEN);
 //		debug_draw(cmb, cmb_size);
 #endif
@@ -916,6 +928,23 @@ void SVGA_CMB_submit(DWORD FBPTR cmb, DWORD cmb_size, SVGA_CMB_status_t FBPTR st
 	End_Critical_Section();
 }
 
+void SVGA_IRQ_proc()
+{
+	dbg_printf(dbg_irq);
+}
+
+void __declspec(naked) SVGA_IRQ_entry()
+{
+	_asm
+	{
+		pushad
+		call SVGA_IRQ_proc
+		popad
+	}
+	
+	VxDJmp(VPICD, Set_Int_Request);
+}
+
 BOOL SVGA_vxdcmd(DWORD cmd)
 {
 	switch(cmd)
@@ -949,6 +978,32 @@ BOOL st_useable(DWORD bpp)
 	return FALSE;
 }
 
+static void SVGA_write_driver_id()
+{
+	if(gSVGA.deviceVersionId >= SVGA_ID_2)
+	{
+		uint32 caps2 = SVGA_ReadReg(SVGA_REG_CAP2);
+		
+		if((caps2 & SVGA_CAP2_DX2) != 0)
+		{
+			SVGA_WriteReg(SVGA_REG_GUEST_DRIVER_ID, SVGA_REG_GUEST_DRIVER_ID_LINUX);
+
+			SVGA_WriteReg(SVGA_REG_GUEST_DRIVER_VERSION1,
+				LINUX_VERSION_MAJOR << 24 |
+				LINUX_VERSION_PATCHLEVEL << 16 |
+				LINUX_VERSION_SUBLEVEL);
+
+			SVGA_WriteReg(SVGA_REG_GUEST_DRIVER_VERSION2,
+			  VMWGFX_DRIVER_MAJOR << 24 |
+			  VMWGFX_DRIVER_MINOR << 16 |
+			  VMWGFX_DRIVER_PATCHLEVEL);
+
+			SVGA_WriteReg(SVGA_REG_GUEST_DRIVER_VERSION3, 0);
+
+			SVGA_WriteReg(SVGA_REG_GUEST_DRIVER_ID, SVGA_REG_GUEST_DRIVER_ID_SUBMIT);
+		}
+	}
+}
 
 /**
  * Init SVGA-II hardware
@@ -962,6 +1017,7 @@ BOOL SVGA_init_hw()
 	DWORD conf_rgb565bug = 1;
 	DWORD conf_cb = 1;
 	DWORD conf_hw_version = SVGA_VERSION_2;
+	uint8 irq = 0;
 
 	int rc;
 	
@@ -1014,23 +1070,10 @@ BOOL SVGA_init_hw()
 		if(!SVGA_IsSVGA3())
 			gSVGA.fifoLinear = _MapPhysToLinear(gSVGA.fifoPhy, gSVGA.fifoSize, 0);
 		
-#if 0
-		/* allocate fifo bounce buffer */
-		gSVGA.fifo.bounceLinear =
-			_PageAllocate(
-				(SVGA_BOUNCE_SIZE + PAGE_SIZE)/PAGE_SIZE,
-				PG_SYS, 0, 0, 0x0, 0x100000, &(gSVGA.fifo.bouncePhy), PAGECONTIG | PAGEUSEALIGN | PAGEFIXED
-			);
-#endif
-		
 		/* system linear addres == PM32 address */
 		gSVGA.fbMem = (uint8 *)gSVGA.fbLinear;
 		if(!SVGA_IsSVGA3())
 			gSVGA.fifoMem = (uint32 *)gSVGA.fifoLinear;
-		
-#if 0
-    gSVGA.fifo.bounceMem = (uint8 *)(gSVGA.fifo.bounceLinear + PAGE_SIZE); /* first page is for CB header (if CB supported) */
-#endif
 		
 		dbg_printf(dbg_mapping);
 		dbg_printf(dbg_mapping_map, gSVGA.fbPhy, gSVGA.fbMem);
@@ -1038,10 +1081,39 @@ BOOL SVGA_init_hw()
 		//dbg_printf(dbg_mapping_map, gSVGA.fifo.bouncePhy, gSVGA.fifo.bounceMem);
 		dbg_printf(dbg_siz, sizeof(gSVGA), sizeof(uint8 FARP *));
 		
+		SVGA_write_driver_id();
+
+#if 0
+		irq = SVGA_Install_IRQ();
+		if(irq > 0)
+		{
+			VPICD_IRQ_Descriptor vid;
+			memset(&vid, 0, sizeof(vid));
+			vid.IRQ_Number      = irq;
+			vid.Options         = VPICD_OPT_CAN_SHARE;
+			vid.Hw_Int_Proc     = (DWORD)SVGA_IRQ_entry;
+			vid.IRET_Time_Out   = 500;
+			
+			if(VPICD_Virtualize_IRQ(&vid))
+			{
+				dbg_printf(dbg_irq_install, irq);
+			}
+			else
+			{
+				dbg_printf(dbg_irq_install_fail, irq);
+			}
+		}
+		else
+		{
+			dbg_printf(dbg_no_irq);
+		}
+#endif
+		
 		/* enable FIFO */
 		SVGA_Enable();
 		
 		/* allocate GB tables, if supported */
+
 		if(SVGA_ReadReg(SVGA_REG_CAPABILITIES) & SVGA_CAP_GBOBJECTS)
 		{
 			SVGA_OTable_alloc();
@@ -1068,19 +1140,27 @@ BOOL SVGA_init_hw()
 		
 		SVGA_DB_alloc();
 		
+		/* allocate buffer for enable and disable CB */
+		ctlbuf = SVGA_CMB_alloc_size(64);
+		
 		/* allocate CB for this driver */
 		cmdbuf = SVGA_CMB_alloc();
-		
+	
 		/* vGPU10 */
 		if(gb_support)
 		{
-			SVGA_OTable_load();
+			SVGA_CB_start();
 			
-			if(st_surface_mb >= 8)
+			if(cb_support) /* SVGA_CB_start may fail */
 			{
-				if(st_memory_allocate(st_surface_mb*1024*1024, &st_address))
+				SVGA_OTable_load();
+				
+				if(st_surface_mb >= 8)
 				{
-					st_used = TRUE;
+					if(st_memory_allocate(st_surface_mb*1024*1024, &st_address))
+					{
+						st_used = TRUE;
+					}
 				}
 			}
 		}
@@ -1126,6 +1206,11 @@ BOOL SVGA_init_hw()
 		}
 		
 		dbg_printf(dbg_cache, cache_enabled);
+		
+		if(irq > 0)
+		{
+			SVGA_WriteReg(SVGA_REG_IRQMASK, SVGA_IRQFLAG_COMMAND_BUFFER);
+		}
 		
 		return TRUE;
 	}
@@ -1516,6 +1601,46 @@ void SVGA_flushcache()
 	End_Critical_Section();
 }
 
+static DWORD SVGA_CB_ctr(DWORD data_size)
+{
+	SVGACBHeader *cb = ((SVGACBHeader *)ctlbuf)-1;
+	
+	dbg_printf(dbg_ctr_start);
+
+	//Begin_Critical_Section(0);
+
+	cb->status = SVGA_CB_STATUS_NONE;
+	cb->errorOffset = 0;
+	cb->offset = 0; /* VMware modified this, needs to be clear */
+	cb->flags  = SVGA_CB_FLAG_NO_IRQ;
+	cb->mustBeZero[0] = 0;
+	cb->mustBeZero[1] = 0;
+	cb->mustBeZero[2] = 0;
+	cb->mustBeZero[3] = 0;
+	cb->mustBeZero[4] = 0;
+	cb->mustBeZero[5] = 0;
+	cb->dxContext = 0;
+	cb->id.low = cb_next_id.low;
+	cb->id.hi  = cb_next_id.hi;
+	cb->length = data_size;
+
+	SVGA_WriteReg(SVGA_REG_COMMAND_HIGH, 0);
+	SVGA_WriteReg(SVGA_REG_COMMAND_LOW, (cb->ptr.pa.low - sizeof(SVGACBHeader)) | SVGA_CB_CONTEXT_DEVICE);
+	SVGA_Sync();
+	
+	SVGA_cb_id_inc();
+
+	while(cb->status == SVGA_CB_STATUS_NONE)
+	{
+		SVGA_Sync();
+	}
+	
+	//End_Critical_Section();
+	
+	dbg_printf(dbg_ctr_end);
+	
+	return cb->status;
+}
 
 /**
  * GPU10: start context0
@@ -1523,19 +1648,28 @@ void SVGA_flushcache()
  **/
 static void SVGA_CB_start()
 {
-	if(cb_support)
+	if(cb_support && cb_context0 == FALSE)
 	{
-		cb_enable_t *cbe = cmdbuf;
-		wait_for_cmdbuf();
-		
+		cb_enable_t *cbe = ctlbuf;
+		DWORD status;
+			
 		memset(cbe, 0, sizeof(cb_enable_t));
 		cbe->cmd = SVGA_DC_CMD_START_STOP_CONTEXT;
 		cbe->cbstart.enable  = 1;
 		cbe->cbstart.context = SVGA_CB_CONTEXT_0;
 		
-		submit_cmdbuf(sizeof(cb_enable_t), SVGA_CB_USE_CONTEXT_DEVICE|SVGA_CB_SYNC, 0);
+		status = SVGA_CB_ctr(sizeof(cb_enable_t));
 		
-		cb_context0 = TRUE;
+		if(status == SVGA_CB_STATUS_COMPLETED)
+		{
+			dbg_printf(dbg_cb_start);
+			cb_context0 = TRUE;
+		}
+		else
+		{
+			cb_support = FALSE;
+			dbg_printf(dbg_cb_start_err, status);
+		}
 	}
 }
 
@@ -1549,15 +1683,18 @@ static void SVGA_CB_stop()
 	
 	if(cb_support)
 	{
-		cb_enable_t *cbe = cmdbuf;
-		wait_for_cmdbuf();
-		
+		DWORD status;
+		cb_enable_t *cbe = ctlbuf;
+			
 		memset(cbe, 0, sizeof(cb_enable_t));
 		cbe->cmd = SVGA_DC_CMD_START_STOP_CONTEXT;
 		cbe->cbstart.enable  = 0;
 		cbe->cbstart.context = SVGA_CB_CONTEXT_0;
 		
-		submit_cmdbuf(sizeof(cb_enable_t), SVGA_CB_USE_CONTEXT_DEVICE|SVGA_CB_SYNC, 0);
+		status = SVGA_CB_ctr(sizeof(cb_enable_t));
+		dbg_printf(dbg_cb_stop_status, status);
+		
+		dbg_printf(dbg_cb_stop);
 	}
 }
 
@@ -1645,7 +1782,7 @@ static void SVGA_defineScreen(DWORD w, DWORD h, DWORD bpp)
 	
 	screen->screen.backingStore.ptr.offset = 0;
 	screen->screen.backingStore.ptr.gmrId = SVGA_GMR_FRAMEBUFFER;
-	
+
   /* set GMR to same location as screen */
   if(bpp >= 15/* || bpp < 32*/)
   {
@@ -1813,22 +1950,35 @@ BOOL SVGA_setmode(DWORD w, DWORD h, DWORD bpp)
 	{
 		SVGA_SetModeLegacy(w, h, bpp);
 	}
+	/* VMware, vGPU10: OK, when screen has change, whoale GPU is reset including FIFO */
+	SVGA_Enable();
 	
 	SVGA_Flush_CB_critical(); /* make sure, that is really set */
-	
-	has3D = SVGA3D_Init();
-      
+
 	/* setting screen by fifo, this method is required in VB 6.1 */
 	if(SVGA_hasAccelScreen())
 	{
 		if(!st_useable(bpp))
 		{
 			SVGA_defineScreen(w, h, bpp);
+			
+			/* reenable fifo */
+			SVGA_Enable();
 		}
 		
 		SVGA_Flush_CB_critical();
 	}
 	
+	/* start command buffer context 0 */
+	SVGA_CB_start();
+	if(gb_support && cb_context0)
+	{
+		// fixme: otables are probably reset too
+		//SVGA_OTable_load();
+	}
+	
+	has3D = SVGA3D_Init();
+
 	/*
 	 * JH: this is a bit stupid = all SVGA command cannot work with non 32 bpp. 
 	 * SVGA_CMD_UPDATE included. So if we're working in 32 bpp, we'll disable
@@ -1838,7 +1988,7 @@ BOOL SVGA_setmode(DWORD w, DWORD h, DWORD bpp)
 	 * QEMU hasn't SVGA_REG_TRACES register and framebuffer cannot be se to
 	 * 16 or 8 bpp = we supporting only 32 bpp moders if we're running under it.
 	 */
-	if(!st_useable(bpp))
+/*	if(!st_useable(bpp))
 	{
 		if(bpp == 32)
 		{
@@ -1848,19 +1998,17 @@ BOOL SVGA_setmode(DWORD w, DWORD h, DWORD bpp)
 		{
 			SVGA_WriteReg(SVGA_REG_TRACES, TRUE);
 		}
+		SVGA_WriteReg(SVGA_REG_TRACES, TRUE);
 	}
 	else
 	{
 		SVGA_WriteReg(SVGA_REG_TRACES, FALSE);
 	}
 	
-	SVGA_WriteReg(SVGA_REG_ENABLE, TRUE);
+	SVGA_WriteReg(SVGA_REG_ENABLE, TRUE);*/
 	SVGA_Sync();
-		
+
 	SVGA_Flush_CB_critical();
-	
-	/* start command buffer context 0 */
-	SVGA_CB_start();
 	
 	if(st_useable(bpp))
 	{
@@ -2054,6 +2202,8 @@ void SVGA_HW_enable()
 
 void SVGA_HW_disable()
 {
+	dbg_printf(dbg_disable);
+	
 	SVGA_CB_stop();
 	
 	SVGA_Disable();

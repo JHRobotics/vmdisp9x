@@ -134,6 +134,27 @@ DSTR(dbg_hw_mouse_move, "hw mouse: moving: %ld x %ld (visible: %d, valid: %d)\n"
 DSTR(dbg_hw_mouse_show, "hw mouse: show (valid: %d)\n");
 DSTR(dbg_hw_mouse_hide, "hw mouse: hide\n");
 
+DSTR(dbg_cb_flags, "CB: flags = %lX\n");
+
+DSTR(dbg_cb_start, "CB start success!\n");
+DSTR(dbg_cb_start_err, "CB start error: %d\n");
+DSTR(dbg_cb_stop, "CB stop!\n");
+DSTR(dbg_wait_cb, "... Waiting for CB at line: %ld\n");
+
+DSTR(dbg_ctr_start, "CB CTRL begin\n");
+DSTR(dbg_ctr_end,   "CB CTRL end\n");
+
+DSTR(dbg_cb_stop_status,   "CB stop status %ld\n");
+
+DSTR(dbg_irq, "IRQ!\n");
+
+DSTR(dbg_irq_install, "IRQ(%d) trap installed\n");
+DSTR(dbg_irq_install_fail, "IRQ(%d) found, but cannot be traped\n");
+
+DSTR(dbg_no_irq, "No IRQ enabled\n");
+
+DSTR(dbg_disable, "HW disable");
+
 #undef DSTR
 
 #endif

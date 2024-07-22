@@ -58,6 +58,9 @@ void __cdecl _BuildDescriptorDWORDs(ULONG DESCBase, ULONG DESCLimit, ULONG DESCT
 void __cdecl _Allocate_LDT_Selector(ULONG vm, ULONG DescHigh, ULONG DescLow, ULONG Count, ULONG flags, DWORD *outFirstSelector, DWORD *outSelectorTable);
 void __cdecl _Allocate_GDT_Selector(ULONG DescHigh, ULONG DescLow, ULONG flags, DWORD *outFirstSelector, DWORD *outSelectorTable);
 
+void Enable_Global_Trapping(DWORD port);
+void Disable_Global_Trapping(DWORD port);
+
 /**
  * round size in bytes to number of pages
  **/
@@ -86,3 +89,6 @@ void dbg_printf( const char *s, ... );
 #define dbg_printf(s, ...)
 #endif
 
+struct _VPICD_IRQ_Descriptor;
+
+BOOL VPICD_Virtualize_IRQ(struct _VPICD_IRQ_Descriptor *vid);

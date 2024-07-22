@@ -360,6 +360,31 @@ Bool SVGA_IsSVGA3()
 	return gSVGA.deviceId == PCI_DEVICE_ID_VMWARE_SVGA3;
 }
 
+uint8 SVGA_Install_IRQ()
+{
+	if (gSVGA.capabilities & SVGA_CAP_IRQMASK)
+	{
+		uint8 irq = PCI_ConfigRead8(&gSVGA.pciAddr, 60/*offsetof(PCIConfigSpace, intrLine)*/);
+	
+		/* Start out with all SVGA IRQs masked */
+		SVGA_WriteReg(SVGA_REG_IRQMASK, 0);
+	
+		/* Clear all pending IRQs stored by the device */
+		outpd(gSVGA.ioBase + SVGA_IRQSTATUS_PORT, 0xFF);
+	
+		/* Clear all pending IRQs stored by us */
+		SVGA_ClearIRQ();
+	
+		/* Enable the IRQ */
+		//Intr_SetHandler(IRQ_VECTOR(irq), SVGAInterruptHandler);
+		//Intr_SetMask(irq, TRUE);
+		
+		return irq;
+	}
+	
+	return 0;
+}
+
 /*
  *-----------------------------------------------------------------------------
  *
@@ -376,6 +401,10 @@ Bool SVGA_IsSVGA3()
  *-----------------------------------------------------------------------------
  */
 
+#ifndef P_SIZE
+#define P_SIZE 0x1000
+#endif
+
 void
 SVGA_Enable(void)
 {
@@ -388,8 +417,16 @@ SVGA_Enable(void)
     * to the maximum number of registers supported by this driver
     * release.
     */
+   uint32 fifo_min = 4;
+   if (gSVGA.capabilities & SVGA_CAP_EXTENDED_FIFO)
+      fifo_min = SVGA_ReadReg(SVGA_REG_MEM_REGS);
+   
+   fifo_min *= sizeof(uint32);
 
-   gSVGA.fifoMem[SVGA_FIFO_MIN] = SVGA_FIFO_NUM_REGS * sizeof(uint32);
+	 if (fifo_min < P_SIZE)
+      fifo_min = P_SIZE;
+
+   gSVGA.fifoMem[SVGA_FIFO_MIN] = fifo_min;
    gSVGA.fifoMem[SVGA_FIFO_MAX] = gSVGA.fifoSize;
    //gSVGA.fifoMem[SVGA_FIFO_MAX] = 0xFFFCUL - gSVGA.fifoMem[SVGA_FIFO_MIN];
    gSVGA.fifoMem[SVGA_FIFO_NEXT_CMD] = gSVGA.fifoMem[SVGA_FIFO_MIN];
@@ -502,6 +539,16 @@ SVGA_SetModeLegacy(uint32 width,   // IN
    SVGA_WriteReg(SVGA_REG_HEIGHT, height);
    SVGA_WriteReg(SVGA_REG_BITS_PER_PIXEL, bpp);
    SVGA_ReadReg(SVGA_REG_FB_OFFSET);
+   
+   if(bpp == 32)
+   {
+      SVGA_WriteReg(SVGA_REG_TRACES, FALSE);
+   }
+   else
+   {
+      SVGA_WriteReg(SVGA_REG_TRACES, TRUE);
+   }
+   
    SVGA_WriteReg(SVGA_REG_ENABLE, TRUE);
    gSVGA.pitch = SVGA_ReadReg(SVGA_REG_BYTES_PER_LINE);
 }
@@ -784,6 +831,39 @@ void SVGA_Flush(void)
     dbg_printf("SVGA_Flush\n");
 #endif
 }
+
+/*
+ *-----------------------------------------------------------------------------
+ *
+ * SVGA_ClearIRQ --
+ *
+ *      Clear all pending IRQs. Any IRQs which occurred prior to this
+ *      function call will be ignored by the next SVGA_WaitForIRQ()
+ *      call.
+ *
+ *      Does not affect the current IRQ mask. This function is not
+ *      useful unless the SVGA device has IRQ support.
+ *
+ * Results:
+ *      Returns a mask of all the interrupt flags that were set prior
+ *      to the clear.
+ *
+ * Side effects:
+ *      None.
+ *
+ *-----------------------------------------------------------------------------
+ */
+uint32
+SVGA_ClearIRQ(void)
+{
+   uint32 flags = 0;
+   ///Atomic_Exchange(gSVGA.irq.pending, flags);
+   flags = gSVGA.irq.pending;
+   gSVGA.irq.pending = 0;
+   
+   return flags;
+}
+
 
 #if 0 /* JH: all commands using bounce buffer and fifo, better write them myself */
 
@@ -1556,54 +1636,6 @@ SVGA_HasFencePassed(uint32 fence)  // IN
    return ((int32)(gSVGA.fifoMem[SVGA_FIFO_FENCE] - fence)) >= 0;
 }
 
-
-/*
- *-----------------------------------------------------------------------------
- *
- * SVGA_ClearIRQ --
- *
- *      Clear all pending IRQs. Any IRQs which occurred prior to this
- *      function call will be ignored by the next SVGA_WaitForIRQ()
- *      call.
- *
- *      Does not affect the current IRQ mask. This function is not
- *      useful unless the SVGA device has IRQ support.
- *
- * Results:
- *      Returns a mask of all the interrupt flags that were set prior
- *      to the clear.
- *
- * Side effects:
- *      None.
- *
- *-----------------------------------------------------------------------------
- */
-#ifndef REALLY_TINY
-/*
-uint32
-SVGA_ClearIRQ(void)
-{
-   uint32 flags = 0;
-   Atomic_Exchange(gSVGA.irq.pending, flags);
-   
-   return flags;
-}*/
-
-uint32 SVGA_ClearIRQ(void); 
-#pragma aux SVGA_ClearIRQ = \
-    ".386"              \
-    "push   eax"        \
-    "xor    eax, eax"    \
-    "xchg   ptr gSVGA.irq.pending, eax"     \
-    "mov    dx, ax"     \
-    "shr    eax, 16"    \
-    "xchg   dx, ax"     \
-    "xchg   bx, ax"     \
-    "pop    eax"        \
-    "xchg   bx, ax"     \
-    value [dx ax] modify [bx];
-
-#endif
 
 /*
  *-----------------------------------------------------------------------------

@@ -27,6 +27,7 @@ THE SOFTWARE.
 #include "winhack.h"
 #include "vmm.h"
 #include "vxd.h"
+#include "vpicd.h"
 
 #include "svga_all.h"
 
@@ -474,3 +475,47 @@ DWORD __declspec(naked) __cdecl _RegQueryValueEx(DWORD hKey, char *lpszValueName
 	VMMJmp(_RegQueryValueEx);
 }
 
+void Enable_Global_Trapping(DWORD port)
+{
+	static DWORD sPort = 0;
+	sPort = port;
+	
+	_asm push edx
+	_asm mov edx, [sPort];
+	VMMCall(Enable_Global_Trapping);
+	_asm pop edx
+}
+
+void Disable_Global_Trapping(DWORD port)
+{
+	static DWORD sPort = 0;
+	sPort = port;
+	
+	_asm push edx
+	_asm mov edx, [sPort];
+	VMMCall(Disable_Global_Trapping);
+	_asm pop edx
+}
+
+BOOL VPICD_Virtualize_IRQ(struct _VPICD_IRQ_Descriptor *vid)
+{
+	static VPICD_IRQ_Descriptor *svid;
+	static BOOL r;
+	
+	r = 0;
+	svid = vid;
+	
+	_asm {
+		push edi
+		mov edi, [svid]
+	};
+	VxDCall(VPICD, Virtualize_IRQ)
+	_asm {
+		jc Virtualize_IRQ_err
+		mov [r], 1
+		Virtualize_IRQ_err:
+		pop edi
+	};
+	
+	return r;
+}

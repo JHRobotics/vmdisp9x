@@ -135,4 +135,16 @@ typedef struct {
 void Enable_Global_Trapping(DWORD port);
 void Disable_Global_Trapping(DWORD port);
 
+//
+//  WIN32 IOCTLS
+//
+//  The following defines are used with the Win32 function DeviceIOControl
+//
+#define VDD_IOCTL_SET_NOTIFY    0x10000001  // set mode change notify
+#define VDD_IOCTL_GET_DDHAL     0x10000002  // get DDHAL functions from miniVDD
+#define VDD_IOCTL_COPY_PROTECTION 0x10000003  // copy protection enable/disable
+#define VDD_IOCTL_I2C_OPEN      0x10000004  // open i2c port for access
+#define VDD_IOCTL_I2C_ACCESS    0x10000005  // read/write interface
+
+
 #endif /* __VXD_VDD_H__INCLUDED__ */

@@ -108,6 +108,10 @@ typedef struct SVGADevice {
       IntrContext   newContext;
       uint32        count;
    } irq;
+#else
+   volatile struct {
+      uint32        pending;
+   } irq;
 #endif
 
 } SVGADevice;
@@ -144,6 +148,7 @@ void SVGA_DefaultFaultHandler(int vector);
 
 Bool SVGA_IsSVGA3();
 void SVGA_MapIO();
+uint8 SVGA_Install_IRQ();
 
 void SVGA_Flush(void);
 
