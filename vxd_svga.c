@@ -86,6 +86,7 @@ THE SOFTWARE.
 #define WAIT_FOR_CB_SYNC_1 SVGA_Sync();
 
 static void SVGA_CB_start();
+static void SVGA_CB_restart();
 
 /*
  * types
@@ -98,7 +99,22 @@ typedef struct _cb_enable_t
 	uint32             cmd;
 	SVGADCCmdStartStop cbstart;
 } cb_enable_t;
+
+typedef struct _cb_queue_t
+{
+	struct _cb_queue_t *next;
+	DWORD  flags;
+	DWORD  data_size;
+	DWORD  pad[13];
+} cb_queue_t;
+
 #pragma pack(pop)
+
+typedef struct _cb_queue_info_t
+{
+	cb_queue_t *first;
+	cb_queue_t *last;
+} cb_queue_info_t;
 
 typedef struct spare_region
 {
@@ -142,6 +158,8 @@ static DWORD fence_next_id = 1;
 void *cmdbuf = NULL;
 void *ctlbuf = NULL;
 static DWORD cb_sem;
+
+static cb_queue_info_t cb_queue_info = {NULL, NULL};
 
 static svga_cache_state_t cache_state = {0, 0};
 
@@ -433,6 +451,12 @@ static void SVGA_OTable_alloc()
 			memcpy(otable, &(otable_setup[0]), sizeof(otable_setup));
 		}
 	}
+	
+	/* not allocate DX when there is no DX support */
+	if(!SVGA_GetDevCap(SVGA3D_DEVCAP_DXCONTEXT))
+	{
+		otable[SVGA_OTABLE_DXCONTEXT].size = 0;
+	}
 
 	if(otable)
 	{
@@ -622,17 +646,24 @@ static DWORD *SVGA_CMB_alloc_size(DWORD datasize)
 {
 	DWORD phy;
 	SVGACBHeader *cb;
+	cb_queue_t *q;
 	
 	Begin_Critical_Section(0);
 	
-	cb = (SVGACBHeader*)_PageAllocate(RoundToPages(datasize+sizeof(SVGACBHeader)), PG_SYS, 0, 0, 0x0, 0x100000, &phy, PAGECONTIG | PAGEUSEALIGN | PAGEFIXED);
+	q = (cb_queue_t*)_PageAllocate(RoundToPages(datasize+sizeof(SVGACBHeader)+sizeof(cb_queue_t)), PG_SYS, 0, 0, 0x0, 0x100000, &phy, PAGECONTIG | PAGEUSEALIGN | PAGEFIXED);
 	
-	if(cb)
+	if(q)
 	{
+		q->next = NULL;
+		q->flags = 0;
+		q->data_size = 0;
+		
+		cb = (SVGACBHeader*)(q+1);
+		
 		memset(cb, 0, sizeof(SVGACBHeader));
 		cb->status = SVGA_CB_STATUS_COMPLETED; /* important to sync between commands */
 		cb->ptr.pa.hi   = 0;
-		cb->ptr.pa.low  = phy + sizeof(SVGACBHeader);	
+		cb->ptr.pa.low  = phy + sizeof(cb_queue_t) + sizeof(SVGACBHeader);	
 		
 		End_Critical_Section();
 		return (DWORD*)(cb+1);
@@ -655,7 +686,7 @@ void SVGA_CMB_free(DWORD *cmb)
 		last_cb = NULL;
 	}
 		
-	_PageFree(cb, 0);
+	_PageFree(cb-1, 0);
 	
 	End_Critical_Section();
 }
@@ -698,11 +729,63 @@ static void SVGA_cb_id_inc()
 #include "vxd_svga_debug.h"
 #endif
 
+void CB_queue_check()
+{
+	cb_queue_t *last = NULL;
+	cb_queue_t *item = cb_queue_info.first;
+	
+	while(item != NULL)
+	{
+		SVGACBHeader *cb = (SVGACBHeader*)(item+1);
+		if(cb->status >= SVGA_CB_STATUS_COMPLETED)
+		{
+			if(last == NULL)
+			{
+				cb_queue_info.first = item->next;
+			}
+			else
+			{
+				last->next = item->next;
+			}
+			
+			if(cb->status > SVGA_CB_STATUS_COMPLETED)
+			{
+				SVGA_CB_restart();
+			}
+		}
+		
+		last = item;
+		item = item->next;
+	}
+	
+	cb_queue_info.last = last;
+}
+
+void CB_queue_insert(SVGACBHeader *cb)
+{
+	cb_queue_t *item = (cb_queue_t*)(cb-1);
+	item->next = NULL;
+	
+	if(cb_queue_info.last != NULL)
+	{
+		cb_queue_info.last->next = item;
+		cb_queue_info.last = item;
+	}
+	else
+	{
+		cb_queue_info.first = item;
+		cb_queue_info.last  = item;
+	}
+}
+
+
 void SVGA_CMB_submit_critical(DWORD FBPTR cmb, DWORD cmb_size, SVGA_CMB_status_t FBPTR status, DWORD flags, DWORD DXCtxId)
 {
 	DWORD fence = 0;
 	SVGACBHeader *cb = ((SVGACBHeader *)cmb)-1;
-		
+	
+	CB_queue_check();
+	
 	if(status)
 	{
 		cb->status = SVGA_CB_STATUS_NONE;
@@ -809,6 +892,7 @@ void SVGA_CMB_submit_critical(DWORD FBPTR cmb, DWORD cmb_size, SVGA_CMB_status_t
 						/* this may cause freeze, when fence is in buffer and isn't complete. So return some passed fence  */
 						fence = SVGA_fence_passed();
 					}
+					SVGA_CB_restart();
 				}
 				
 				if(status)
@@ -822,6 +906,8 @@ void SVGA_CMB_submit_critical(DWORD FBPTR cmb, DWORD cmb_size, SVGA_CMB_status_t
 			}
 			else
 			{
+				CB_queue_insert(cb);
+				
 				if(status)
 				{
 					status->sStatus = SVGA_PROC_NONE;
@@ -1153,7 +1239,7 @@ BOOL SVGA_init_hw()
 			
 			if(cb_support) /* SVGA_CB_start may fail */
 			{
-				SVGA_OTable_load();
+				//SVGA_OTable_load();
 				
 				if(st_surface_mb >= 8)
 				{
@@ -1698,6 +1784,12 @@ static void SVGA_CB_stop()
 	}
 }
 
+static void SVGA_CB_restart()
+{
+	SVGA_CB_stop();
+	SVGA_CB_start();
+}
+
 /* Check if screen acceleration is available */
 static BOOL SVGA_hasAccelScreen()
 {
@@ -1716,10 +1808,14 @@ BOOL SVGA3D_Init(void)
 
 	if(!(gSVGA.capabilities & SVGA_CAP_EXTENDED_FIFO))
 	{
-//		dbg_printf("3D requires the Extended FIFO capability.\n");
+		return FALSE;
 	}
-
-	if(SVGA_HasFIFOCap(SVGA_FIFO_CAP_3D_HWVERSION_REVISED))
+	
+	if((gSVGA.capabilities & SVGA_CAP_GBOBJECTS))
+	{
+		hwVersion = SVGA3D_HWVERSION_WS8_B1;
+	}
+	else if(SVGA_HasFIFOCap(SVGA_FIFO_CAP_3D_HWVERSION_REVISED))
 	{
 		hwVersion = gSVGA.fifoMem[SVGA_FIFO_3D_HWVERSION_REVISED];
 	}
@@ -1727,7 +1823,7 @@ BOOL SVGA3D_Init(void)
 	{
 		if(gSVGA.fifoMem[SVGA_FIFO_MIN] <= sizeof(uint32) * SVGA_FIFO_GUEST_3D_HWVERSION)
 		{
-			//dbg_printf("GUEST_3D_HWVERSION register not present.\n");
+			return FALSE;
 		}
 		hwVersion = gSVGA.fifoMem[SVGA_FIFO_3D_HWVERSION];
 	}
@@ -1841,7 +1937,14 @@ void SVGA_OTable_load()
 				cmd->type = i;
 				cmd->baseAddress = entry->phy / P_SIZE;
 				cmd->sizeInBytes = entry->size;
-			  cmd->validSizeInBytes = 0;
+				if(entry->flags & SVGA_OT_FLAG_ACTIVE)
+				{
+			  	cmd->validSizeInBytes = entry->size;
+			  }
+			  else
+			  {
+			  	cmd->validSizeInBytes = 0;
+			  }
 			  cmd->ptDepth = SVGA3D_MOBFMT_RANGE;
 
 			  entry->flags |= SVGA_OT_FLAG_ACTIVE;
@@ -1971,41 +2074,8 @@ BOOL SVGA_setmode(DWORD w, DWORD h, DWORD bpp)
 	
 	/* start command buffer context 0 */
 	SVGA_CB_start();
-	if(gb_support && cb_context0)
-	{
-		// fixme: otables are probably reset too
-		//SVGA_OTable_load();
-	}
 	
 	has3D = SVGA3D_Init();
-
-	/*
-	 * JH: this is a bit stupid = all SVGA command cannot work with non 32 bpp. 
-	 * SVGA_CMD_UPDATE included. So if we're working in 32 bpp, we'll disable
-	 * traces and updating framebuffer changes with SVGA_CMD_UPDATE.
-	 * On non 32 bpp we just enable SVGA_REG_TRACES.
-	 *
-	 * QEMU hasn't SVGA_REG_TRACES register and framebuffer cannot be se to
-	 * 16 or 8 bpp = we supporting only 32 bpp moders if we're running under it.
-	 */
-/*	if(!st_useable(bpp))
-	{
-		if(bpp == 32)
-		{
-			SVGA_WriteReg(SVGA_REG_TRACES, FALSE);
-		}
-		else
-		{
-			SVGA_WriteReg(SVGA_REG_TRACES, TRUE);
-		}
-		SVGA_WriteReg(SVGA_REG_TRACES, TRUE);
-	}
-	else
-	{
-		SVGA_WriteReg(SVGA_REG_TRACES, FALSE);
-	}
-	
-	SVGA_WriteReg(SVGA_REG_ENABLE, TRUE);*/
 	SVGA_Sync();
 
 	SVGA_Flush_CB_critical();

@@ -540,6 +540,15 @@ SVGA_SetModeLegacy(uint32 width,   // IN
    SVGA_WriteReg(SVGA_REG_BITS_PER_PIXEL, bpp);
    SVGA_ReadReg(SVGA_REG_FB_OFFSET);
    
+	/*
+	 * JH: this is a bit stupid = all SVGA command cannot work with non 32 bpp. 
+	 * SVGA_CMD_UPDATE included. So if we're working in 32 bpp, we'll disable
+	 * traces and updating framebuffer changes with SVGA_CMD_UPDATE.
+	 * On non 32 bpp we just enable SVGA_REG_TRACES.
+	 *
+	 * QEMU hasn't SVGA_REG_TRACES register and framebuffer cannot be se to
+	 * 16 or 8 bpp = we supporting only 32 bpp moders if we're running under it.
+	 */
    if(bpp == 32)
    {
       SVGA_WriteReg(SVGA_REG_TRACES, FALSE);
