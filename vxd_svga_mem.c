@@ -148,7 +148,12 @@ static DWORD PT_count(DWORD size)
 		return pt2_entries + 1;
 	}
 	
-	return 1;
+	if(pt1_entries > 1)
+	{
+		return 1;
+	}
+	
+	return 0;
 }
 
 /**
@@ -187,9 +192,12 @@ static void PT_build(DWORD size, void *buf, DWORD *outBase, DWORD *outType, void
 		
 		*outBase = getPtrPPN(buf);
 		*outType = SVGA3D_MOBFMT_PTDEPTH_2;
-		*outUserPtr = (void*)ptr;
+		if(outUserPtr)
+		{
+			*outUserPtr = (void*)ptr;
+		}
 	}
-	else
+	else if(pt1_entries > 1)
 	{
 		DWORD *ptbuf = buf;
 		BYTE *ptr = ((BYTE*)buf)+P_SIZE;
@@ -203,7 +211,19 @@ static void PT_build(DWORD size, void *buf, DWORD *outBase, DWORD *outType, void
 		
 		*outBase = getPtrPPN(buf);
 		*outType = SVGA3D_MOBFMT_PTDEPTH_1;
-		*outUserPtr = (void*)ptr;
+		if(outUserPtr)
+		{
+			*outUserPtr = (void*)ptr;
+		}
+	}
+	else
+	{
+		*outBase = getPtrPPN(buf);
+		*outType = SVGA3D_MOBFMT_PTDEPTH_0;
+		if(outUserPtr)
+		{
+			*outUserPtr = (void*)buf;
+		}
 	}
 	
 	dbg_printf(dbg_pt_build, size, *outBase, *outType, *outUserPtr);
@@ -380,9 +400,11 @@ static void cache_delete(int index)
 			dbg_printf(dbg_pagefree, rinfo->mob_address);
 			_PageFree((PVOID)rinfo->mob_address, 0);
 		}
-			
-		dbg_printf(dbg_pagefree, free_ptr);
-		_PageFree((PVOID)free_ptr, 0);
+		else
+		{
+			dbg_printf(dbg_pagefree, free_ptr);
+			_PageFree((PVOID)free_ptr, 0);
+		}
 			
 		cache_state.spare_region[index].used = FALSE;
 		
@@ -505,6 +527,7 @@ static BOOL cache_use(SVGA_region_info_t *region)
 				region->region_ppn     = ptr->region_ppn;
 				region->mob_address    = ptr->mob_address;
 				region->mob_ppn        = ptr->mob_ppn;
+				region->mob_pt_depth   = ptr->mob_pt_depth;
 				
 				cache_state.spare_region[i].used = FALSE;
 				rc = TRUE;
@@ -580,6 +603,7 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 	ULONG phy = 0;
 #endif
 	ULONG laddr;
+	ULONG maddr = 0;
 	ULONG pgblk;
 	ULONG new_size = RoundTo4k(rinfo->size);	
 	ULONG nPages = RoundToPages(new_size);
@@ -588,6 +612,8 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 	ULONG pa_type = PG_VM;
 	SVGAGuestMemDescriptor *desc;
 	ULONG size_total = 0;
+	
+	DWORD pt_pages = PT_count(new_size);
 
 #ifdef GMR_SYSTEM
 		pa_vm = 0;
@@ -623,6 +649,7 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 		rinfo->region_ppn     = (phy/P_SIZE);
 		rinfo->mob_address    = 0;	
 		rinfo->mob_ppn        = (phy/P_SIZE)+1;
+		rinfo->mob_pt_depth   = SVGA3D_MOBFMT_RANGE;
 		
 		//dbg_printf(dbg_region_simple, laddr, rinfo->address);
 		
@@ -639,19 +666,17 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 		ULONG base_cnt;
 		ULONG blocks = 1;
 		ULONG blk_pages = 0;
-		ULONG mob_pages = 0;
-		
-		DWORD *mob = NULL;
-		//DWORD mobphy = 0;
 		
 		/* allocate user block */
-		laddr = _PageAllocate(nPages, pa_type, pa_vm, pa_align, 0x0, 0x100000, NULL, pa_flags);
-		
-		if(!laddr)
+		maddr = _PageAllocate(nPages+pt_pages, pa_type, pa_vm, pa_align, 0x0, 0x100000, NULL, pa_flags);
+				
+		if(!maddr)
 		{
 			End_Critical_Section();
 			return FALSE;
 		}
+		
+		laddr = maddr + pt_pages*P_SIZE;
 		
 		/* determine how many physical continuous blocks we have */
 		base_ppn = getPPN(laddr);
@@ -725,49 +750,20 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 		desc->ppn = 0;
 		desc->numPages = 0;
 
+		rinfo->mob_address    = (void*)maddr;
+		rinfo->mob_ppn        = 0;
+		rinfo->mob_pt_depth   = 0;
+
 		if(gb_support) /* don't create MOBs for Gen9 */
 		{
-			int i;
-			/* for simplicity we're always creating table of depth 2, first page is page of PPN pages */
-			//mob = (DWORD *)_PageAllocate(1 + (nPages + PTONPAGE - 1)/PTONPAGE, pa_type, pa_vm, 0, 0x0, 0x100000, &mobphy, PAGECONTIG | PAGEUSEALIGN | PAGEFIXED);
-			mob_pages = 1 + (nPages + PTONPAGE - 1)/PTONPAGE;
-			mob = (DWORD *)_PageAllocate(mob_pages, pa_type, pa_vm, pa_align, 0x0, 0x100000, 0, pa_flags);
-			
-			if(!mob)
-			{
-				_PageFree((PVOID)laddr, 0);
-				_PageFree((PVOID)pgblk, 0);
-				End_Critical_Section();
-				return FALSE;
-			}
-			
-			memset(mob, 0, mob_pages*P_SIZE);
-			
-			/* dim 1 */
-			for(i = 0; i < mob_pages-1; i++)
-			{
-				//mob[i] = (mobphy/P_SIZE) + i + 1;
-				mob[i] = getPPN(((ULONG)mob) + ((i + 1)*P_SIZE));
-			}
-			/* dim 2 */
-			for(i = 0; i < nPages; i++)
-			{
-				mob[PTONPAGE + i] = getPPN(laddr + i*P_SIZE);
-			}
+			PT_build(new_size, (void*)maddr, &rinfo->mob_ppn, &rinfo->mob_pt_depth, NULL);
 		}
 		
 		rinfo->address        = (void*)laddr;
 		rinfo->region_address = (void*)pgblk;
 		rinfo->region_ppn     = getPPN(pgblk);
-		rinfo->mob_address    = (void*)mob;
-		rinfo->mob_ppn        = 0;
-		if(mob)
-		{
-			//rinfo->mob_ppn        = mobphy/P_SIZE;
-			rinfo->mob_ppn        = getPPN((ULONG)mob);
-		}
-		
-		size_total = (nPages + blk_pages + mob_pages)*P_SIZE;
+				
+		size_total = (nPages + blk_pages + pt_pages)*P_SIZE;
 		
 		//dbg_printf(dbg_region_fragmented);
 	}
@@ -807,16 +803,9 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
   	mob              = SVGA_cmd3d_ptr(cmdbuf, &cmdoff, SVGA_3D_CMD_DEFINE_GB_MOB, sizeof(SVGA3dCmdDefineGBMob));
   	mob->mobid       = rinfo->region_id;
   	mob->base        = rinfo->mob_ppn;
-  	mob->sizeInBytes = rinfo->size;
-		if(rinfo->mob_address == NULL) /* continual memory space */
-		{
-			mob->ptDepth     = SVGA3D_MOBFMT_RANGE;
-		}
-		else
-		{
-			mob->ptDepth     = SVGA3D_MOBFMT_PTDEPTH_2;
-		}
-		
+		mob->ptDepth     = rinfo->mob_pt_depth;
+		mob->sizeInBytes = rinfo->size;
+
 		submit_cmdbuf(cmdoff, SVGA_CB_SYNC, 0);
 		
   	rinfo->is_mob = 1;
@@ -888,12 +877,12 @@ void SVGA_region_free(SVGA_region_info_t *rinfo)
 			
 		if(rinfo->mob_address != NULL)
 		{
-			//dbg_printf(dbg_pagefree, rinfo->mob_address);
 			_PageFree((PVOID)rinfo->mob_address, 0);
 		}
-			
-		//dbg_printf(dbg_pagefree, free_ptr);
-		_PageFree((PVOID)free_ptr, 0);
+		else
+		{
+			_PageFree((PVOID)free_ptr, 0);
+		}
 	}
 	End_Critical_Section();
 		
@@ -904,6 +893,7 @@ void SVGA_region_free(SVGA_region_info_t *rinfo)
 	rinfo->mob_address    = NULL;
 	rinfo->region_ppn     = 0;
 	rinfo->mob_ppn        = 0;
+	rinfo->mob_pt_depth   = 0;
 }
 
 /**
