@@ -257,7 +257,7 @@ static char svga_cmd_tables[][64] = {
 #define CMD3D_MIN 1040
 #define CMD3D_MAX 1291
 
-static char dbg_bufinfo[] = "commands size: %d\n";
+//static char dbg_bufinfo[] = "commands size: %d\n";
 static char dbg_cmd3d[] = "cmd3D: %s (%d)\n";
 static char dbg_cmd3d_trace[] = "cmd3D(%02ld): %s (%ld)\n";
 //static char dbg_cmd_fence[] = "cmd FENCE\n";
@@ -268,7 +268,7 @@ void debug_cmdbuf(void *cmdbuf, DWORD cmd_size)
 	BYTE *ptr = cmdbuf;
 	BYTE *ptr_max = ptr + cmd_size;
 	
-	dbg_printf(dbg_bufinfo, cmd_size);
+	//dbg_printf(dbg_bufinfo, cmd_size);
 	
 	while(ptr < ptr_max)
 	{

@@ -33,7 +33,7 @@ THE SOFTWARE.
 #endif
 #endif
 
-#define API_3DACCEL_VER 20240621
+#define API_3DACCEL_VER 20240723
 
 #define ESCAPE_DRV_NT         0x1103 /* (4355) */
 
@@ -181,6 +181,7 @@ typedef struct SVGA_region_info
 	DWORD   region_ppn;
 	void*   mob_address;
 	DWORD   mob_ppn;
+	DWORD   mob_pt_depth;
 	DWORD   is_mob;
 	DWORD   mobonly;
 } SVGA_region_info_t;
@@ -301,13 +302,15 @@ void SVGA_DB_unlock();
 
 #define SVGA_OT_FLAG_ALLOCATED 1
 #define SVGA_OT_FLAG_ACTIVE    2
+#define SVGA_OT_FLAG_DIRTY     4
 
 typedef struct SVGA_OT_info_entry
 {
-	DWORD   phy;
+	DWORD   ppn;
 	void   *lin;
 	DWORD   size;
 	DWORD   flags;
+	DWORD   pt_depth;
 } SVGA_OT_info_entry_t;
 
 SVGA_OT_info_entry_t *SVGA_OT_setup();

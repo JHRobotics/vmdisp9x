@@ -15,6 +15,8 @@ BOOL st_memory_allocate(DWORD size, DWORD *out);
 void st_defineScreen(DWORD w, DWORD h, DWORD bpp);
 void st_destroyScreen();
 void SVGA_OTable_load();
+void SVGA_OTable_unload();
+
 SVGA_DB_surface_t *SVGA_GetSurfaceInfo(DWORD sid);
 
 #define ST_REGION_ID 1

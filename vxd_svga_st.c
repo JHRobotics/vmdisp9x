@@ -109,7 +109,9 @@ void st_defineScreen(DWORD w, DWORD h, DWORD bpp)
 	fbgmr->format.bitsPerPixel = 32;
 	fbgmr->format.colorDepth   = 24;
 	fbgmr->format.reserved     = 0;
-	
+
+	SVGA_Enable();
+
 	/* create screen target */
 	stid = SVGA_cmd3d_ptr(cmdbuf, &cmdoff, SVGA_3D_CMD_DEFINE_GB_SCREENTARGET, sizeof(SVGA3dCmdDefineGBScreenTarget));
 	stid->stid = 0;

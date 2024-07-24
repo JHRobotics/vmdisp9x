@@ -155,6 +155,11 @@ DSTR(dbg_no_irq, "No IRQ enabled\n");
 
 DSTR(dbg_disable, "HW disable");
 
+DSTR(dbg_pt_build, "PT_build(%ld): BASE=%lX TYPE=%ld USER=%lp\n");
+DSTR(dbg_pt_build_2, "PT_build(%ld): pt1_entries=%ld, pt2_entries=%ld\n");
+
+DSTR(dbg_cb_suc, "submit SVGA_CB_SYNC success\n");
+
 #undef DSTR
 
 #endif
