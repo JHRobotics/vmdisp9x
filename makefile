@@ -8,7 +8,7 @@ OBJS += &
   dbgprint32.obj svga.obj pci.obj vxd_fbhda.obj vxd_lib.obj vxd_main.obj &
   vxd_main_qemu.obj vxd_main_svga.obj vxd_svga.obj vxd_vdd.obj vxd_vdd_qemu.obj &
   vxd_vdd_svga.obj vxd_vbe.obj vxd_vbe_qemu.obj vxd_mouse.obj vxd_svga_st.obj &
-  vxd_mouse_svga.obj vxd_svga_mouse.obj
+  vxd_mouse_svga.obj vxd_svga_mouse.obj vxd_svga_mem.obj vxd_svga_cb.obj
 
 INCS = -I$(%WATCOM)\h\win -Iddk -Ivmware
 
@@ -168,6 +168,12 @@ vxd_svga_st.obj : vxd_svga_st.c .autodepend
 	$(CC32) $(CFLAGS32) $(INCS) $(FLAGS) $<
 
 vxd_svga_mouse.obj : vxd_svga_mouse.c .autodepend
+	$(CC32) $(CFLAGS32) $(INCS) $(FLAGS) $<
+
+vxd_svga_mem.obj : vxd_svga_mem.c .autodepend
+	$(CC32) $(CFLAGS32) $(INCS) $(FLAGS) $<
+
+vxd_svga_cb.obj : vxd_svga_cb.c .autodepend
 	$(CC32) $(CFLAGS32) $(INCS) $(FLAGS) $<
 
 vxd_vbe.obj : vxd_vbe.c .autodepend
@@ -434,6 +440,8 @@ file vxd_lib.obj
 file vxd_svga.obj
 file vxd_svga_st.obj
 file vxd_svga_mouse.obj
+file vxd_svga_mem.obj
+file vxd_svga_cb.obj
 file vxd_vdd_svga.obj
 file vxd_mouse_svga.obj
 segment '_LTEXT' PRELOAD NONDISCARDABLE 
