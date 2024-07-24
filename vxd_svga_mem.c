@@ -372,8 +372,6 @@ void SVGA_OTable_unload()
 	submit_cmdbuf(cmd_offset, SVGA_CB_SYNC, 0);
 }
 
-
-/**/
 /**
  * Delete item from cache
  **/

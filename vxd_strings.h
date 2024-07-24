@@ -136,15 +136,12 @@ DSTR(dbg_hw_mouse_hide, "hw mouse: hide\n");
 
 DSTR(dbg_cb_flags, "CB: flags = %lX\n");
 
-DSTR(dbg_cb_start, "CB start success!\n");
-DSTR(dbg_cb_start_err, "CB start error: %d\n");
-DSTR(dbg_cb_stop, "CB stop!\n");
 DSTR(dbg_wait_cb, "... Waiting for CB at line: %ld\n");
 
-DSTR(dbg_ctr_start, "CB CTRL begin\n");
-DSTR(dbg_ctr_end,   "CB CTRL end\n");
+DSTR(dbg_ctr_start, "CB CTRL: ");
 
-DSTR(dbg_cb_stop_status,   "CB stop status %ld\n");
+DSTR(dbg_cb_stop_status,  "stop (status %ld)\n");
+DSTR(dbg_cb_start_status, "start (status %ld)\n");
 
 DSTR(dbg_irq, "IRQ!\n");
 

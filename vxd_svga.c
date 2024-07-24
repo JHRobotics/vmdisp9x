@@ -295,6 +295,7 @@ void *SVGA_cmd3d_ptr(DWORD *buf, DWORD *pOffset, DWORD cmd, DWORD cmdsize)
 	return (void*)(buf + pp + 2);
 }
 
+#if 0
 void SVGA_IRQ_proc()
 {
 	dbg_printf(dbg_irq);
@@ -311,6 +312,7 @@ void __declspec(naked) SVGA_IRQ_entry()
 	
 	VxDJmp(VPICD, Set_Int_Request);
 }
+#endif
 
 BOOL SVGA_vxdcmd(DWORD cmd)
 {
@@ -384,7 +386,9 @@ BOOL SVGA_init_hw()
 	DWORD conf_rgb565bug = 1;
 	DWORD conf_cb = 1;
 	DWORD conf_hw_version = SVGA_VERSION_2;
+#if 0
 	uint8 irq = 0;
+#endif
 
 	int rc;
 	
@@ -461,6 +465,9 @@ BOOL SVGA_init_hw()
 			vid.Hw_Int_Proc     = (DWORD)SVGA_IRQ_entry;
 			vid.IRET_Time_Out   = 500;
 			
+			/* JH: OK this is NOT way how catch IRQ, because all PCI video IRQ
+			       are catched by fat vdd driver.
+			 */
 			if(VPICD_Virtualize_IRQ(&vid))
 			{
 				dbg_printf(dbg_irq_install, irq);
@@ -482,7 +489,6 @@ BOOL SVGA_init_hw()
 		SVGA_Enable();
 		
 		/* allocate GB tables, if supported */
-
 		if(SVGA_ReadReg(SVGA_REG_CAPABILITIES) & SVGA_CAP_GBOBJECTS)
 		{
 			SVGA_OTable_alloc(st_surface_mb > 0);
@@ -504,8 +510,6 @@ BOOL SVGA_init_hw()
 				dbg_printf(dbg_cb_on);
 			}
 		}
-		
-		//cb_sem = Create_Semaphore(1);
 		
 		SVGA_DB_alloc();
 		
@@ -573,18 +577,6 @@ BOOL SVGA_init_hw()
 				cache_enable(TRUE);
 			}
 		}
-		
-		/*
-		{
-			SVGA_region_info_t testregion;
-			memset(&testregion, 0, sizeof(SVGA_region_info_t));
-	
-			testregion.region_id = ST_REGION_ID;
-			testregion.size = 4*1024*1024;
-			testregion.mobonly = FALSE;
-			
-			SVGA_region_create(&testregion);
-		}*/
 				
 		return TRUE;
 	}
@@ -615,6 +607,11 @@ BOOL SVGA3D_Init(void)
 	
 	if((gSVGA.capabilities & SVGA_CAP_GBOBJECTS))
 	{
+		if(!SVGA_GetDevCap(SVGA3D_DEVCAP_DXCONTEXT))
+		{
+			/* don't allow 3D on vGPU without DX context */
+			return FALSE;
+		}
 		hwVersion = SVGA3D_HWVERSION_WS8_B1;
 	}
 	else if(SVGA_HasFIFOCap(SVGA_FIFO_CAP_3D_HWVERSION_REVISED))
@@ -831,11 +828,6 @@ BOOL SVGA_setmode(DWORD w, DWORD h, DWORD bpp)
 	
 	/* start command buffer context 0 */
 	SVGA_CB_start();
-	
-	if(gb_support)
-	{
-		SVGA_OTable_load();
-	}
 	
 	has3D = SVGA3D_Init();
 	SVGA_Sync();

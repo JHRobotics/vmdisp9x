@@ -534,8 +534,6 @@ static DWORD SVGA_CB_ctr(DWORD data_size)
 	
 	//End_Critical_Section();
 	
-	dbg_printf(dbg_ctr_end);
-	
 	return cb->status;
 }
 
@@ -557,15 +555,15 @@ void SVGA_CB_start()
 		
 		status = SVGA_CB_ctr(sizeof(cb_enable_t));
 		
+		dbg_printf(dbg_cb_start_status, status);
+		
 		if(status == SVGA_CB_STATUS_COMPLETED)
 		{
-			dbg_printf(dbg_cb_start);
 			cb_context0 = TRUE;
 		}
 		else
 		{
 			cb_support = FALSE;
-			dbg_printf(dbg_cb_start_err, status);
 		}
 	}
 }
@@ -590,8 +588,6 @@ void SVGA_CB_stop()
 		
 		status = SVGA_CB_ctr(sizeof(cb_enable_t));
 		dbg_printf(dbg_cb_stop_status, status);
-		
-		dbg_printf(dbg_cb_stop);
 	}
 }
 
