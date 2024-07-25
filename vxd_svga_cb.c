@@ -79,6 +79,7 @@ extern DWORD present_fence;
 extern BOOL ST_FB_invalid;
 
 BOOL CB_queue_check(SVGACBHeader *tracked);
+inline BOOL CB_queue_check_inline(SVGACBHeader *tracked);
 
 /*
  * Locals
@@ -93,7 +94,7 @@ static uint64 cb_next_id = {0, 0};
 #define WAIT_FOR_CB(_cb, _forcesync) \
 	do{ \
 		/*dbg_printf(dbg_wait_cb, __LINE__);*/ \
-		while(!CB_queue_check(_cb)){ \
+		while(!CB_queue_check_inline(_cb)){ \
 			WAIT_FOR_CB_SYNC_ ## _forcesync \
 		} \
 	}while(0)
@@ -194,11 +195,12 @@ static void SVGA_cb_id_inc()
  * @return: TRUE if tracked is complete or TRUE id queue is empty
  
  */
-BOOL CB_queue_check(SVGACBHeader *tracked)
+inline BOOL CB_queue_check_inline(SVGACBHeader *tracked)
 {
 	cb_queue_t *last = NULL;
 	cb_queue_t *item = cb_queue_info.first;
 	BOOL in_queue = FALSE;
+	BOOL need_restart = FALSE;
 	
 	while(item != NULL)
 	{
@@ -216,7 +218,7 @@ BOOL CB_queue_check(SVGACBHeader *tracked)
 			
 			if(cb->status > SVGA_CB_STATUS_COMPLETED)
 			{
-				SVGA_CB_restart();
+				need_restart = TRUE;
 			}
 			
 			item = item->next;
@@ -234,6 +236,12 @@ BOOL CB_queue_check(SVGACBHeader *tracked)
 	
 	cb_queue_info.last = last;
 	
+	if(need_restart)
+	{
+		SVGA_CB_restart();
+		return TRUE; /* queue is always empty on restart */
+	}
+	
 	if(cb_queue_info.first == NULL)
 	{
 		return TRUE;
@@ -245,6 +253,11 @@ BOOL CB_queue_check(SVGACBHeader *tracked)
 	}
 	
 	return FALSE;	
+}
+
+BOOL CB_queue_check(SVGACBHeader *tracked)
+{
+	return CB_queue_check_inline(tracked);
 }
 
 void CB_queue_insert(SVGACBHeader *cb)
@@ -264,13 +277,29 @@ void CB_queue_insert(SVGACBHeader *cb)
 	}
 }
 
+void CB_queue_erase()
+{
+	cb_queue_t *item = cb_queue_info.first;
+	while(item != NULL)
+	{
+		SVGACBHeader *cb = (SVGACBHeader*)(item+1);
+		
+		cb->status = SVGA_CB_STATUS_QUEUE_FULL;
+		
+		item = item->next;
+	}
+	
+	cb_queue_info.first = NULL;
+	cb_queue_info.last  = NULL;
+}
 
-void SVGA_CMB_submit_critical(DWORD FBPTR cmb, DWORD cmb_size, SVGA_CMB_status_t FBPTR status, DWORD flags, DWORD DXCtxId)
+
+static void SVGA_CMB_submit_critical(DWORD FBPTR cmb, DWORD cmb_size, SVGA_CMB_status_t FBPTR status, DWORD flags, DWORD DXCtxId)
 {
 	DWORD fence = 0;
 	SVGACBHeader *cb = ((SVGACBHeader *)cmb)-1;
 	
-	CB_queue_check(NULL);
+	CB_queue_check_inline(NULL);
 	
 	if(status)
 	{
@@ -587,6 +616,11 @@ void SVGA_CB_stop()
 		cbe->cbstart.context = SVGA_CB_CONTEXT_0;
 		
 		status = SVGA_CB_ctr(sizeof(cb_enable_t));
+		
+		SVGA_Sync();
+		
+		CB_queue_erase();
+		
 		dbg_printf(dbg_cb_stop_status, status);
 	}
 }
@@ -597,6 +631,7 @@ void SVGA_CB_stop()
  **/
 void SVGA_CB_restart()
 {
-	cb_context0 = FALSE;
+	SVGA_CB_stop();
+	
 	SVGA_CB_start();
 }

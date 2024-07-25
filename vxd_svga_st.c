@@ -78,7 +78,7 @@ void st_defineScreen(DWORD w, DWORD h, DWORD bpp)
   SVGAFifoCmdDefineScreen *screen;
   SVGAFifoCmdDefineGMRFB  *fbgmr;
   SVGA3dCmdDefineGBScreenTarget *stid;
-  SVGA3dCmdDefineGBSurface_v4 *gbsurf;
+  SVGA3dCmdDefineGBSurface_v3 *gbsurf;
   SVGA3dCmdBindGBSurface   *gbbind;
   SVGA3dCmdBindGBScreenTarget *stbind;
   SVGA_DB_surface_t *sinfo;
@@ -128,7 +128,7 @@ void st_defineScreen(DWORD w, DWORD h, DWORD bpp)
 	cmdoff = 0;
 	
 	/* create gb texture */
-	gbsurf = SVGA_cmd3d_ptr(cmdbuf, &cmdoff, SVGA_3D_CMD_DEFINE_GB_SURFACE_V4, sizeof(SVGA3dCmdDefineGBSurface_v4));
+	gbsurf = SVGA_cmd3d_ptr(cmdbuf, &cmdoff, SVGA_3D_CMD_DEFINE_GB_SURFACE_V3, sizeof(SVGA3dCmdDefineGBSurface_v3));
 	gbsurf->sid                = ST_SURFACE_ID;
 	gbsurf->surfaceFlags.low   = SVGA3D_SURFACE_SCREENTARGET | SVGA3D_SURFACE_HINT_RENDERTARGET | SVGA3D_SURFACE_BIND_RENDER_TARGET;
 	gbsurf->surfaceFlags.hi    = 0;
@@ -144,7 +144,7 @@ void st_defineScreen(DWORD w, DWORD h, DWORD bpp)
   gbsurf->size.height        = h;
   gbsurf->size.depth         = 1;
   gbsurf->arraySize          = 1;
-  gbsurf->bufferByteStride   = SVGA_pitch(w, 32);
+  //gbsurf->bufferByteStride   = SVGA_pitch(w, 32);
 
 	/* bind texture to our GMR/mob */
 	gbbind        = SVGA_cmd3d_ptr(cmdbuf, &cmdoff, SVGA_3D_CMD_BIND_GB_SURFACE, sizeof(SVGA3dCmdBindGBSurface));
