@@ -157,6 +157,11 @@ DSTR(dbg_pt_build_2, "PT_build(%ld): pt1_entries=%ld, pt2_entries=%ld\n");
 
 DSTR(dbg_cb_suc, "submit SVGA_CB_SYNC success\n");
 
+DSTR(dbg_region_1, "SVGA_region_create #1: %ld, max: %ld\n");
+DSTR(dbg_region_2, "SVGA_region_create #2: %ld\n");
+
+DSTR(dbg_cb_error, "Error (%ld): offset %ld, error command: %ld\n");
+
 #undef DSTR
 
 #endif

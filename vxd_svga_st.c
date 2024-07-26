@@ -78,7 +78,7 @@ void st_defineScreen(DWORD w, DWORD h, DWORD bpp)
   SVGAFifoCmdDefineScreen *screen;
   SVGAFifoCmdDefineGMRFB  *fbgmr;
   SVGA3dCmdDefineGBScreenTarget *stid;
-  SVGA3dCmdDefineGBSurface_v3 *gbsurf;
+  SVGA3dCmdDefineGBSurface_v2 *gbsurf;
   SVGA3dCmdBindGBSurface   *gbbind;
   SVGA3dCmdBindGBScreenTarget *stbind;
   SVGA_DB_surface_t *sinfo;
@@ -128,10 +128,9 @@ void st_defineScreen(DWORD w, DWORD h, DWORD bpp)
 	cmdoff = 0;
 	
 	/* create gb texture */
-	gbsurf = SVGA_cmd3d_ptr(cmdbuf, &cmdoff, SVGA_3D_CMD_DEFINE_GB_SURFACE_V3, sizeof(SVGA3dCmdDefineGBSurface_v3));
+	gbsurf = SVGA_cmd3d_ptr(cmdbuf, &cmdoff, SVGA_3D_CMD_DEFINE_GB_SURFACE_V2, sizeof(SVGA3dCmdDefineGBSurface_v2));
 	gbsurf->sid                = ST_SURFACE_ID;
-	gbsurf->surfaceFlags.low   = SVGA3D_SURFACE_SCREENTARGET | SVGA3D_SURFACE_HINT_RENDERTARGET | SVGA3D_SURFACE_BIND_RENDER_TARGET;
-	gbsurf->surfaceFlags.hi    = 0;
+	gbsurf->surfaceFlags       = SVGA3D_SURFACE_SCREENTARGET | SVGA3D_SURFACE_HINT_RENDERTARGET | SVGA3D_SURFACE_BIND_RENDER_TARGET;
 	switch(bpp)
 	{
 		case 16: gbsurf->format = SVGA3D_R5G6B5; break;

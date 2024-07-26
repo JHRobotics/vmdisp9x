@@ -50,6 +50,7 @@ void SVGA_mouse_show();
 void SVGA_mouse_hide(BOOL invalidate);
 
 /* memory */
+void set_fragmantation_limit();
 void SVGA_OTable_load();
 void SVGA_OTable_alloc(BOOL screentargets);
 void SVGA_OTable_unload();

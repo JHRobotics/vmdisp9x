@@ -218,6 +218,13 @@ inline BOOL CB_queue_check_inline(SVGACBHeader *tracked)
 			
 			if(cb->status > SVGA_CB_STATUS_COMPLETED)
 			{
+				#ifdef DBGPRINT	
+				{
+					DWORD *cmd_ptr = (DWORD*)(cb+1);
+					
+					dbg_printf(dbg_cb_error, cb->status, cb->errorOffset, cmd_ptr[cb->errorOffset/4]);
+				}
+				#endif
 				need_restart = TRUE;
 			}
 			
@@ -309,7 +316,7 @@ static void SVGA_CMB_submit_critical(DWORD FBPTR cmb, DWORD cmb_size, SVGA_CMB_s
 	}
 
 #ifdef DBGPRINT
-	debug_cmdbuf(cmb, cmb_size);
+//	debug_cmdbuf(cmb, cmb_size);
 //	debug_cmdbuf_trace(cmb, cmb_size, SVGA_3D_CMD_BLIT_SURFACE_TO_SCREEN);
 //		debug_draw(cmb, cmb_size);
 #endif
@@ -620,6 +627,7 @@ void SVGA_CB_stop()
 		SVGA_Sync();
 		
 		CB_queue_erase();
+		present_fence = 0; // remove waiting fence
 		
 		dbg_printf(dbg_cb_stop_status, status);
 	}

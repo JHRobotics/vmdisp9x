@@ -44,6 +44,7 @@ THE SOFTWARE.
  * consts
  */
 #define PTONPAGE (P_SIZE/sizeof(DWORD))
+#define MDONPAGE (P_SIZE/sizeof(SVGAGuestMemDescriptor))
 
 #define SPARE_REGIONS_LARGE 2
 #define SPARE_REGION_LARGE_SIZE (32*1024*1024)
@@ -577,14 +578,60 @@ void cache_enable(BOOL enabled)
 	cache_enabled = enabled;
 }
 
+static DWORD pa_flags = PAGEFIXED;
+static DWORD pa_align = 0x00000000;
+
+void set_fragmantation_limit()
+{
+	DWORD max_len = SVGA_ReadReg(SVGA_REG_GMR_MAX_DESCRIPTOR_LENGTH);
+	
+	if(max_len < 1024)
+	{
+		pa_flags = PAGEFIXED | PAGEUSEALIGN;
+		pa_align = 0x1F; // 128K
+	}
+	else if(max_len < 2048)
+	{
+		pa_flags = PAGEFIXED | PAGEUSEALIGN;
+		pa_align = 0x0F; //  64K
+	}
+	else if(max_len < 4096)
+	{
+		pa_flags = PAGEFIXED | PAGEUSEALIGN;
+		pa_align = 0x07; //  32K
+	}
+	else if(max_len < 8192)
+	{
+		pa_flags = PAGEFIXED | PAGEUSEALIGN;
+		pa_align = 0x03; //  16K
+	}
+	else if(max_len < 16384)
+	{
+		pa_flags = PAGEFIXED | PAGEUSEALIGN;
+		pa_align = 0x01; //  8K
+	}
+	else
+	{
+		pa_flags = PAGEFIXED;
+		pa_align = 0x0;
+	}
+}
+
+
 //#define GMR_CONTIG
 //#define GMR_SYSTEM
 
 //static DWORD pa_flags = PAGEFIXED | PAGEUSEALIGN;
-//static DWORD pa_align = 0x0000000F; // 64k
+//static DWORD pa_align = 0x00000003; // 64k
 
-static DWORD pa_flags = PAGEFIXED;
-static DWORD pa_align = 0x00000000;
+/*
+0x00 =   4K
+0x01 =   8K
+0x03 =  16K
+0x07 =  32K
+0x0F =  64K
+0x1F = 128K
+*/
 
 /**
  * Allocate guest memory region (GMR) - HW needs know memory physical
@@ -645,7 +692,7 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 		rinfo->address        = (void*)(laddr+P_SIZE);
 		rinfo->region_address = 0;
 		rinfo->region_ppn     = (phy/P_SIZE);
-		rinfo->mob_address    = 0;	
+		rinfo->mob_address    = 0;
 		rinfo->mob_ppn        = (phy/P_SIZE)+1;
 		rinfo->mob_pt_depth   = SVGA3D_MOBFMT_RANGE;
 		
@@ -662,23 +709,25 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 		ULONG pgi;
 		ULONG base_ppn;
 		ULONG base_cnt;
-		ULONG blocks = 1;
+		ULONG blocks;
 		ULONG blk_pages = 0;
+		ULONG blk_pages_raw = 0;
 		
 		/* allocate user block */
 		maddr = _PageAllocate(nPages+pt_pages, pa_type, pa_vm, pa_align, 0x0, 0x100000, NULL, pa_flags);
-				
+
 		if(!maddr)
 		{
 			End_Critical_Section();
 			return FALSE;
 		}
-		
+
 		laddr = maddr + pt_pages*P_SIZE;
-		
+
 		/* determine how many physical continuous blocks we have */
 		base_ppn = getPPN(laddr);
 		base_cnt = 1;
+		blocks   = 1;
 		for(pgi = 1; pgi < nPages; pgi++)
 		{
 			taddr = laddr + pgi*P_SIZE;
@@ -695,13 +744,15 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 				base_cnt++;
 			}
 		}
-			
+
 		// number of pages to store regions information
-		blk_pages = ((blocks+1)/(P_SIZE/sizeof(SVGAGuestMemDescriptor))) + 1;
-			
-		// add extra descriptors for pages edge
-		blk_pages = ((blocks+blk_pages+1)/(P_SIZE/sizeof(SVGAGuestMemDescriptor))) + 1;
+		blk_pages_raw = (blocks + MDONPAGE - 1)/MDONPAGE;
+
+		// number of pages including pages-cross descriptors
+		blk_pages = (blocks + blk_pages_raw + MDONPAGE - 1)/MDONPAGE;
 		
+		dbg_printf(dbg_region_1, blocks+blk_pages_raw, SVGA_ReadReg(SVGA_REG_GMR_MAX_DESCRIPTOR_LENGTH));
+
 		/* allocate memory for GMR descriptor */
 		pgblk = _PageAllocate(blk_pages, pa_type, pa_vm, pa_align, 0x0, 0x100000, NULL, pa_flags);
 		if(!pgblk)
@@ -710,12 +761,13 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 			End_Critical_Section();
 			return FALSE;
 		}
-		
+
 		desc = (SVGAGuestMemDescriptor*)pgblk;
-		desc->ppn = getPPN(laddr);
+		memset(desc, 0, blk_pages*P_SIZE);
+
+		blocks         = 1;
+		desc->ppn      = getPPN(laddr);
 		desc->numPages = 1;
-		blocks = 1;
-		
 		/* fill GMR physical structure */
 		for(pgi = 1; pgi < nPages; pgi++)
 		{
@@ -728,8 +780,8 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 			}
 			else
 			{
-				/* next descriptor is on page edge */
-				if((blocks+1) % (P_SIZE/sizeof(SVGAGuestMemDescriptor)) == 0)
+				/* the next descriptor is on next page page */
+				if(((blocks+1) % MDONPAGE) == 0)
 				{
 					desc++;
 					desc->numPages = 0;
@@ -747,6 +799,8 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 		desc++;
 		desc->ppn = 0;
 		desc->numPages = 0;
+		
+		dbg_printf(dbg_region_2, blocks);
 
 		rinfo->mob_address    = (void*)maddr;
 		rinfo->mob_ppn        = 0;

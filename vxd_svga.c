@@ -99,6 +99,8 @@ static char SVGA_conf_st_size[]    = "STSize";
 static char SVGA_conf_st_flags[]   = "STOptions";
 static char SVGA_vxd_name[]        = "vmwsmini.vxd";
 
+static char SVGA_conf_disable_multisample[] = "NoMultisample";
+
 /**
  * Notify virtual HW that is some work to do
  **/
@@ -255,9 +257,6 @@ BOOL SVGA_fence_is_passed(DWORD fence_id)
 
 void SVGA_fence_wait(DWORD fence_id)
 {
-	//DWORD cnt = 0;
-	
-	//for(cnt = 0; cnt < SVGA_TIMEOUT; cnt++)
 	for(;;)
 	{
 		if(SVGA_fence_is_passed(fence_id))
@@ -265,15 +264,17 @@ void SVGA_fence_wait(DWORD fence_id)
 			break;
 		}
 		
-		CB_queue_check(NULL);
+		if(cb_support && cb_context0)
+		{
+			if(CB_queue_check(NULL))
+			{
+				/* waiting for fence but command queue is empty */
+				SVGA_Flush();
+				return;
+			}
+		}
 		SVGA_Sync();
 	}
-	
-	/*
-	if(cnt == SVGA_TIMEOUT)
-	{
-		SVGA_Flush();
-	}*/
 }
 
 void *SVGA_cmd_ptr(DWORD *buf, DWORD *pOffset, DWORD cmd, DWORD cmdsize)
@@ -330,7 +331,7 @@ static DWORD fb_pm16 = 0;
 static DWORD st_pm16 = 0;
 static DWORD st_address = 0;
 static DWORD st_surface_mb = 0;
-
+static DWORD disable_multisample = 0;
 
 BOOL st_useable(DWORD bpp)
 {
@@ -401,6 +402,8 @@ BOOL SVGA_init_hw()
  	
  	RegReadConf(HKEY_LOCAL_MACHINE, SVGA_conf_path, SVGA_conf_st_size,    &st_surface_mb);
  	RegReadConf(HKEY_LOCAL_MACHINE, SVGA_conf_path, SVGA_conf_st_flags,   &st_flags);
+ 	
+ 	RegReadConf(HKEY_LOCAL_MACHINE, SVGA_conf_path, SVGA_conf_disable_multisample, &disable_multisample);
  	
  	if(!FBHDA_init_hw())
  	{
@@ -510,6 +513,8 @@ BOOL SVGA_init_hw()
 				dbg_printf(dbg_cb_on);
 			}
 		}
+		
+		set_fragmantation_limit();
 		
 		SVGA_DB_alloc();
 		
@@ -935,12 +940,15 @@ DWORD SVGA_FixDevCap(DWORD cap_id, DWORD cap_val)
 			}
 			break;
 		}
-#if 0
-		/* VBox hasn't Z_DF16/Z_DF24, vmware has, for testing same behaviour */
-		case SVGA3D_DEVCAP_SURFACEFMT_Z_DF16:
-		case SVGA3D_DEVCAP_SURFACEFMT_Z_DF24:
-			return 0;
-#endif
+		case SVGA3D_DEVCAP_MULTISAMPLE_2X:
+		case SVGA3D_DEVCAP_MULTISAMPLE_4X:
+		case SVGA3D_DEVCAP_MULTISAMPLE_8X:
+			if(disable_multisample)
+			{
+				return 0;
+			}
+			break;
+		
 	}
 	
 	return cap_val;
