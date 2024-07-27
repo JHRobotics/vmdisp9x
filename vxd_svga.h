@@ -25,6 +25,14 @@ BOOL SVGA_fence_is_passed(DWORD fence_id);
 DWORD SVGA_fence_passed();
 DWORD SVGA_GetDevCap(DWORD search_id);
 
+#ifdef DBGPRINT
+void SVGA_fence_wait_dbg(DWORD fence_id, int line);
+
+#define SVGA_fence_wait(_fence) SVGA_fence_wait_dbg(_fence, __LINE__)
+
+#endif
+
+
 /* screen target */
 extern BOOL  st_used;
 extern DWORD st_flags;
@@ -63,5 +71,6 @@ void SVGA_CMB_free(DWORD *cmb);
 void SVGA_CB_start();
 void SVGA_CB_stop();
 void SVGA_CB_restart();
+void SVGA_CMB_wait_update();
 
 #endif /* __VXD_SVGA_H__INCLUDED__ */

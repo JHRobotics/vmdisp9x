@@ -43,6 +43,7 @@ DWORD __cdecl _RegCloseKey(DWORD hKey);
 DWORD __cdecl _RegQueryValueEx(DWORD hKey, char *lpszValueName, DWORD *lpdwReserved, DWORD *lpdwType, BYTE *lpbData, DWORD *lpcbData);
 volatile void __cdecl Begin_Critical_Section(ULONG Flags);
 volatile void __cdecl End_Critical_Section();
+void Cleanup_Critical_Section();
 ULONG __cdecl Create_Semaphore(ULONG TokenCount);
 void __cdecl Destroy_Semaphore(ULONG SemHandle);
 void __cdecl Wait_Semaphore(ULONG semHandle, ULONG flags);

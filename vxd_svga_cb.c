@@ -44,6 +44,10 @@ THE SOFTWARE.
  * types
  */
 
+#define CBQ_PRESENT 0x01
+#define CBQ_RENDER  0x02
+#define CBQ_UPDATE  0x04
+
 #pragma pack(push)
 #pragma pack(1)
 typedef struct _cb_enable_t
@@ -75,7 +79,7 @@ extern BOOL gb_support;
 extern BOOL cb_support;
 extern BOOL cb_context0;
 
-extern DWORD present_fence;
+//extern DWORD present_fence;
 extern BOOL ST_FB_invalid;
 
 BOOL CB_queue_check(SVGACBHeader *tracked);
@@ -90,7 +94,6 @@ static uint64 cb_next_id = {0, 0};
 /*
  * Macros
  */
-
 #define WAIT_FOR_CB(_cb, _forcesync) \
 	do{ \
 		/*dbg_printf(dbg_wait_cb, __LINE__);*/ \
@@ -264,14 +267,36 @@ inline BOOL CB_queue_check_inline(SVGACBHeader *tracked)
 
 BOOL CB_queue_check(SVGACBHeader *tracked)
 {
+//	dbg_printf(dbg_queue_check);
 	return CB_queue_check_inline(tracked);
 }
 
-void CB_queue_insert(SVGACBHeader *cb)
+static BOOL CB_queue_is_flags_set(DWORD flags)
+{
+	cb_queue_t *item = cb_queue_info.first;
+	
+	if(flags == 0) return FALSE;
+	
+	while(item != NULL)
+	{
+		if((item->flags & flags) != 0)
+		{
+			return TRUE;
+		}
+		
+		item = item->next;
+	}
+	
+	return FALSE;
+}
+
+void CB_queue_insert(SVGACBHeader *cb, DWORD flags)
 {
 	cb_queue_t *item = (cb_queue_t*)(cb-1);
 	item->next = NULL;
-	
+	item->flags = flags;
+	item->data_size = cb->length;
+
 	if(cb_queue_info.last != NULL)
 	{
 		cb_queue_info.last->next = item;
@@ -300,13 +325,111 @@ void CB_queue_erase()
 	cb_queue_info.last  = NULL;
 }
 
+static DWORD flags_to_cbq(DWORD cb_flags)
+{
+	DWORD r = 0;
+	
+	if((cb_flags & SVGA_CB_PRESENT) != 0)
+	{
+		r |= CBQ_PRESENT;
+	}
+	
+	if((cb_flags & SVGA_CB_RENDER) != 0)
+	{
+		r |= CBQ_RENDER;
+	}
+	
+	if((cb_flags & SVGA_CB_UPDATE) != 0)
+	{
+		r |= SVGA_CB_UPDATE;
+	}
+	
+	return r;
+}
+
+static DWORD flags_to_cbq_check(DWORD cb_flags)
+{
+	DWORD r = 0;
+
+	if((cb_flags & SVGA_CB_PRESENT) != 0)
+	{
+		r |= CBQ_PRESENT | CBQ_RENDER;
+	}
+	
+	if((cb_flags & SVGA_CB_RENDER) != 0)
+	{
+		r |= CBQ_RENDER | SVGA_CB_UPDATE;
+	}
+	
+	if((cb_flags & SVGA_CB_UPDATE) != 0)
+	{
+		r |= CBQ_RENDER | SVGA_CB_UPDATE;
+	}
+	
+	return r;
+}
+
+static uint32 fence_present = 0;
+static uint32 fence_render  = 0;
+static uint32 fence_update  = 0;
+
+static void flags_fence_check(DWORD cb_flags)
+{
+	DWORD to_check = flags_to_cbq_check(cb_flags);
+	
+	if((to_check & CBQ_PRESENT) != 0)
+	{
+		if(fence_present)
+		{
+			SVGA_fence_wait(fence_present);
+			fence_present = 0;
+		}
+	}
+	
+	if((to_check & CBQ_RENDER) != 0)
+	{
+		if(fence_render)
+		{
+			SVGA_fence_wait(fence_render);
+			fence_render = 0;
+		}
+	}
+	
+	if((to_check & CBQ_UPDATE) != 0)
+	{
+		if(fence_update)
+		{
+			SVGA_fence_wait(fence_update);
+			fence_update = 0;
+		}
+	}
+}
+
+static void flags_fence_insert(DWORD cb_flags, uint32 fence)
+{
+	if((cb_flags & SVGA_CB_PRESENT) != 0)
+	{
+		fence_present = fence;
+	}
+	
+	if((cb_flags & SVGA_CB_RENDER) != 0)
+	{
+		fence_render = fence;
+	}
+	
+	if((cb_flags & SVGA_CB_UPDATE) != 0)
+	{
+		fence_update = fence;
+	}
+}
+
+#define flags_fifo_fence_need(_flags) (((_flags) & (SVGA_CB_SYNC | SVGA_CB_FORCE_FENCE | SVGA_CB_PRESENT | SVGA_CB_RENDER | SVGA_CB_UPDATE)) != 0)
+#define flags_cb_fence_need(_flags) (((_flags) & (SVGA_CB_FORCE_FENCE)) != 0)
 
 static void SVGA_CMB_submit_critical(DWORD FBPTR cmb, DWORD cmb_size, SVGA_CMB_status_t FBPTR status, DWORD flags, DWORD DXCtxId)
 {
 	DWORD fence = 0;
 	SVGACBHeader *cb = ((SVGACBHeader *)cmb)-1;
-	
-	CB_queue_check_inline(NULL);
 	
 	if(status)
 	{
@@ -320,43 +443,28 @@ static void SVGA_CMB_submit_critical(DWORD FBPTR cmb, DWORD cmb_size, SVGA_CMB_s
 //	debug_cmdbuf_trace(cmb, cmb_size, SVGA_3D_CMD_BLIT_SURFACE_TO_SCREEN);
 //		debug_draw(cmb, cmb_size);
 #endif
-
-	if(flags & SVGA_CB_PRESENT_ASYNC)
-	{
-		if(present_fence != 0)
-		{
-			SVGA_fence_wait(present_fence);
-		}
-		
-		flags |= SVGA_CB_FORCE_FENCE;
-	}
-	else if(present_fence)
-	{
-		if(SVGA_fence_is_passed(present_fence))
-		{
-			present_fence = 0;
-		}
-	}
 	
-	if(flags & SVGA_CB_PRESENT_GPU)
+	if(flags & SVGA_CB_DIRTY_SURFACE)
 	{
 		ST_FB_invalid = TRUE;
 	}
-	
+
 	if(  /* CB are supported and enabled */
-		cb_support &&
-		(cb_context0 || (flags & SVGA_CB_USE_CONTEXT_DEVICE)) &&
+		cb_support && cb_context0 &&
 		(flags & SVGA_CB_FORCE_FIFO) == 0
 	)
 	{
+		/***
+		 *
+		 * COMMAND BUFFER procesing
+		 *
+		 ***/
 		DWORD cbhwctxid = SVGA_CB_CONTEXT_0;
+		DWORD cbq_check = flags_to_cbq_check(flags);
 		
-		if(flags & SVGA_CB_USE_CONTEXT_DEVICE)
-		{
-			cbhwctxid = SVGA_CB_CONTEXT_DEVICE;
-		}
+		//if(flags & SVGA_CB_USE_CONTEXT_DEVICE)	cbhwctxid = SVGA_CB_CONTEXT_DEVICE;
 		
-		if(flags & SVGA_CB_FORCE_FENCE)
+		if(flags_cb_fence_need(flags))
 		{
 			DWORD dwords = cmb_size/sizeof(DWORD);
 			fence = SVGA_fence_get();
@@ -364,6 +472,12 @@ static void SVGA_CMB_submit_critical(DWORD FBPTR cmb, DWORD cmb_size, SVGA_CMB_s
 			cmb[dwords+1] = fence;
 			cmb_size += sizeof(DWORD)*2;
 		}
+		
+		/* wait */
+		do
+		{
+			CB_queue_check_inline(NULL);
+		} while(CB_queue_is_flags_set(cbq_check));
 		
 		if(cmb_size == 0)
 		{
@@ -377,10 +491,10 @@ static void SVGA_CMB_submit_critical(DWORD FBPTR cmb, DWORD cmb_size, SVGA_CMB_s
 		}
 		else
 		{
-			cb->status = SVGA_CB_STATUS_NONE;
+			cb->status      = SVGA_CB_STATUS_NONE;
 			cb->errorOffset = 0;
-			cb->offset = 0; /* VMware modified this, needs to be clear */
-			cb->flags  = SVGA_CB_FLAG_NO_IRQ;
+			cb->offset      = 0; /* VMware modified this, needs to be clear */
+			cb->flags       = SVGA_CB_FLAG_NO_IRQ;
 			
 			if(flags & SVGA_CB_FLAG_DX_CONTEXT)
 			{
@@ -392,11 +506,11 @@ static void SVGA_CMB_submit_critical(DWORD FBPTR cmb, DWORD cmb_size, SVGA_CMB_s
 				cb->dxContext = 0;
 			}
 			
-			cb->id.low = cb_next_id.low;
-			cb->id.hi  = cb_next_id.hi;
-			cb->length = cmb_size;
+			cb->id.low      = cb_next_id.low;
+			cb->id.hi       = cb_next_id.hi;
+			cb->length      = cmb_size;
 			
-			CB_queue_insert(cb);			
+			CB_queue_insert(cb, flags_to_cbq(flags));			
 			
 			SVGA_WriteReg(SVGA_REG_COMMAND_HIGH, 0); // high part of 64-bit memory address...
 			SVGA_WriteReg(SVGA_REG_COMMAND_LOW, (cb->ptr.pa.low - sizeof(SVGACBHeader)) | cbhwctxid);
@@ -417,10 +531,10 @@ static void SVGA_CMB_submit_critical(DWORD FBPTR cmb, DWORD cmb_size, SVGA_CMB_s
 						fence = SVGA_fence_passed();
 					}
 				}
-				else
+				/*else
 				{
 					dbg_printf(dbg_cb_suc);
-				}
+				}*/
 				
 				if(status)
 				{
@@ -440,45 +554,30 @@ static void SVGA_CMB_submit_critical(DWORD FBPTR cmb, DWORD cmb_size, SVGA_CMB_s
 			}
 		}	
 	}
-	else /* copy to FIFO */
+	else
 	{
+		/***
+		 *
+		 * FIFO procesing
+		 *
+		 ***/
 		DWORD *ptr = cmb;
 		DWORD dwords = cmb_size/sizeof(DWORD);
 		DWORD nextCmd, max, min;
 		
 		/* insert fence CMD */
-		fence = SVGA_fence_get();
-		ptr[dwords]   = SVGA_CMD_FENCE;
-		ptr[dwords+1] = fence;
-		
-		dwords += 2;
-		
-		//SVGA_Flush();
-		
-		nextCmd = gSVGA.fifoMem[SVGA_FIFO_NEXT_CMD];
-		max     = gSVGA.fifoMem[SVGA_FIFO_MAX];
-		min     = gSVGA.fifoMem[SVGA_FIFO_MIN];
-		
-		/* copy to fifo */
-		while(dwords > 0)
+		if(flags_fifo_fence_need(flags))
 		{
-			gSVGA.fifoMem[nextCmd/sizeof(DWORD)] = *ptr;
-			ptr++;
-			
-			nextCmd += sizeof(uint32);
-			if (nextCmd >= max)
-			{
-				nextCmd = min;
-			}
-			gSVGA.fifoMem[SVGA_FIFO_NEXT_CMD] = nextCmd;
-			dwords--;
+			fence = SVGA_fence_get();
+			ptr[dwords++] = SVGA_CMD_FENCE;
+			ptr[dwords++] = fence;
 		}
 		
-		//SVGA_Sync();
+		flags_fence_check(flags);
 		
-		if(flags & SVGA_CB_SYNC)
+		if(dwords == 0)
 		{
-			SVGA_fence_wait(fence);
+			cb->status = SVGA_PROC_COMPLETED;
 			if(status)
 			{
 				status->sStatus = SVGA_PROC_COMPLETED;
@@ -488,25 +587,54 @@ static void SVGA_CMB_submit_critical(DWORD FBPTR cmb, DWORD cmb_size, SVGA_CMB_s
 		}
 		else
 		{
-			if(status)
+			nextCmd = gSVGA.fifoMem[SVGA_FIFO_NEXT_CMD];
+			max     = gSVGA.fifoMem[SVGA_FIFO_MAX];
+			min     = gSVGA.fifoMem[SVGA_FIFO_MIN];
+			
+			/* copy to fifo */
+			while(dwords > 0)
 			{
-				status->sStatus = SVGA_PROC_FENCE;
-				status->qStatus = NULL;
-				status->fifo_fence_used = fence;
+				gSVGA.fifoMem[nextCmd/sizeof(DWORD)] = *ptr;
+				ptr++;
+				
+				nextCmd += sizeof(uint32);
+				if (nextCmd >= max)
+				{
+					nextCmd = min;
+				}
+				gSVGA.fifoMem[SVGA_FIFO_NEXT_CMD] = nextCmd;
+				dwords--;
 			}
-		}
-		
-		cb->status = SVGA_PROC_COMPLETED;
+			
+			if(flags & SVGA_CB_SYNC)
+			{
+				SVGA_fence_wait(fence);
+				if(status)
+				{
+					status->sStatus = SVGA_PROC_COMPLETED;
+					status->qStatus = NULL;
+					status->fifo_fence_used = 0;
+				}
+			}
+			else
+			{
+				flags_fence_insert(flags, fence);
+				
+				if(status)
+				{
+					status->sStatus = SVGA_PROC_FENCE;
+					status->qStatus = NULL;
+					status->fifo_fence_used = fence;
+				}
+			}
+			
+			cb->status = SVGA_PROC_COMPLETED;
+		} // size > 0
 	} /* FIFO */
 	
 	if(status)
 	{
 		status->fifo_fence_last = SVGA_fence_passed();
-	}
-	
-	if(flags & SVGA_CB_PRESENT_ASYNC)
-	{
-		present_fence = fence;
 	}
 	
 	//dbg_printf(dbg_cmd_off, cmb[0]);
@@ -627,7 +755,6 @@ void SVGA_CB_stop()
 		SVGA_Sync();
 		
 		CB_queue_erase();
-		present_fence = 0; // remove waiting fence
 		
 		dbg_printf(dbg_cb_stop_status, status);
 	}
@@ -642,4 +769,19 @@ void SVGA_CB_restart()
 	SVGA_CB_stop();
 	
 	SVGA_CB_start();
+}
+
+void SVGA_CMB_wait_update()
+{
+	if(cb_support && cb_context0)
+	{
+		do
+		{
+			CB_queue_check_inline(NULL);
+		} while(CB_queue_is_flags_set(CBQ_UPDATE | CBQ_UPDATE));
+	}
+	else
+	{
+		flags_fence_check(SVGA_CB_UPDATE);
+	}
 }

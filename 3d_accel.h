@@ -250,12 +250,14 @@ BOOL SVGA_init_hw();
 
 BOOL SVGA_valid();
 
-#define SVGA_CB_USE_CONTEXT_DEVICE 0x80000000UL
-#define SVGA_CB_SYNC               0x40000000UL
-#define SVGA_CB_FORCE_FIFO         0x20000000UL
-#define SVGA_CB_FORCE_FENCE        0x10000000UL
-#define SVGA_CB_PRESENT_ASYNC      0x08000000UL
-#define SVGA_CB_PRESENT_GPU        0x04000000UL
+#define SVGA_CB_USE_CONTEXT_DEVICE 0x80000000UL /* CB control command */
+#define SVGA_CB_SYNC               0x40000000UL /* wait to command complete */
+#define SVGA_CB_FORCE_FIFO         0x20000000UL /* insert this command to FIFO, event the CB is working */
+#define SVGA_CB_FORCE_FENCE        0x10000000UL /* force insert fence */
+#define SVGA_CB_PRESENT            0x08000000UL /* this is 'present' command: WAIT for previous 'present' and 'render' to complete */
+#define SVGA_CB_DIRTY_SURFACE      0x04000000UL /* need reread GPU SURFACE first, can combine with SVGA_CB_PRESENT */
+#define SVGA_CB_RENDER             0x02000000UL /* this is 'render' cmd, WAIT for 'present', 'update' */
+#define SVGA_CB_UPDATE             0x01000000UL /* this is 'update' cmd, updates screen on HOST, WAIT for 'update', 'present' */
 
 // SVGA_CB_FLAG_DX_CONTEXT
 

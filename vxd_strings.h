@@ -67,7 +67,8 @@ DSTR(dbg_cmd_on, "SVGA_CMB_submit: ptr=%X, first cmd=%X, flags=%X, size=%d\n");
 DSTR(dbg_cmd_off, "SVGA_CMB_submit: end - cmd: %X\n");
 DSTR(dbg_cmd_error, "CB error: %d, first cmd %X (error at %d)\n");
 
-DSTR(dbg_deviceiocontrol, "DeviceIoControl(%x);\n");
+DSTR(dbg_deviceiocontrol, "DeviceIoControl(%x)\n");
+DSTR(dbg_deviceiocontrol_leave, "DeviceIoControl Leave\n");
 
 DSTR(dbg_gmr, "GMR: %ld at %X\n");
 DSTR(dbg_gmr_succ, "GMR ALLOC: %ld (size: %ld)\n");
@@ -150,7 +151,7 @@ DSTR(dbg_irq_install_fail, "IRQ(%d) found, but cannot be traped\n");
 
 DSTR(dbg_no_irq, "No IRQ enabled\n");
 
-DSTR(dbg_disable, "HW disable");
+DSTR(dbg_disable, "HW disable\n");
 
 DSTR(dbg_pt_build, "PT_build(%ld): BASE=%lX TYPE=%ld USER=%lp\n");
 DSTR(dbg_pt_build_2, "PT_build(%ld): pt1_entries=%ld, pt2_entries=%ld\n");
@@ -161,6 +162,13 @@ DSTR(dbg_region_1, "SVGA_region_create #1: %ld, max: %ld\n");
 DSTR(dbg_region_2, "SVGA_region_create #2: %ld\n");
 
 DSTR(dbg_cb_error, "Error (%ld): offset %ld, error command: %ld\n");
+
+DSTR(dbg_cs_underflow, "WARNING: closing inactive CS!\n");
+DSTR(dbg_cs_active, "WARNING: CS is still active!\n");
+
+DSTR(dbg_fence_wait, "SVGA_fence_wait(%lu) from line %ld\n");
+
+DSTR(dbg_queue_check, "CB_queue_check\n");
 
 #undef DSTR
 

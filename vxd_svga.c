@@ -81,7 +81,7 @@ void *ctlbuf = NULL;
 /* guest frame buffer is dirty */
 BOOL ST_FB_invalid = FALSE;
 
-DWORD present_fence = 0;
+//DWORD present_fence = 0;
 /*
  * strings
  */
@@ -255,8 +255,14 @@ BOOL SVGA_fence_is_passed(DWORD fence_id)
 	return FALSE;
 }
 
+#ifndef DBGPRINT
 void SVGA_fence_wait(DWORD fence_id)
+#else
+void SVGA_fence_wait_dbg(DWORD fence_id, int line)
+#endif
 {
+//	dbg_printf(dbg_fence_wait, fence_id, line);
+	
 	for(;;)
 	{
 		if(SVGA_fence_is_passed(fence_id))
@@ -264,6 +270,7 @@ void SVGA_fence_wait(DWORD fence_id)
 			break;
 		}
 		
+#if 1
 		if(cb_support && cb_context0)
 		{
 			if(CB_queue_check(NULL))
@@ -273,6 +280,7 @@ void SVGA_fence_wait(DWORD fence_id)
 				return;
 			}
 		}
+#endif
 		SVGA_Sync();
 	}
 }
@@ -1071,12 +1079,7 @@ void FBHDA_access_rect(DWORD left, DWORD top, DWORD right, DWORD bottom)
 	if(fb_lock_cnt++ == 0)
 	{
 		BOOL readback = FALSE;
-				
-		if(present_fence != 0)
-		{
-			SVGA_fence_wait(present_fence);
-//			readback = TRUE;
-		}
+		SVGA_CMB_wait_update();
 		
 		if(ST_FB_invalid)
 		{
@@ -1173,7 +1176,7 @@ void FBHDA_access_end(DWORD flags)
 	  	stupdate->rect.w = w;
 	  	stupdate->rect.h = h;
 
-			submit_cmdbuf(cmd_offset, SVGA_CB_PRESENT_ASYNC, 0);
+			submit_cmdbuf(cmd_offset, SVGA_CB_UPDATE, 0);
 		}
 	  else if(hda->bpp == 32)
 	  {
@@ -1188,7 +1191,7 @@ void FBHDA_access_end(DWORD flags)
 	  	cmd_update->width  = hda->width;
 	  	cmd_update->height = hda->height;
 	  	
-			submit_cmdbuf(cmd_offset, SVGA_CB_PRESENT_ASYNC, 0);
+			submit_cmdbuf(cmd_offset, SVGA_CB_UPDATE, 0);
 	  }
 	} // fb_lock_cnt == 0
 	

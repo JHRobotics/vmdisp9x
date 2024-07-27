@@ -37,6 +37,8 @@ THE SOFTWARE.
 
 #include "code32.h"
 
+#include "vxd_strings.h"
+
 /* some CRT */
 void memset(void *dst, int c, unsigned int size)
 {
@@ -153,20 +155,49 @@ DWORD Get_VMM_Version()
 	return ver;
 }
 
+static DWORD cs_count = 0;
+
 volatile void __cdecl Begin_Critical_Section(ULONG Flags)
 {
 	static ULONG sFlags;
 	sFlags = Flags;
 	
-	_asm push ecx
-	_asm mov ecx, [sFlags]
-	VMMCall(Begin_Critical_Section);
-	_asm pop ecx	
+	if(cs_count == 0)
+	{
+		_asm push ecx
+		_asm mov ecx, [sFlags]
+		VMMCall(Begin_Critical_Section);
+		_asm pop ecx
+	}
+	cs_count++;
 }
 
-volatile  void __cdecl End_Critical_Section()
+volatile void __cdecl End_Critical_Section()
 {
-	VMMCall(End_Critical_Section);
+	if(cs_count == 0)
+	{
+		dbg_printf(dbg_cs_underflow);
+		return;
+	}
+	
+	--cs_count;
+	if(cs_count == 0)
+	{
+		VMMCall(End_Critical_Section);
+	}
+}
+
+void Cleanup_Critical_Section()
+{
+	if(cs_count > 0)
+	{
+		dbg_printf(dbg_cs_active);
+		
+		while(cs_count != 0)
+		{
+			End_Critical_Section();
+		}
+	}
 }
 
 ULONG __cdecl Create_Semaphore(ULONG TokenCount)

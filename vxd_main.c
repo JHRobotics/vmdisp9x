@@ -48,6 +48,7 @@ THE SOFTWARE.
 
 #ifdef SVGA
 # include "svga_all.h"
+# include "vxd_svga.h"
 #endif
 
 #include "version.h"
@@ -368,6 +369,8 @@ WORD __stdcall VXD_API_Proc(PCRS_32 state)
 
 	}
 	
+	Cleanup_Critical_Section();
+	
 	if(rc == 0xFFFF)
 	{
 		state->Client_EFlags |= 0x1; // set carry
@@ -492,6 +495,7 @@ DWORD __stdcall Device_IO_Control_proc(DWORD vmhandle, struct DIOCParams *params
 {
 	DWORD *inBuf  = (DWORD*)params->lpInBuffer;
 	DWORD *outBuf = (DWORD*)params->lpOutBuffer;
+	DWORD rc = 1;
 	
 //	dbg_printf(dbg_deviceiocontrol, params->dwIoControlCode);
 	
@@ -501,58 +505,74 @@ DWORD __stdcall Device_IO_Control_proc(DWORD vmhandle, struct DIOCParams *params
 		case DIOC_OPEN:
 		case DIOC_CLOSEHANDLE:
 			dbg_printf(dbg_dic_system, params->dwIoControlCode);
-			return 0;
+			rc = 0;
+			break;
 		case OP_FBHDA_SETUP:
 			outBuf[0] = (DWORD)FBHDA_setup();
-			return 0;
+			rc = 0;
+			break;
 		case OP_FBHDA_ACCESS_BEGIN:
 			FBHDA_access_begin(inBuf[0]);
-			return 0;
+			rc = 0;
+			break;
 		case OP_FBHDA_ACCESS_END:
 			FBHDA_access_end(inBuf[0]);
-			return 0;
+			rc = 0;
+			break;
 		case OP_FBHDA_ACCESS_RECT:
 			FBHDA_access_rect(inBuf[0], inBuf[1], inBuf[2], inBuf[3]);
-			return 0;
+			rc = 0;
+			break;
 		case OP_FBHDA_SWAP:
 			outBuf[0] = FBHDA_swap(inBuf[0]);
-			return 0;
+			rc = 0;
+			break;
 		case OP_FBHDA_CLEAN:
 			FBHDA_clean();
-			return 0;
+			rc = 0;
+			break;
 		case OP_FBHDA_PALETTE_SET:
 			FBHDA_palette_set(inBuf[0], inBuf[1]);
-			return 0;
+			rc = 0;
+			break;
 		case OP_FBHDA_PALETTE_GET:
 			outBuf[0] = FBHDA_palette_get(inBuf[0]);
-			return 0;
+			rc = 0;
+			break;
 #ifdef SVGA
 		case OP_SVGA_VALID:
 			outBuf[0] = SVGA_valid();
-			return 0;
+			rc = 0;
+			break;
 		case OP_SVGA_CMB_ALLOC:
 			outBuf[0] = (DWORD)SVGA_CMB_alloc();
-			return 0;
+			rc = 0;
+			break;
 		case OP_SVGA_CMB_FREE:
 			SVGA_CMB_free((DWORD*)inBuf[0]);
-			return 0;
+			rc = 0;
+			break;
 		case OP_SVGA_CMB_SUBMIT:
 			{
 				SVGA_CMB_submit_io_t *inio  = (SVGA_CMB_submit_io_t*)inBuf;
 				SVGA_CMB_status_t *status = (SVGA_CMB_status_t*)outBuf;
 				
 				SVGA_CMB_submit(inio->cmb, inio->cmb_size, status, inio->flags, inio->DXCtxId);
-				return 0;
+				rc = 0;
+				break;
 			}
 		case OP_SVGA_FENCE_GET:
 			outBuf[0] = SVGA_fence_get();
-			return 0;
+			rc = 0;
+			break;
 		case OP_SVGA_FENCE_QUERY:
 			SVGA_fence_query(&outBuf[0], &outBuf[1]);
-			return 0;
+			rc = 0;
+			break;
 		case OP_SVGA_FENCE_WAIT:
 			SVGA_fence_wait(inBuf[0]);
-			return 0;
+			rc = 0;
+			break;
 		case OP_SVGA_REGION_CREATE:
 			{
 				SVGA_region_info_t *inio  = (SVGA_region_info_t*)inBuf;
@@ -567,50 +587,65 @@ DWORD __stdcall Device_IO_Control_proc(DWORD vmhandle, struct DIOCParams *params
 					SVGA_flushcache();
 					SVGA_region_create(outio);
 				}
-				return 0;
+				rc = 0;
+				break;
 			}
 		case OP_SVGA_REGION_FREE:
 			{
 				SVGA_region_info_t *inio  = (SVGA_region_info_t*)inBuf;
 				SVGA_region_free(inio);
-				return 0;
+				rc = 0;
+				break;
 			}
 		case OP_SVGA_QUERY:
 			outBuf[0] = SVGA_query(inBuf[0], inBuf[1]);
-			return 0;
+			rc = 0;
+			break;
 		case OP_SVGA_QUERY_VECTOR:
 			SVGA_query_vector(inBuf[0], inBuf[1], inBuf[2], outBuf);
-			return 0;
+			rc = 0;
+			break;
 		case OP_SVGA_DB_SETUP:
 			outBuf[0] = (DWORD)SVGA_DB_setup();
-			return 0;
+			rc = 0;
+			break;
 		case OP_SVGA_OT_SETUP:
 			outBuf[0] = (DWORD)SVGA_OT_setup();
-			return 0;
+			rc = 0;
+			break;
 		case OP_SVGA_FLUSHCACHE:
 			SVGA_flushcache();
-			return 0;
+			rc = 0;
+			break;
 		case OP_SVGA_VXDCMD:
 			outBuf[0] = (DWORD)SVGA_vxdcmd(inBuf[0]);
-			return 0;
+			rc = 0;
+			break;
 #ifdef DBGPRINT
 		/* export some mouse function for debuging */
 		case OP_MOUSE_MOVE:
 			mouse_move(inBuf[0], inBuf[1]);
-			return 0;
+			rc = 0;
+			break;
 		case OP_MOUSE_SHOW:
 			mouse_show();
-			return 0;
+			rc = 0;
+			break;
 		case OP_MOUSE_HIDE:
 			mouse_hide();
-			return 0;
+			rc = 0;
+			break;
 #endif /*DBGPRINT */
 #endif /* SVGA */
+		default:
+			dbg_printf(dbg_dic_unknown, params->dwIoControlCode);
+			break;
 	}
-		
-	dbg_printf(dbg_dic_unknown, params->dwIoControlCode);
 	
-	return 1;
+	Cleanup_Critical_Section();
+//	dbg_printf(dbg_deviceiocontrol_leave);
+	
+	return rc;
 }
 
 void Device_Init_proc()

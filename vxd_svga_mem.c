@@ -714,7 +714,14 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 		ULONG blk_pages_raw = 0;
 		
 		/* allocate user block */
-		maddr = _PageAllocate(nPages+pt_pages, pa_type, pa_vm, pa_align, 0x0, 0x100000, NULL, pa_flags);
+		if(!rinfo->mobonly)
+		{
+			maddr = _PageAllocate(nPages+pt_pages, pa_type, pa_vm, pa_align, 0x0, 0x100000, NULL, pa_flags);
+		}
+		else
+		{
+			maddr = _PageAllocate(nPages+pt_pages, pa_type, pa_vm, 0, 0x0, 0x100000, NULL, PAGEFIXED);
+		}
 
 		if(!maddr)
 		{
@@ -723,84 +730,87 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 		}
 
 		laddr = maddr + pt_pages*P_SIZE;
-
-		/* determine how many physical continuous blocks we have */
-		base_ppn = getPPN(laddr);
-		base_cnt = 1;
-		blocks   = 1;
-		for(pgi = 1; pgi < nPages; pgi++)
-		{
-			taddr = laddr + pgi*P_SIZE;
-			tppn = getPPN(taddr);
-			
-			if(tppn != base_ppn + base_cnt)
-			{
-				base_ppn = tppn;
-				base_cnt = 1;
-				blocks++;
-			}
-			else
-			{
-				base_cnt++;
-			}
-		}
-
-		// number of pages to store regions information
-		blk_pages_raw = (blocks + MDONPAGE - 1)/MDONPAGE;
-
-		// number of pages including pages-cross descriptors
-		blk_pages = (blocks + blk_pages_raw + MDONPAGE - 1)/MDONPAGE;
 		
-		dbg_printf(dbg_region_1, blocks+blk_pages_raw, SVGA_ReadReg(SVGA_REG_GMR_MAX_DESCRIPTOR_LENGTH));
-
-		/* allocate memory for GMR descriptor */
-		pgblk = _PageAllocate(blk_pages, pa_type, pa_vm, pa_align, 0x0, 0x100000, NULL, pa_flags);
-		if(!pgblk)
+		if(!rinfo->mobonly)
 		{
-			_PageFree((PVOID)laddr, 0);
-			End_Critical_Section();
-			return FALSE;
-		}
-
-		desc = (SVGAGuestMemDescriptor*)pgblk;
-		memset(desc, 0, blk_pages*P_SIZE);
-
-		blocks         = 1;
-		desc->ppn      = getPPN(laddr);
-		desc->numPages = 1;
-		/* fill GMR physical structure */
-		for(pgi = 1; pgi < nPages; pgi++)
-		{
-			taddr = laddr + pgi*P_SIZE;
-			tppn = getPPN(taddr);
-					
-			if(tppn == desc->ppn + desc->numPages)
+			/* determine how many physical continuous blocks we have */
+			base_ppn = getPPN(laddr);
+			base_cnt = 1;
+			blocks   = 1;
+			for(pgi = 1; pgi < nPages; pgi++)
 			{
-				desc->numPages++;
-			}
-			else
-			{
-				/* the next descriptor is on next page page */
-				if(((blocks+1) % MDONPAGE) == 0)
+				taddr = laddr + pgi*P_SIZE;
+				tppn = getPPN(taddr);
+				
+				if(tppn != base_ppn + base_cnt)
 				{
-					desc++;
-					desc->numPages = 0;
-					desc->ppn = getPPN((DWORD)(desc+1));
+					base_ppn = tppn;
+					base_cnt = 1;
 					blocks++;
 				}
-
-				desc++;
-				desc->ppn = tppn;
-				desc->numPages = 1;
-				blocks++;
+				else
+				{
+					base_cnt++;
+				}
 			}
+	
+			// number of pages to store regions information
+			blk_pages_raw = (blocks + MDONPAGE - 1)/MDONPAGE;
+	
+			// number of pages including pages-cross descriptors
+			blk_pages = (blocks + blk_pages_raw + MDONPAGE - 1)/MDONPAGE;
+			
+			dbg_printf(dbg_region_1, blocks+blk_pages_raw, SVGA_ReadReg(SVGA_REG_GMR_MAX_DESCRIPTOR_LENGTH));
+	
+			/* allocate memory for GMR descriptor */
+			pgblk = _PageAllocate(blk_pages, pa_type, pa_vm, pa_align, 0x0, 0x100000, NULL, pa_flags);
+			if(!pgblk)
+			{
+				_PageFree((PVOID)laddr, 0);
+				End_Critical_Section();
+				return FALSE;
+			}
+	
+			desc = (SVGAGuestMemDescriptor*)pgblk;
+			memset(desc, 0, blk_pages*P_SIZE);
+	
+			blocks         = 1;
+			desc->ppn      = getPPN(laddr);
+			desc->numPages = 1;
+			/* fill GMR physical structure */
+			for(pgi = 1; pgi < nPages; pgi++)
+			{
+				taddr = laddr + pgi*P_SIZE;
+				tppn = getPPN(taddr);
+						
+				if(tppn == desc->ppn + desc->numPages)
+				{
+					desc->numPages++;
+				}
+				else
+				{
+					/* the next descriptor is on next page page */
+					if(((blocks+1) % MDONPAGE) == 0)
+					{
+						desc++;
+						desc->numPages = 0;
+						desc->ppn = getPPN((DWORD)(desc+1));
+						blocks++;
+					}
+	
+					desc++;
+					desc->ppn = tppn;
+					desc->numPages = 1;
+					blocks++;
+				}
+			}
+	
+			desc++;
+			desc->ppn = 0;
+			desc->numPages = 0;
+			
+			dbg_printf(dbg_region_2, blocks);
 		}
-
-		desc++;
-		desc->ppn = 0;
-		desc->numPages = 0;
-		
-		dbg_printf(dbg_region_2, blocks);
 
 		rinfo->mob_address    = (void*)maddr;
 		rinfo->mob_ppn        = 0;
@@ -837,7 +847,7 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 			SVGA_WriteReg(SVGA_REG_GMR_DESCRIPTOR, rinfo->region_ppn);
 			SVGA_Sync(); // notify register change
 			
-			SVGA_Flush_CB_critical();
+			//SVGA_Flush_CB_critical();
 		}
 		else
 		{
@@ -859,6 +869,7 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 		mob->sizeInBytes = rinfo->size;
 
 		submit_cmdbuf(cmdoff, SVGA_CB_SYNC, 0);
+		SVGA_Sync();
 		
   	rinfo->is_mob = 1;
 	}
@@ -871,7 +882,7 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 	
 	End_Critical_Section();
 	
-	//dbg_printf(dbg_gmr_succ, rinfo->region_id, rinfo->size);
+	dbg_printf(dbg_gmr_succ, rinfo->region_id, rinfo->size);
 	
 	return TRUE;
 }
