@@ -27,9 +27,7 @@ DWORD SVGA_GetDevCap(DWORD search_id);
 
 #ifdef DBGPRINT
 void SVGA_fence_wait_dbg(DWORD fence_id, int line);
-
 #define SVGA_fence_wait(_fence) SVGA_fence_wait_dbg(_fence, __LINE__)
-
 #endif
 
 
@@ -66,6 +64,7 @@ void cache_init();
 void cache_enable(BOOL enabled);
 
 /* CB */
+extern DWORD async_mobs;
 DWORD *SVGA_CMB_alloc_size(DWORD datasize);
 void SVGA_CMB_free(DWORD *cmb);
 void SVGA_CB_start();

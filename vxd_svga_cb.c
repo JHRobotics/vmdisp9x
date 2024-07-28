@@ -70,6 +70,7 @@ typedef struct _cb_queue_info_t
 {
 	cb_queue_t *first;
 	cb_queue_t *last;
+	DWORD items;
 } cb_queue_info_t;
 
 /*
@@ -88,7 +89,7 @@ inline BOOL CB_queue_check_inline(SVGACBHeader *tracked);
 /*
  * Locals
  **/
-static cb_queue_info_t cb_queue_info = {NULL, NULL};
+static cb_queue_info_t cb_queue_info = {NULL, NULL, 0};
 static uint64 cb_next_id = {0, 0};
 
 /*
@@ -233,6 +234,7 @@ inline BOOL CB_queue_check_inline(SVGACBHeader *tracked)
 			//dbg_printf(dbg_trace_remove, item);
 			
 			item = item->next;
+			cb_queue_info.items--;
 		}
 		else
 		{
@@ -281,7 +283,7 @@ BOOL CB_queue_check(SVGACBHeader *tracked)
 	return CB_queue_check_inline(tracked);
 }
 
-void CB_queue_valid(SVGACBHeader *check, char *msg)
+static BOOL CB_queue_item_valid(SVGACBHeader *check)
 {
 	cb_queue_t *test = (cb_queue_t*)(check-1);
 	cb_queue_t *item = cb_queue_info.first;
@@ -290,11 +292,21 @@ void CB_queue_valid(SVGACBHeader *check, char *msg)
 	{
 		if(item == test)
 		{
-			dbg_printf(dbg_cb_valid_err, msg, check, ((SVGACBHeader *)cmdbuf)-1);
-			dbg_printf(dbg_cb_valid_status, check->status);
+			return FALSE;
 		}
 		
 		item = item->next;
+	}
+	
+	return TRUE;
+}
+
+void CB_queue_valid(SVGACBHeader *check, char *msg)
+{
+	if(!CB_queue_item_valid(check))
+	{
+		dbg_printf(dbg_cb_valid_err, msg, check, ((SVGACBHeader *)cmdbuf)-1);
+		dbg_printf(dbg_cb_valid_status, check->status);
 	}
 }
 
@@ -330,11 +342,13 @@ void CB_queue_insert(SVGACBHeader *cb, DWORD flags)
 	{
 		cb_queue_info.last->next = item;
 		cb_queue_info.last = item;
+		cb_queue_info.items++;
 	}
 	else
 	{
 		cb_queue_info.first = item;
 		cb_queue_info.last  = item;
+		cb_queue_info.items = 1;
 	}
 }
 
@@ -468,7 +482,13 @@ static void SVGA_CMB_submit_critical(DWORD FBPTR cmb, DWORD cmb_size, SVGA_CMB_s
 		do
 		{
 			CB_queue_check_inline(NULL);
-		} while(CB_queue_is_flags_set(cbq_check));
+		} while(CB_queue_is_flags_set(cbq_check) ||
+			cb_queue_info.items >= (SVGA_CB_MAX_QUEUED_PER_CONTEXT-1));
+		
+		if(!CB_queue_item_valid(cb))
+		{
+			return;
+		}
 	}
 	
 	if(status)
@@ -821,15 +841,13 @@ void SVGA_CMB_wait_update()
 	}
 }
 
-#define MOB_CB_COUNT 8
-
-void *mob_cb[MOB_CB_COUNT];
-DWORD act = 0;
+static void *mob_cb[SVGA_CB_MAX_QUEUED_PER_CONTEXT];
+static DWORD mob_act = 0;
 
 void mob_cb_alloc()
 {
 	int i = 0;
-	for(i = 0; i < MOB_CB_COUNT; i++)
+	for(i = 0; i < async_mobs; i++)
 	{
 		mob_cb[i] = SVGA_CMB_alloc_size(1024);
 	}
@@ -837,10 +855,10 @@ void mob_cb_alloc()
 
 void *mob_cb_get()
 {
-	int id = act++;
-	if(act >= MOB_CB_COUNT)
+	int id = mob_act++;
+	if(mob_act >= async_mobs)
 	{
-		act = 0;
+		mob_act = 0;
 	}
 	
 	WAIT_FOR_CB(mob_cb[id], 0);

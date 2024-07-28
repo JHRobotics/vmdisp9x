@@ -871,9 +871,16 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
   	mob->base        = rinfo->mob_ppn;
 		mob->ptDepth     = rinfo->mob_pt_depth;
 		mob->sizeInBytes = rinfo->size;
-
-		//submit_cmdbuf(cmdoff, SVGA_CB_SYNC, 0);
-		SVGA_CMB_submit(mobcb, cmdoff, NULL, 0, 0);
+		
+		if(async_mobs == 1)
+		{
+			SVGA_CMB_submit(mobcb, cmdoff, NULL, SVGA_CB_SYNC, 0);
+			SVGA_Sync();
+		}
+		else
+		{
+			SVGA_CMB_submit(mobcb, cmdoff, NULL, 0, 0);
+		}
 		
   	rinfo->is_mob = 1;
 	}
@@ -909,15 +916,27 @@ void SVGA_region_free(SVGA_region_info_t *rinfo)
 	{
 		SVGA3dCmdDestroyGBMob *mob;
 		DWORD cmdoff = 0;
+		void *mobcb = mob_cb_get();
 		
   	wait_for_cmdbuf();
-  	mob              = SVGA_cmd3d_ptr(cmdbuf, &cmdoff, SVGA_3D_CMD_DESTROY_GB_MOB, sizeof(SVGA3dCmdDestroyGBMob));
+  	mob              = SVGA_cmd3d_ptr(mobcb, &cmdoff, SVGA_3D_CMD_DESTROY_GB_MOB, sizeof(SVGA3dCmdDestroyGBMob));
   	mob->mobid       = rinfo->region_id;
   	
   	if(saved_in_cache)
-  		submit_cmdbuf(cmdoff, 0, 0);
+  	{
+  		SVGA_CMB_submit(mobcb, cmdoff, NULL, 0, 0);
+  	}
   	else
-			submit_cmdbuf(cmdoff, SVGA_CB_SYNC, 0);
+  	{
+			if(async_mobs == 1)
+			{
+				SVGA_CMB_submit(mobcb, cmdoff, NULL, SVGA_CB_SYNC, 0);
+			}
+			else
+			{
+				SVGA_CMB_submit(mobcb, cmdoff, NULL, 0, 0);
+			}
+		}
 	}
 	
 	if(!rinfo->mobonly)

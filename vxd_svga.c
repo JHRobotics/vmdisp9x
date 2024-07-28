@@ -78,6 +78,8 @@ static DWORD fence_next_id = 1;
 void *cmdbuf = NULL;
 void *ctlbuf = NULL;
 
+DWORD async_mobs = 1;
+
 /* guest frame buffer is dirty */
 BOOL ST_FB_invalid = FALSE;
 
@@ -100,6 +102,7 @@ static char SVGA_conf_st_flags[]   = "STOptions";
 static char SVGA_vxd_name[]        = "vmwsmini.vxd";
 
 static char SVGA_conf_disable_multisample[] = "NoMultisample";
+static char SVGA_conf_async_mobs[] = "AsyncMOBs";
 
 /**
  * Notify virtual HW that is some work to do
@@ -412,6 +415,13 @@ BOOL SVGA_init_hw()
  	RegReadConf(HKEY_LOCAL_MACHINE, SVGA_conf_path, SVGA_conf_st_flags,   &st_flags);
  	
  	RegReadConf(HKEY_LOCAL_MACHINE, SVGA_conf_path, SVGA_conf_disable_multisample, &disable_multisample);
+ 	RegReadConf(HKEY_LOCAL_MACHINE, SVGA_conf_path, SVGA_conf_async_mobs, &async_mobs);
+ 	
+ 	if(async_mobs < 1)
+ 		async_mobs = 1;
+ 	
+ 	if(async_mobs >= SVGA_CB_MAX_QUEUED_PER_CONTEXT)
+ 		async_mobs = SVGA_CB_MAX_QUEUED_PER_CONTEXT-1;
  	
  	if(!FBHDA_init_hw())
  	{
