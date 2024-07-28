@@ -73,4 +73,7 @@ void SVGA_CB_stop();
 void SVGA_CB_restart();
 void SVGA_CMB_wait_update();
 
+void mob_cb_alloc();
+void *mob_cb_get();
+
 #endif /* __VXD_SVGA_H__INCLUDED__ */

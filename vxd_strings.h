@@ -67,8 +67,8 @@ DSTR(dbg_cmd_on, "SVGA_CMB_submit: ptr=%X, first cmd=%X, flags=%X, size=%d\n");
 DSTR(dbg_cmd_off, "SVGA_CMB_submit: end - cmd: %X\n");
 DSTR(dbg_cmd_error, "CB error: %d, first cmd %X (error at %d)\n");
 
-DSTR(dbg_deviceiocontrol, "DeviceIoControl(%x)\n");
-DSTR(dbg_deviceiocontrol_leave, "DeviceIoControl Leave\n");
+DSTR(dbg_deviceiocontrol, "I%x\n");
+DSTR(dbg_deviceiocontrol_leave, "IL\n");
 
 DSTR(dbg_gmr, "GMR: %ld at %X\n");
 DSTR(dbg_gmr_succ, "GMR ALLOC: %ld (size: %ld)\n");
@@ -169,6 +169,16 @@ DSTR(dbg_cs_active, "WARNING: CS is still active!\n");
 DSTR(dbg_fence_wait, "SVGA_fence_wait(%lu) from line %ld\n");
 
 DSTR(dbg_queue_check, "CB_queue_check\n");
+
+DSTR(dbg_cb_valid_err, "ERROR - %s: %lX, cmdbuf: %lX\n");
+
+DSTR(dbg_err_double_insert, "double_insert");
+DSTR(dbg_err_pop, "not pull out");
+
+DSTR(dbg_cb_valid_status, " -> status = %ld\n");
+
+DSTR(dbg_trace_insert, "<=  %lX\n");
+DSTR(dbg_trace_remove, " => %lX\n");
 
 #undef DSTR
 

@@ -531,6 +531,9 @@ BOOL SVGA_init_hw()
 		
 		/* allocate CB for this driver */
 		cmdbuf = SVGA_CMB_alloc();
+		
+		/* special set for faster MOB define */
+		mob_cb_alloc();
 	
 		/* vGPU10 */
 		if(gb_support)

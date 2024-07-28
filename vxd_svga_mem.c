@@ -860,16 +860,20 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 	{
 		SVGA3dCmdDefineGBMob *mob;
 		DWORD cmdoff = 0;
+		void *mobcb;
 		
-		wait_for_cmdbuf();
-  	mob              = SVGA_cmd3d_ptr(cmdbuf, &cmdoff, SVGA_3D_CMD_DEFINE_GB_MOB, sizeof(SVGA3dCmdDefineGBMob));
+		//wait_for_cmdbuf();
+		mobcb = mob_cb_get();
+		
+  	//mob              = SVGA_cmd3d_ptr(cmdbuf, &cmdoff, SVGA_3D_CMD_DEFINE_GB_MOB, sizeof(SVGA3dCmdDefineGBMob));
+  	mob              = SVGA_cmd3d_ptr(mobcb, &cmdoff, SVGA_3D_CMD_DEFINE_GB_MOB, sizeof(SVGA3dCmdDefineGBMob));
   	mob->mobid       = rinfo->region_id;
   	mob->base        = rinfo->mob_ppn;
 		mob->ptDepth     = rinfo->mob_pt_depth;
 		mob->sizeInBytes = rinfo->size;
 
-		submit_cmdbuf(cmdoff, SVGA_CB_SYNC, 0);
-		SVGA_Sync();
+		//submit_cmdbuf(cmdoff, SVGA_CB_SYNC, 0);
+		SVGA_CMB_submit(mobcb, cmdoff, NULL, 0, 0);
 		
   	rinfo->is_mob = 1;
 	}

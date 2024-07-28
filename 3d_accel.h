@@ -196,6 +196,7 @@ typedef struct SVGA_CMB_status
 
 #define SVGA_PROC_NONE         0
 #define SVGA_PROC_COMPLETED    1
+#define SVGA_PROC_QUEUED       2
 #define SVGA_PROC_ERROR        3
 #define SVGA_PROC_FENCE     0xFF
 

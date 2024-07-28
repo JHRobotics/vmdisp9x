@@ -221,15 +221,16 @@ inline BOOL CB_queue_check_inline(SVGACBHeader *tracked)
 			
 			if(cb->status > SVGA_CB_STATUS_COMPLETED)
 			{
-				#ifdef DBGPRINT	
+				#ifdef DBGPRINT
 				{
 					DWORD *cmd_ptr = (DWORD*)(cb+1);
-					
 					dbg_printf(dbg_cb_error, cb->status, cb->errorOffset, cmd_ptr[cb->errorOffset/4]);
 				}
 				#endif
 				need_restart = TRUE;
 			}
+			
+			//dbg_printf(dbg_trace_remove, item);
 			
 			item = item->next;
 		}
@@ -244,7 +245,16 @@ inline BOOL CB_queue_check_inline(SVGACBHeader *tracked)
 		}
 	}
 	
-	cb_queue_info.last = last;
+	if(last)
+	{
+		cb_queue_info.last = last;
+		last->next = NULL;
+	}
+	else
+	{
+		cb_queue_info.first = NULL;
+		cb_queue_info.last  = NULL;
+	}
 	
 	if(need_restart)
 	{
@@ -269,6 +279,23 @@ BOOL CB_queue_check(SVGACBHeader *tracked)
 {
 //	dbg_printf(dbg_queue_check);
 	return CB_queue_check_inline(tracked);
+}
+
+void CB_queue_valid(SVGACBHeader *check, char *msg)
+{
+	cb_queue_t *test = (cb_queue_t*)(check-1);
+	cb_queue_t *item = cb_queue_info.first;
+	
+	while(item != NULL)
+	{
+		if(item == test)
+		{
+			dbg_printf(dbg_cb_valid_err, msg, check, ((SVGACBHeader *)cmdbuf)-1);
+			dbg_printf(dbg_cb_valid_status, check->status);
+		}
+		
+		item = item->next;
+	}
 }
 
 static BOOL CB_queue_is_flags_set(DWORD flags)
@@ -296,6 +323,8 @@ void CB_queue_insert(SVGACBHeader *cb, DWORD flags)
 	item->next = NULL;
 	item->flags = flags;
 	item->data_size = cb->length;
+
+	//dbg_printf(dbg_trace_insert, item);
 
 	if(cb_queue_info.last != NULL)
 	{
@@ -358,12 +387,12 @@ static DWORD flags_to_cbq_check(DWORD cb_flags)
 	
 	if((cb_flags & SVGA_CB_RENDER) != 0)
 	{
-		r |= CBQ_RENDER | SVGA_CB_UPDATE;
+		r |= CBQ_RENDER | CBQ_UPDATE;
 	}
 	
 	if((cb_flags & SVGA_CB_UPDATE) != 0)
 	{
-		r |= CBQ_RENDER | SVGA_CB_UPDATE;
+		r |= CBQ_RENDER | CBQ_UPDATE;
 	}
 	
 	return r;
@@ -430,6 +459,17 @@ static void SVGA_CMB_submit_critical(DWORD FBPTR cmb, DWORD cmb_size, SVGA_CMB_s
 {
 	DWORD fence = 0;
 	SVGACBHeader *cb = ((SVGACBHeader *)cmb)-1;
+	BOOL proc_by_cb = cb_support && cb_context0 && (flags & SVGA_CB_FORCE_FIFO) == 0;
+	
+	/* wait and tidy CB queue */
+	if(proc_by_cb)
+	{
+		DWORD cbq_check = flags_to_cbq_check(flags);
+		do
+		{
+			CB_queue_check_inline(NULL);
+		} while(CB_queue_is_flags_set(cbq_check));
+	}
 	
 	if(status)
 	{
@@ -437,7 +477,7 @@ static void SVGA_CMB_submit_critical(DWORD FBPTR cmb, DWORD cmb_size, SVGA_CMB_s
 		status->sStatus = SVGA_PROC_NONE;
 		status->qStatus = (volatile DWORD*)&cb->status;
 	}
-
+	
 #ifdef DBGPRINT
 //	debug_cmdbuf(cmb, cmb_size);
 //	debug_cmdbuf_trace(cmb, cmb_size, SVGA_3D_CMD_BLIT_SURFACE_TO_SCREEN);
@@ -449,10 +489,7 @@ static void SVGA_CMB_submit_critical(DWORD FBPTR cmb, DWORD cmb_size, SVGA_CMB_s
 		ST_FB_invalid = TRUE;
 	}
 
-	if(  /* CB are supported and enabled */
-		cb_support && cb_context0 &&
-		(flags & SVGA_CB_FORCE_FIFO) == 0
-	)
+	if(proc_by_cb)
 	{
 		/***
 		 *
@@ -460,9 +497,6 @@ static void SVGA_CMB_submit_critical(DWORD FBPTR cmb, DWORD cmb_size, SVGA_CMB_s
 		 *
 		 ***/
 		DWORD cbhwctxid = SVGA_CB_CONTEXT_0;
-		DWORD cbq_check = flags_to_cbq_check(flags);
-		
-		//if(flags & SVGA_CB_USE_CONTEXT_DEVICE)	cbhwctxid = SVGA_CB_CONTEXT_DEVICE;
 		
 		if(flags_cb_fence_need(flags))
 		{
@@ -472,12 +506,6 @@ static void SVGA_CMB_submit_critical(DWORD FBPTR cmb, DWORD cmb_size, SVGA_CMB_s
 			cmb[dwords+1] = fence;
 			cmb_size += sizeof(DWORD)*2;
 		}
-		
-		/* wait */
-		do
-		{
-			CB_queue_check_inline(NULL);
-		} while(CB_queue_is_flags_set(cbq_check));
 		
 		if(cmb_size == 0)
 		{
@@ -491,6 +519,10 @@ static void SVGA_CMB_submit_critical(DWORD FBPTR cmb, DWORD cmb_size, SVGA_CMB_s
 		}
 		else
 		{
+#ifdef DBGPRINT
+			CB_queue_valid(cb, dbg_err_double_insert);
+#endif
+			
 			cb->status      = SVGA_CB_STATUS_NONE;
 			cb->errorOffset = 0;
 			cb->offset      = 0; /* VMware modified this, needs to be clear */
@@ -517,11 +549,14 @@ static void SVGA_CMB_submit_critical(DWORD FBPTR cmb, DWORD cmb_size, SVGA_CMB_s
 			SVGA_Sync(); /* notify HV to read registers (VMware needs it) */
 			
 			SVGA_cb_id_inc();	
-			
+
 			if(flags & SVGA_CB_SYNC)
 			{
 				WAIT_FOR_CB(cb, 0);
-				
+#ifdef DBGPRINT
+				CB_queue_valid(cb, dbg_err_pop);
+#endif
+
 				if(cb->status != SVGA_CB_STATUS_COMPLETED)
 				{
 					dbg_printf(dbg_cmd_error, cb->status, cmb[0], cb->errorOffset);
@@ -552,7 +587,7 @@ static void SVGA_CMB_submit_critical(DWORD FBPTR cmb, DWORD cmb_size, SVGA_CMB_s
 					status->fifo_fence_used = fence;
 				}
 			}
-		}	
+		}
 	}
 	else
 	{
@@ -785,3 +820,32 @@ void SVGA_CMB_wait_update()
 		flags_fence_check(SVGA_CB_UPDATE);
 	}
 }
+
+#define MOB_CB_COUNT 8
+
+void *mob_cb[MOB_CB_COUNT];
+DWORD act = 0;
+
+void mob_cb_alloc()
+{
+	int i = 0;
+	for(i = 0; i < MOB_CB_COUNT; i++)
+	{
+		mob_cb[i] = SVGA_CMB_alloc_size(1024);
+	}
+}
+
+void *mob_cb_get()
+{
+	int id = act++;
+	if(act >= MOB_CB_COUNT)
+	{
+		act = 0;
+	}
+	
+	WAIT_FOR_CB(mob_cb[id], 0);
+	
+	return mob_cb[id];
+}
+
+
