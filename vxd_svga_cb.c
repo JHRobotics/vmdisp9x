@@ -97,10 +97,10 @@ static uint64 cb_next_id = {0, 0};
  */
 #define WAIT_FOR_CB(_cb, _forcesync) \
 	do{ \
-		/*dbg_printf(dbg_wait_cb, __LINE__);*/ \
-		while(!CB_queue_check_inline(_cb)){ \
-			WAIT_FOR_CB_SYNC_ ## _forcesync \
-		} \
+		if(cb->status == SVGA_CB_STATUS_NONE){ \
+			while(!CB_queue_check_inline(_cb)){ \
+				WAIT_FOR_CB_SYNC_ ## _forcesync \
+		} } \
 	}while(0)
 
 /* expansions of WAIT_FOR_CB */
