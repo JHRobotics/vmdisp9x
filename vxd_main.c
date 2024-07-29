@@ -229,6 +229,7 @@ WORD __stdcall VXD_API_Proc(PCRS_32 state)
 	WORD service = state->Client_EDX & 0xFFFF;
 	
 //	dbg_printf(dbg_vxd_api, service);
+	Begin_Critical_Section(0);
 	
 	switch(service)
 	{
@@ -369,8 +370,6 @@ WORD __stdcall VXD_API_Proc(PCRS_32 state)
 
 	}
 	
-	Cleanup_Critical_Section();
-	
 	if(rc == 0xFFFF)
 	{
 		state->Client_EFlags |= 0x1; // set carry
@@ -379,6 +378,8 @@ WORD __stdcall VXD_API_Proc(PCRS_32 state)
 	{
 		state->Client_EFlags &= 0xFFFFFFFEUL; // clear carry
 	}
+	
+	End_Critical_Section();
 	
 	return rc;
 }
@@ -496,6 +497,8 @@ DWORD __stdcall Device_IO_Control_proc(DWORD vmhandle, struct DIOCParams *params
 	DWORD *inBuf  = (DWORD*)params->lpInBuffer;
 	DWORD *outBuf = (DWORD*)params->lpOutBuffer;
 	DWORD rc = 1;
+	
+	Begin_Critical_Section(0);
 	
 	//dbg_printf(dbg_deviceiocontrol, params->dwIoControlCode);
 	
@@ -642,8 +645,8 @@ DWORD __stdcall Device_IO_Control_proc(DWORD vmhandle, struct DIOCParams *params
 			break;
 	}
 	
-	Cleanup_Critical_Section();
 	//dbg_printf(dbg_deviceiocontrol_leave);
+	End_Critical_Section();
 
 	return rc;
 }

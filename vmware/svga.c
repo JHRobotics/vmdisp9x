@@ -534,6 +534,8 @@ SVGA_SetModeLegacy(uint32 width,   // IN
    gSVGA.width = width;
    gSVGA.height = height;
    gSVGA.bpp = bpp;
+   
+   SVGA_Disable(); /* this is reset for virtualbox, otherwise sometimes ignore the changes */
 
    SVGA_WriteReg(SVGA_REG_WIDTH, width);
    SVGA_WriteReg(SVGA_REG_HEIGHT, height);
@@ -560,6 +562,8 @@ SVGA_SetModeLegacy(uint32 width,   // IN
    
    SVGA_WriteReg(SVGA_REG_ENABLE, TRUE);
    gSVGA.pitch = SVGA_ReadReg(SVGA_REG_BYTES_PER_LINE);
+   
+   SVGA_Flush();
 }
 
 

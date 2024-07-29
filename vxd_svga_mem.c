@@ -667,8 +667,6 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 	
 	rinfo->size = new_size;
 	
-	Begin_Critical_Section(0);
-
 	if(cache_use(rinfo))
 	{
 		goto spare_region_used;
@@ -725,7 +723,6 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 
 		if(!maddr)
 		{
-			End_Critical_Section();
 			return FALSE;
 		}
 
@@ -767,7 +764,6 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 			if(!pgblk)
 			{
 				_PageFree((PVOID)laddr, 0);
-				End_Critical_Section();
 				return FALSE;
 			}
 	
@@ -846,8 +842,6 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 			SVGA_WriteReg(SVGA_REG_GMR_ID, rinfo->region_id);
 			SVGA_WriteReg(SVGA_REG_GMR_DESCRIPTOR, rinfo->region_ppn);
 			SVGA_Sync(); // notify register change
-			
-			//SVGA_Flush_CB_critical();
 		}
 		else
 		{
@@ -891,8 +885,6 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 	
 	svga_db->stat_regions_usage += rinfo->size;
 	
-	End_Critical_Section();
-	
 	dbg_printf(dbg_gmr_succ, rinfo->region_id, rinfo->size);
 	
 	return TRUE;
@@ -906,8 +898,7 @@ void SVGA_region_free(SVGA_region_info_t *rinfo)
 {
 	BOOL saved_in_cache;
 	BYTE *free_ptr = (BYTE*)rinfo->address;
-	
-	Begin_Critical_Section(0);
+
 	svga_db->stat_regions_usage -= rinfo->size;
 	
 	saved_in_cache = cache_insert(rinfo);
@@ -942,7 +933,7 @@ void SVGA_region_free(SVGA_region_info_t *rinfo)
 	if(!rinfo->mobonly)
 	{
 		SVGA_Sync();
-		SVGA_Flush_CB_critical();
+		SVGA_Flush_CB();
 		
 		SVGA_WriteReg(SVGA_REG_GMR_ID, rinfo->region_id);
 		SVGA_WriteReg(SVGA_REG_GMR_DESCRIPTOR, 0);
@@ -970,7 +961,6 @@ void SVGA_region_free(SVGA_region_info_t *rinfo)
 			_PageFree((PVOID)free_ptr, 0);
 		}
 	}
-	End_Critical_Section();
 		
 	//dbg_printf(dbg_pagefree_end, rinfo->region_id, rinfo->size, saved_in_cache);
 		
@@ -990,8 +980,6 @@ void SVGA_flushcache()
 {
 	int i;
 	
-	Begin_Critical_Section(0);
-	
 	for(i = 0; i < cache_state.free_index_max ; i++)
 	{
 		cache_delete(i);
@@ -1002,7 +990,5 @@ void SVGA_flushcache()
 	cache_state.cnt_large      = 0;
 	cache_state.cnt_medium     = 0;
 	cache_state.cnt_small      = 0;
-
-	End_Critical_Section();
 }
 

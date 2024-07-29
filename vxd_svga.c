@@ -730,7 +730,7 @@ static void SVGA_defineScreen(DWORD w, DWORD h, DWORD bpp)
 	  }
 	}
 	
-	submit_cmdbuf(cmdoff, SVGA_CB_SYNC/*|SVGA_CB_FORCE_FIFO*/, 0);
+	submit_cmdbuf(cmdoff, SVGA_CB_SYNC|SVGA_CB_FORCE_FIFO, 0);
 }
 
 
@@ -795,12 +795,11 @@ BOOL SVGA_setmode(DWORD w, DWORD h, DWORD bpp)
 	mouse_invalidate();
 	FBHDA_access_begin(0);
 	
-	Begin_Critical_Section(0);
 	//SVGA_OTable_unload(); // unload otables
 	
 	/* Make sure, that we drain full FIFO */
 	SVGA_Sync();
-	SVGA_Flush_CB_critical(); 
+	SVGA_Flush_CB(); 
 	
 #if 0
 	/* delete old screen at its objects */
@@ -810,7 +809,7 @@ BOOL SVGA_setmode(DWORD w, DWORD h, DWORD bpp)
 		{
 			st_destroyScreen();
 			SVGA_Sync();
-			SVGA_Flush_CB_critical(); 
+			SVGA_Flush_CB(); 
 		}
 	}
 	/* JH: OK, we should normally clean after ourselves,
@@ -836,7 +835,7 @@ BOOL SVGA_setmode(DWORD w, DWORD h, DWORD bpp)
 	/* VMware, vGPU10: OK, when screen has change, whoale GPU is reset including FIFO */
 	SVGA_Enable();
 	
-	SVGA_Flush_CB_critical(); /* make sure, that is really set */
+	SVGA_Flush(); /* make sure, that is really set */
 
 	/* setting screen by fifo, this method is required in VB 6.1 */
 	if(SVGA_hasAccelScreen())
@@ -849,8 +848,9 @@ BOOL SVGA_setmode(DWORD w, DWORD h, DWORD bpp)
 			SVGA_Enable();
 		}
 		
-		SVGA_Flush_CB_critical();
+		SVGA_Flush();
 	}
+	SVGA_Sync();
 	
 	/* start command buffer context 0 */
 	SVGA_CB_start();
@@ -858,7 +858,7 @@ BOOL SVGA_setmode(DWORD w, DWORD h, DWORD bpp)
 	has3D = SVGA3D_Init();
 	SVGA_Sync();
 
-	SVGA_Flush_CB_critical();
+	SVGA_Flush_CB();
 	
 	if(st_useable(bpp))
 	{
@@ -913,8 +913,6 @@ BOOL SVGA_setmode(DWORD w, DWORD h, DWORD bpp)
 	{
 		hda->flags &= ~((DWORD)FB_ACCEL_VMSVGA3D);
 	}
-	
-	End_Critical_Section();
 	
 	mouse_invalidate();
 	FBHDA_access_end(0);

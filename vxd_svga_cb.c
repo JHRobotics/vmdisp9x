@@ -108,7 +108,7 @@ static uint64 cb_next_id = {0, 0};
 #define WAIT_FOR_CB_SYNC_1 SVGA_Sync();
 
 /* wait for all commands */
-void SVGA_Flush_CB_critical()
+void SVGA_Flush_CB()
 {
 	/* wait for actual CB */
 	while(!CB_queue_check(NULL))
@@ -120,13 +120,6 @@ void SVGA_Flush_CB_critical()
 	SVGA_Flush();
 }
 
-void SVGA_Flush_CB()
-{
-	Begin_Critical_Section(0);
-	SVGA_Flush_CB_critical();
-	End_Critical_Section();
-}
-
 /**
  * Allocate memory for command buffer
  **/
@@ -135,8 +128,6 @@ DWORD *SVGA_CMB_alloc_size(DWORD datasize)
 	DWORD phy;
 	SVGACBHeader *cb;
 	cb_queue_t *q;
-	
-	Begin_Critical_Section(0);
 	
 	q = (cb_queue_t*)_PageAllocate(RoundToPages(datasize+sizeof(SVGACBHeader)+sizeof(cb_queue_t)), PG_SYS, 0, 0, 0x0, 0x100000, &phy, PAGECONTIG | PAGEUSEALIGN | PAGEFIXED);
 	
@@ -153,10 +144,8 @@ DWORD *SVGA_CMB_alloc_size(DWORD datasize)
 		cb->ptr.pa.hi   = 0;
 		cb->ptr.pa.low  = phy + sizeof(cb_queue_t) + sizeof(SVGACBHeader);	
 		
-		End_Critical_Section();
 		return (DWORD*)(cb+1);
 	}
-	End_Critical_Section();
 	
 	return NULL;
 }
@@ -164,14 +153,10 @@ DWORD *SVGA_CMB_alloc_size(DWORD datasize)
 void SVGA_CMB_free(DWORD *cmb)
 {
 	SVGACBHeader *cb = ((SVGACBHeader *)cmb)-1;
-	
-	Begin_Critical_Section(0);
-	
+
 	WAIT_FOR_CB(cb, 1);
 		
 	_PageFree(cb-1, 0);
-	
-	End_Critical_Section();
 }
 
 DWORD *SVGA_CMB_alloc()
@@ -469,7 +454,7 @@ static void flags_fence_insert(DWORD cb_flags, uint32 fence)
 #define flags_fifo_fence_need(_flags) (((_flags) & (SVGA_CB_SYNC | SVGA_CB_FORCE_FENCE | SVGA_CB_PRESENT | SVGA_CB_RENDER | SVGA_CB_UPDATE)) != 0)
 #define flags_cb_fence_need(_flags) (((_flags) & (SVGA_CB_FORCE_FENCE)) != 0)
 
-static void SVGA_CMB_submit_critical(DWORD FBPTR cmb, DWORD cmb_size, SVGA_CMB_status_t FBPTR status, DWORD flags, DWORD DXCtxId)
+void SVGA_CMB_submit(DWORD FBPTR cmb, DWORD cmb_size, SVGA_CMB_status_t FBPTR status, DWORD flags, DWORD DXCtxId)
 {
 	DWORD fence = 0;
 	SVGACBHeader *cb = ((SVGACBHeader *)cmb)-1;
@@ -484,11 +469,6 @@ static void SVGA_CMB_submit_critical(DWORD FBPTR cmb, DWORD cmb_size, SVGA_CMB_s
 			CB_queue_check_inline(NULL);
 		} while(CB_queue_is_flags_set(cbq_check) ||
 			cb_queue_info.items >= (SVGA_CB_MAX_QUEUED_PER_CONTEXT-1));
-		
-		if(!CB_queue_item_valid(cb))
-		{
-			return;
-		}
 	}
 	
 	if(status)
@@ -699,22 +679,13 @@ void wait_for_cmdbuf()
 {
 	SVGACBHeader *cb;
 	
-	Begin_Critical_Section(0);
 	cb = ((SVGACBHeader *)cmdbuf)-1;
 	WAIT_FOR_CB(cb, 0);
 }
 
 void submit_cmdbuf(DWORD cmdsize, DWORD flags, DWORD dx)
 {
-	SVGA_CMB_submit_critical(cmdbuf, cmdsize, NULL, flags, dx);
-	End_Critical_Section();
-}
-
-void SVGA_CMB_submit(DWORD FBPTR cmb, DWORD cmb_size, SVGA_CMB_status_t FBPTR status, DWORD flags, DWORD DXCtxId)
-{
-	Begin_Critical_Section(0);
-	SVGA_CMB_submit_critical(cmb, cmb_size, status, flags, DXCtxId);
-	End_Critical_Section();
+	SVGA_CMB_submit(cmdbuf, cmdsize, NULL, flags, dx);
 }
 
 static DWORD SVGA_CB_ctr(DWORD data_size)
@@ -722,8 +693,6 @@ static DWORD SVGA_CB_ctr(DWORD data_size)
 	SVGACBHeader *cb = ((SVGACBHeader *)ctlbuf)-1;
 	
 	dbg_printf(dbg_ctr_start);
-
-	//Begin_Critical_Section(0);
 
 	cb->status = SVGA_CB_STATUS_NONE;
 	cb->errorOffset = 0;
@@ -750,8 +719,6 @@ static DWORD SVGA_CB_ctr(DWORD data_size)
 	{
 		SVGA_Sync();
 	}
-	
-	//End_Critical_Section();
 	
 	return cb->status;
 }
@@ -841,7 +808,7 @@ void SVGA_CMB_wait_update()
 	}
 }
 
-static void *mob_cb[SVGA_CB_MAX_QUEUED_PER_CONTEXT];
+static void *mob_cmb[SVGA_CB_MAX_QUEUED_PER_CONTEXT];
 static DWORD mob_act = 0;
 
 void mob_cb_alloc()
@@ -849,21 +816,24 @@ void mob_cb_alloc()
 	int i = 0;
 	for(i = 0; i < async_mobs; i++)
 	{
-		mob_cb[i] = SVGA_CMB_alloc_size(1024);
+		mob_cmb[i] = SVGA_CMB_alloc_size(1024);
 	}
 }
 
 void *mob_cb_get()
 {
+	SVGACBHeader *cb;
 	int id = mob_act++;
 	if(mob_act >= async_mobs)
 	{
 		mob_act = 0;
 	}
 	
-	WAIT_FOR_CB(mob_cb[id], 0);
+	cb = ((SVGACBHeader *)mob_cmb[id])-1;
 	
-	return mob_cb[id];
+	WAIT_FOR_CB(cb, 0);
+	
+	return mob_cmb[id];
 }
 
 
