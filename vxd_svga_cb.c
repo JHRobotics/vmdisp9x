@@ -553,9 +553,6 @@ void SVGA_CMB_submit(DWORD FBPTR cmb, DWORD cmb_size, SVGA_CMB_status_t FBPTR st
 			if(flags & SVGA_CB_SYNC)
 			{
 				WAIT_FOR_CB(cb, 0);
-#ifdef DBGPRINT
-				CB_queue_valid(cb, dbg_err_pop);
-#endif
 
 				if(cb->status != SVGA_CB_STATUS_COMPLETED)
 				{

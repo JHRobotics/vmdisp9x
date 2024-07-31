@@ -180,6 +180,16 @@ DSTR(dbg_cb_valid_status, " -> status = %ld\n");
 DSTR(dbg_trace_insert, "<=  %lX\n");
 DSTR(dbg_trace_remove, " => %lX\n");
 
+DSTR(dbg_mouse_invalidate, "MOUSE = invalidate\n");
+DSTR(dbg_mouse_load, "MOUSE = load ");
+DSTR(dbg_mouse_move, "MOUSE = xy(%ld, %ld)\n");
+
+DSTR(dbg_mouse_no_mem, "no mem\n");
+DSTR(dbg_mouse_status, " valid=%ld, visible=%ld, empty=%ld\n");
+
+DSTR(dbg_mouse_hide, "MOUSE = hide\n");
+DSTR(dbg_mouse_show, "MOUSE = show\n");
+
 #undef DSTR
 
 #endif

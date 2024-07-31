@@ -99,6 +99,8 @@ BOOL mouse_load()
 	CURSORSHAPE *cur;
 	DWORD cbw;
 	
+	dbg_printf(dbg_mouse_load);
+	
 	if(!mouse_buffer_mem) return FALSE;
 		
 #ifdef SVGA
@@ -151,6 +153,7 @@ BOOL mouse_load()
 		mouse_xormask_data == NULL ||
 		mouse_swap_data == NULL)
 	{
+		dbg_printf(dbg_mouse_no_mem);
 		FBHDA_access_end(0);
 		return FALSE;
 	}
@@ -186,6 +189,8 @@ BOOL mouse_load()
 	mouse_visible = TRUE;
 	mouse_empty = cursor_is_empty();
 	
+	dbg_printf(dbg_mouse_status, mouse_valid, mouse_visible, mouse_empty);
+	
 	//dbg_printf(dbg_cursor_empty, mouse_empty);
 
 	/* blit new cursor */
@@ -198,6 +203,8 @@ BOOL mouse_load()
 
 void mouse_move(int x, int y)
 {
+	dbg_printf(dbg_mouse_move, x, y);
+	
 #ifdef SVGA
 	if(SVGA_mouse_hw())
 	{
@@ -222,6 +229,8 @@ void mouse_move(int x, int y)
 
 void mouse_show()
 {
+	dbg_printf(dbg_mouse_show);
+	
 #ifdef SVGA
 	if(SVGA_mouse_hw())
 	{
@@ -229,14 +238,17 @@ void mouse_show()
 		return;
 	}
 #endif
-	
+	FBHDA_access_begin(0);
 	mouse_visible = TRUE;
+	FBHDA_access_end(0);
 	
 	mouse_notify_accel();
 }
 
 void mouse_hide()
 {
+	dbg_printf(dbg_mouse_hide);
+	
 #ifdef SVGA
 	if(SVGA_mouse_hw())
 	{
@@ -254,6 +266,8 @@ void mouse_hide()
 
 void mouse_invalidate()
 {
+	dbg_printf(dbg_mouse_invalidate);
+	
 #ifdef SVGA
 	if(SVGA_mouse_hw())
 	{

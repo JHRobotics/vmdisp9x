@@ -142,7 +142,7 @@ static DWORD PT_count(DWORD size)
 	pt1_entries = RoundToPages(size);
 	pt2_entries = ((pt1_entries + PTONPAGE - 1)/PTONPAGE);
 	
-	dbg_printf(dbg_pt_build_2, size, pt1_entries, pt2_entries);
+//	dbg_printf(dbg_pt_build_2, size, pt1_entries, pt2_entries);
 	
 	if(pt2_entries > 1)
 	{
@@ -227,7 +227,7 @@ static void PT_build(DWORD size, void *buf, DWORD *outBase, DWORD *outType, void
 		}
 	}
 	
-	dbg_printf(dbg_pt_build, size, *outBase, *outType, *outUserPtr);
+//	dbg_printf(dbg_pt_build, size, *outBase, *outType, *outUserPtr);
 }
 
 /**
@@ -268,7 +268,7 @@ void SVGA_OTable_alloc(BOOL screentargets)
 				
 				if(ptr)
 				{
-					dbg_printf(dbg_mob_allocate, i);
+//					dbg_printf(dbg_mob_allocate, i);
 					PT_build(entry->size, ptr, &entry->ppn, &entry->pt_depth, &entry->lin);
 					
 					entry->flags |= SVGA_OT_FLAG_ALLOCATED;
@@ -386,7 +386,7 @@ static void cache_delete(int index)
 		
 		if(rinfo->region_address != NULL)
 		{
-			dbg_printf(dbg_pagefree, rinfo->region_address);
+//			dbg_printf(dbg_pagefree, rinfo->region_address);
 			_PageFree((PVOID)rinfo->region_address, 0);
 		}
 		else
@@ -396,12 +396,12 @@ static void cache_delete(int index)
 			
 		if(rinfo->mob_address != NULL)
 		{
-			dbg_printf(dbg_pagefree, rinfo->mob_address);
+//			dbg_printf(dbg_pagefree, rinfo->mob_address);
 			_PageFree((PVOID)rinfo->mob_address, 0);
 		}
 		else
 		{
-			dbg_printf(dbg_pagefree, free_ptr);
+//			dbg_printf(dbg_pagefree, free_ptr);
 			_PageFree((PVOID)free_ptr, 0);
 		}
 			
@@ -492,7 +492,7 @@ static BOOL cache_insert(SVGA_region_info_t *region)
 		else
 			cache_state.cnt_small++;
 
-		dbg_printf(dbg_cache_insert, region->region_id, region->size);
+//		dbg_printf(dbg_cache_insert, region->region_id, region->size);
 	}
 
 	return rc;
@@ -511,7 +511,7 @@ static BOOL cache_use(SVGA_region_info_t *region)
 		return FALSE;
 	}
 	
-	dbg_printf(dbg_cache_search, region->size);
+//	dbg_printf(dbg_cache_search, region->size);
 	
 	for(i = cache_state.free_index_max-1; i >= 0; i--)
 	{
@@ -536,7 +536,7 @@ static BOOL cache_use(SVGA_region_info_t *region)
 			{
 				if(++cache_state.spare_region[i].missed >= CACHE_THRESHOLD)
 				{
-					dbg_printf(dbg_cache_delete, cache_state.spare_region[i].region.size);
+//					dbg_printf(dbg_cache_delete, cache_state.spare_region[i].region.size);
 					cache_delete(i);
 				}
 			}
@@ -757,7 +757,7 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 			// number of pages including pages-cross descriptors
 			blk_pages = (blocks + blk_pages_raw + MDONPAGE - 1)/MDONPAGE;
 			
-			dbg_printf(dbg_region_1, blocks+blk_pages_raw, SVGA_ReadReg(SVGA_REG_GMR_MAX_DESCRIPTOR_LENGTH));
+//			dbg_printf(dbg_region_1, blocks+blk_pages_raw, SVGA_ReadReg(SVGA_REG_GMR_MAX_DESCRIPTOR_LENGTH));
 	
 			/* allocate memory for GMR descriptor */
 			pgblk = _PageAllocate(blk_pages, pa_type, pa_vm, pa_align, 0x0, 0x100000, NULL, pa_flags);
@@ -805,7 +805,7 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 			desc->ppn = 0;
 			desc->numPages = 0;
 			
-			dbg_printf(dbg_region_2, blocks);
+//			dbg_printf(dbg_region_2, blocks);
 		}
 
 		rinfo->mob_address    = (void*)maddr;
@@ -885,7 +885,7 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 	
 	svga_db->stat_regions_usage += rinfo->size;
 	
-	dbg_printf(dbg_gmr_succ, rinfo->region_id, rinfo->size);
+//	dbg_printf(dbg_gmr_succ, rinfo->region_id, rinfo->size);
 	
 	return TRUE;
 }
@@ -919,14 +919,7 @@ void SVGA_region_free(SVGA_region_info_t *rinfo)
   	}
   	else
   	{
-			if(async_mobs == 1)
-			{
-				SVGA_CMB_submit(mobcb, cmdoff, NULL, SVGA_CB_SYNC, 0);
-			}
-			else
-			{
-				SVGA_CMB_submit(mobcb, cmdoff, NULL, 0, 0);
-			}
+			SVGA_CMB_submit(mobcb, cmdoff, NULL, SVGA_CB_SYNC, 0);
 		}
 	}
 	

@@ -217,7 +217,7 @@ void SVGA_mouse_move(int x, int y)
 		gSVGA.fifoMem[SVGA_FIFO_CURSOR_COUNT]++;
 	}
 	
-	dbg_printf(dbg_hw_mouse_move, x, y, hw_cursor_visible, hw_cursor_valid);
+//	dbg_printf(dbg_hw_mouse_move, x, y, hw_cursor_visible, hw_cursor_valid);
 	
 	mouse_last_x = x;
 	mouse_last_y = y;
@@ -225,7 +225,7 @@ void SVGA_mouse_move(int x, int y)
 
 void SVGA_mouse_show()
 {
-	dbg_printf(dbg_hw_mouse_show, hw_cursor_valid);
+//	dbg_printf(dbg_hw_mouse_show, hw_cursor_valid);
 	if(hw_cursor_valid)
 	{
 		hw_cursor_visible = TRUE;
@@ -235,7 +235,7 @@ void SVGA_mouse_show()
 
 void SVGA_mouse_hide(BOOL invalidate)
 {
-	dbg_printf(dbg_hw_mouse_hide);
+//	dbg_printf(dbg_hw_mouse_hide);
 
 	gSVGA.fifoMem[SVGA_FIFO_CURSOR_SCREEN_ID] = 0;
 	gSVGA.fifoMem[SVGA_FIFO_CURSOR_ON] = 0;

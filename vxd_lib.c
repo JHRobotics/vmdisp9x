@@ -155,8 +155,6 @@ DWORD Get_VMM_Version()
 	return ver;
 }
 
-static DWORD cs_count = 0;
-
 volatile void __cdecl Begin_Critical_Section(ULONG Flags)
 {
 	static ULONG sFlags;
