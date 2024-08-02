@@ -43,6 +43,7 @@ const static DD32BITDRIVERDATA_t drv_vmhal9x = {
 	0
 };
 
+/*
 static DDHALMODEINFO_t modeInfo[] = {
 	{  640,  480,  640,  8, DDMODEINFO_PALETTIZED, 0, 0x00000000, 0x00000000, 0x00000000, 0x00000000 },
 	{  640,  480, 1280, 16,                     0, 0, 0x0000F800, 0x000007E0, 0x0000001F, 0x00000000 },
@@ -77,9 +78,9 @@ static DDHALMODEINFO_t modeInfo[] = {
 	{ 1920, 1200, 1920,  8, DDMODEINFO_PALETTIZED, 0, 0x00000000, 0x00000000, 0x00000000, 0x00000000 },
 	{ 1920, 1200, 3840, 16,                     0, 0, 0x0000F800, 0x000007E0, 0x0000001F, 0x00000000 },
 	{ 1920, 1200, 7680, 32,                     0, 0, 0x00FF0000, 0x0000FF00, 0x000000FF, 0x00000000 },
-};
+};*/
 
-#define NUMMODES (sizeof(modeInfo)/sizeof(DDHALMODEINFO_t))
+//#define NUMMODES (sizeof(modeInfo)/sizeof(DDHALMODEINFO_t))
 
 /*
  * pre-declare our HAL fns
@@ -231,9 +232,6 @@ static void buildPixelFormat(LPDDHALMODEINFO lpMode, LPDDPIXELFORMAT lpddpf)
  */
 static void buildDDHALInfo(VMDAHAL_t __far *hal, int modeidx)
 {
-//	static DWORD        AlignTbl [ 9 ] = { 64, 64, 64, 64, 64, 64, 64, 64, 64 };
-//    static DWORD      AlignTbl [ 9 ] = { 8, 8, 8, 8, 16, 8, 24, 8, 32 };
-//	static DWORD        AlignTbl [ 9 ] = { 128, 128, 128, 128, 128, 128, 128, 128, 128 }; 
 	static DWORD        AlignTbl [ 9 ] = { 16, 16, 16, 16, 16, 16, 16, 16, 16 }; /* we can now use aligned AVX to manipulate with surfaces */
 	int                 ii;
 	BOOL                can_flip;
@@ -284,7 +282,7 @@ static void buildDDHALInfo(VMDAHAL_t __far *hal, int modeidx)
 	hal->ddHALInfo.vmiData.ddpfDisplay.dwSize = sizeof(DDPIXELFORMAT_t);
 	if(modeidx >= 0)
 	{
-		buildPixelFormat(&modeInfo[modeidx], &hal->ddHALInfo.vmiData.ddpfDisplay);
+		buildPixelFormat(&(VMDAHAL_modes(hal)[modeidx]), &hal->ddHALInfo.vmiData.ddpfDisplay);
 	}
 
 	/*
@@ -456,8 +454,8 @@ static void buildDDHALInfo(VMDAHAL_t __far *hal, int modeidx)
 	/*
 	 * mode information
    */
-	hal->ddHALInfo.dwNumModes = NUMMODES;
-	hal->ddHALInfo.lpModeInfo = modeInfo;
+	hal->ddHALInfo.dwNumModes = hal->modes_count;
+	hal->ddHALInfo.lpModeInfo = VMDAHAL_modes(hal);
 
 } /* buildDDHALInfo */
 
@@ -478,17 +476,17 @@ BOOL DDCreateDriverObject(int bReset)
 		return FALSE;
 	}
 
-	for(modeidx = 0; modeidx < NUMMODES; modeidx++)
+	for(modeidx = 0; modeidx < hal->modes_count; modeidx++)
 	{
-		if((modeInfo[modeidx].dwWidth == hda->width) &&
-       (modeInfo[modeidx].dwHeight == hda->height) &&
-       (modeInfo[modeidx].dwBPP == hda->bpp) )
+		if((hal->modes[modeidx].dwWidth == hda->width) &&
+       (hal->modes[modeidx].dwHeight == hda->height) &&
+       (hal->modes[modeidx].dwBPP == hda->bpp) )
     {
     	break;
     }
 	}
 	
-	if(modeidx == NUMMODES)
+	if(modeidx == hal->modes_count)
 	{
 		modeidx = -1;
 	}

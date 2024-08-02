@@ -4,6 +4,20 @@
 #pragma pack(push)
 #pragma pack(1)
 
+typedef struct DDHALMODEINFO2
+{
+    DWORD	dwWidth;		// width (in pixels) of mode
+    DWORD	dwHeight;		// height (in pixels) of mode
+    LONG	lPitch;			// pitch (in bytes) of mode
+    DWORD	dwBPP;			// bits per pixel
+    WORD	wFlags;			// flags
+    WORD	wRefreshRate;		// refresh rate
+    DWORD	dwRBitMask;		// red bit mask
+    DWORD	dwGBitMask;		// green bit mask
+    DWORD	dwBBitMask;		// blue bit mask
+    DWORD	dwAlphaBitMask;		// alpha bit mask
+} DDHALMODEINFO2_t;
+
 typedef struct VMDAHALCB32
 {
 	LPDDHAL_CREATESURFACE             CreateSurface;
@@ -33,6 +47,7 @@ struct VXD_pair
 };
 
 #define VXD_PAIRS_CNT 32
+#define DISP_MODES_MAX 512
 
 typedef struct VMDAHAL
 {
@@ -59,7 +74,14 @@ typedef struct VMDAHAL
   DWORD hDC;
   
   struct VXD_pair vxd_table[VXD_PAIRS_CNT];
+  
+  DDHALMODEINFO2_t modes[DISP_MODES_MAX];
+  DWORD modes_count;
+  DWORD custom_mode_id;
+  
 } VMDAHAL_t;
 #pragma pack(pop)
+
+#define VMDAHAL_modes(_hal) ((struct DDHALMODEINFO __far *)(&(_hal->modes[0])))
 
 #endif
