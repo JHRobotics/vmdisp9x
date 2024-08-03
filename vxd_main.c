@@ -500,7 +500,7 @@ DWORD __stdcall Device_IO_Control_proc(DWORD vmhandle, struct DIOCParams *params
 	
 	Begin_Critical_Section(0);
 	
-	//dbg_printf(dbg_deviceiocontrol, params->dwIoControlCode);
+	dbg_printf(dbg_deviceiocontrol, params->dwIoControlCode);
 	
 	switch(params->dwIoControlCode)
 	{
@@ -645,7 +645,7 @@ DWORD __stdcall Device_IO_Control_proc(DWORD vmhandle, struct DIOCParams *params
 			break;
 	}
 	
-	//dbg_printf(dbg_deviceiocontrol_leave);
+	dbg_printf(dbg_deviceiocontrol_leave);
 	End_Critical_Section();
 
 	return rc;

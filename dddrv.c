@@ -488,7 +488,7 @@ BOOL DDCreateDriverObject(int bReset)
 	
 	if(modeidx == hal->modes_count)
 	{
-		modeidx = -1;
+		return FALSE;
 	}
 	
 	hal->vramLinear = hda->vram_pm32;
