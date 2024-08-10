@@ -23,13 +23,14 @@ FLAGS = -DDRV_VER_BUILD=$(VER_BUILD)
 #DDK98_PATH = C:\98DDK
 
 # Alternative to DDK 98 (and 16bit subsystem) on HOST is fix output exe
-# (new executable) flags. Utility source is in drvfix.c but if your
-# HOST machine isn't Windows, you've to adjust these 2 variables:
+# (new executable) flags. Also this utility is needed to fix Watcom VXD
+# by wlink. If yout HOST machine isn't Windows, you've to adjust these
+# 2 variables:
 # executable file name
-FIXER_EXE = drvfix.exe
+FIXLINK_EXE = fixlink.exe
 # command line to produce executable
-FIXER_CC  = wcl386 -q drvfix.c -fe=$(FIXER_EXE)
-# FIXER_CC = gcc drvfix.c -o drvfix
+FIXLINK_CC  = wcl386 -q fixlink\fixlink.c -fe=$(FIXLINK_EXE)
+# FIXLINK_CC = gcc fixlink/fixlink.c -o fixlink
 
 # Define HWBLT if BitBlt can be accelerated.
 #FLAGS += -DHWBLT
@@ -67,12 +68,10 @@ RC16_FLAGS = -40 -i $(DDK98_PATH)\inc\win98\inc16 -i res -d DRV_VER_BUILD=$(VER_
 BOXVMINI_DRV_RC = $(RC16) $(RC16_FLAGS) res\boxvmini.rc $@
 VMWSMINI_DRV_RC = $(RC16) $(RC16_FLAGS) res\vmwsmini.rc $@
 QEMUMINI_DRV_RC = $(RC16) $(RC16_FLAGS) res\qemumini.rc $@
-NEED_FIXER = 
 !else
-BOXVMINI_DRV_RC = wrc -q boxvmini.res $@ && $(FIXER_EXE) $@
-VMWSMINI_DRV_RC = wrc -q vmwsmini.res $@ && $(FIXER_EXE) $@
-QEMUMINI_DRV_RC = wrc -q qemumini.res $@ && $(FIXER_EXE) $@
-NEED_FIXER = $(FIXER_EXE)
+BOXVMINI_DRV_RC = wrc -q boxvmini.res $@ && $(FIXLINK_EXE) -40 $@
+VMWSMINI_DRV_RC = wrc -q vmwsmini.res $@ && $(FIXLINK_EXE) -40 $@
+QEMUMINI_DRV_RC = wrc -q qemumini.res $@ && $(FIXLINK_EXE) -40 $@
 !endif
 
 all : vmwsmini.drv vmwsmini.vxd qemumini.drv qemumini.vxd boxvmini.drv boxvmini.vxd
@@ -222,10 +221,10 @@ dibeng.lib : ddk/dibeng.lbc
 	wlib -b -q -n -fo -ii @$< $@
 
 # Fixer
-$(NEED_FIXER): drvfix.c
-	$(FIXER_CC)
+$(FIXLINK_EXE): drvfix.c
+	$(FIXLINK_CC)
 
-boxvmini.drv : $(OBJS) boxvmini.res dibeng.lib $(NEED_FIXER)
+boxvmini.drv : $(OBJS) boxvmini.res dibeng.lib $(FIXLINK_EXE)
 	wlink op quiet, start=DriverInit_ disable 2055 $(DBGFILE) @<<boxvmini.lnk
 system windows dll initglobal
 file dibcall.obj
@@ -292,7 +291,7 @@ import GlobalSmartPageLock  KERNEL.230
 <<
 	$(BOXVMINI_DRV_RC)
 
-vmwsmini.drv : $(OBJS) vmwsmini.res dibeng.lib $(NEED_FIXER)
+vmwsmini.drv : $(OBJS) vmwsmini.res dibeng.lib $(FIXLINK_EXE)
 	wlink op quiet, start=DriverInit_ disable 2055 $(DBGFILE) @<<vmwsmini.lnk
 system windows dll initglobal
 file dibcall.obj
@@ -359,7 +358,7 @@ import GlobalSmartPageLock  KERNEL.230
 <<
 	$(VMWSMINI_DRV_RC)
 
-qemumini.drv : $(OBJS) qemumini.res dibeng.lib $(NEED_FIXER)
+qemumini.drv : $(OBJS) qemumini.res dibeng.lib $(FIXLINK_EXE)
 	wlink op quiet, start=DriverInit_ disable 2055 $(DBGFILE) @<<qemumini.lnk
 system windows dll initglobal
 file dibcall.obj
@@ -426,7 +425,7 @@ import GlobalSmartPageLock  KERNEL.230
 <<
 	$(QEMUMINI_DRV_RC)
 
-vmwsmini.vxd : $(OBJS)
+vmwsmini.vxd : $(OBJS) $(FIXLINK_EXE)
 	wlink op quiet $(DBGFILE32) @<<vmwsmini.lnk
 system win_vxd dynamic
 option map=vmwsvxd.map
@@ -444,16 +443,19 @@ file vxd_svga_mem.obj
 file vxd_svga_cb.obj
 file vxd_vdd_svga.obj
 file vxd_mouse_svga.obj
-segment '_LTEXT' PRELOAD NONDISCARDABLE 
 segment '_TEXT'  PRELOAD NONDISCARDABLE
 segment '_DATA'  PRELOAD NONDISCARDABLE
+segment 'CONST'  PRELOAD NONDISCARDABLE
+segment 'CONST2' PRELOAD NONDISCARDABLE
+segment '_BSS'   PRELOAD NONDISCARDABLE
 export VXD_DDB.1
 <<
+	$(FIXLINK_EXE) -vxd32 $@
 
 # not working now
 #	wrc -q vmws_vxd.res $@
 
-qemumini.vxd : $(OBJS)
+qemumini.vxd : $(OBJS) $(FIXLINK_EXE)
 	wlink op quiet $(DBGFILE32) @<<qemumini.lnk
 system win_vxd dynamic
 option map=qemumini.map
@@ -466,13 +468,16 @@ file vxd_lib.obj
 file vxd_vbe_qemu.obj
 file vxd_vdd_qemu.obj
 file vxd_mouse.obj
-segment '_LTEXT' PRELOAD NONDISCARDABLE 
 segment '_TEXT'  PRELOAD NONDISCARDABLE
 segment '_DATA'  PRELOAD NONDISCARDABLE
+segment 'CONST'  PRELOAD NONDISCARDABLE
+segment 'CONST2' PRELOAD NONDISCARDABLE
+segment '_BSS'   PRELOAD NONDISCARDABLE
 export VXD_DDB.1
 <<
+	$(FIXLINK_EXE) -vxd32 $@
 
-boxvmini.vxd : $(OBJS)
+boxvmini.vxd : $(OBJS) $(FIXLINK_EXE)
 	wlink op quiet $(DBGFILE32) @<<boxvmini.lnk
 system win_vxd dynamic
 option map=boxvmini.map
@@ -485,11 +490,14 @@ file vxd_vbe.obj
 file vxd_lib.obj
 file vxd_vdd.obj
 file vxd_mouse.obj
-segment '_LTEXT' PRELOAD NONDISCARDABLE 
 segment '_TEXT'  PRELOAD NONDISCARDABLE
 segment '_DATA'  PRELOAD NONDISCARDABLE
+segment 'CONST'  PRELOAD NONDISCARDABLE
+segment 'CONST2' PRELOAD NONDISCARDABLE
+segment '_BSS'   PRELOAD NONDISCARDABLE
 export VXD_DDB.1
 <<
+	$(FIXLINK_EXE) -vxd32 $@
 
 # Cleanup
 clean : .symbolic
@@ -504,7 +512,7 @@ clean : .symbolic
     rm res/*.obj
     rm res/*.bin
     rm vmware/*.obj
-    -rm -f $(FIXER_EXE)
+    -rm -f $(FIXLINK_EXE)
 
 image : .symbolic boxv9x.img
 
