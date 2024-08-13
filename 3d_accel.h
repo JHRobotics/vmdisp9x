@@ -33,7 +33,7 @@ THE SOFTWARE.
 #endif
 #endif
 
-#define API_3DACCEL_VER 20240724
+#define API_3DACCEL_VER 20240808
 
 #define ESCAPE_DRV_NT         0x1103 /* (4355) */
 
@@ -46,6 +46,7 @@ THE SOFTWARE.
 #define OP_FBHDA_PALETTE_SET  0x1110 /* VXD, DRV, ESCAPE_DRV_NT */
 #define OP_FBHDA_PALETTE_GET  0x1111 /* VXD, DRV, ESCAPE_DRV_NT */
 #define OP_FBHDA_ACCESS_RECT  0x1112 /* VXD, DRV, ESCAPE_DRV_NT */
+#define OB_FBHDA_OVERLAY      0x1113 /* VXD, ESCAPE_DRV_NT */
 
 #define OP_SVGA_VALID         0x2000  /* VXD, DRV, ESCAPE_DRV_NT */
 #define OP_SVGA_SETMODE       0x2001  /* DRV */
@@ -91,6 +92,18 @@ THE SOFTWARE.
 # define FBPTR *
 #endif
 
+#define FBHA_OVERLAYS_MAX 16
+
+typedef struct FBHDA_overlay
+{
+#ifndef FBHDA_SIXTEEN
+	void *ptr;
+#else
+	DWORD ptr32;
+#endif
+	DWORD size;
+} FBHDA_overlay_t;
+
 typedef struct FBHDA
 {
 	         DWORD cb;
@@ -111,6 +124,15 @@ typedef struct FBHDA
 #endif
 	         DWORD vram_size;
 	         char vxdname[16]; /* file name or "NT" */
+	         DWORD overlay;
+	         FBHDA_overlay_t overlays[FBHA_OVERLAYS_MAX];
+	         DWORD overlays_size;
+	         DWORD gamma; // fixed decimal point, 65536 = 1.0
+	         DWORD res1;
+	         DWORD res2;
+	         DWORD res3;
+	         DWORD res4;
+	         DWORD res5;
 } FBHDA_t;
 
 #define FB_SUPPORT_FLIPING     1
@@ -145,9 +167,9 @@ void FBHDA_access_end(DWORD flags);
 void FBHDA_access_rect(DWORD left, DWORD top, DWORD right, DWORD bottom);
 BOOL FBHDA_swap(DWORD offset);
 void FBHDA_clean();
-
 void  FBHDA_palette_set(unsigned char index, DWORD rgb);
 DWORD FBHDA_palette_get(unsigned char index);
+DWORD FBHDA_overlay(DWORD overlay, DWORD width, DWORD height, DWORD bpp);
 
 /* mouse */
 #ifdef FBHDA_SIXTEEN

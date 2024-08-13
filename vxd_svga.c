@@ -676,11 +676,13 @@ DWORD SVGA_pitch(DWORD width, DWORD bpp)
 	return (bp * width + 3) & 0xFFFFFFFC;
 }
 
-static void SVGA_defineScreen(DWORD w, DWORD h, DWORD bpp)
+static void SVGA_defineScreen(DWORD w, DWORD h, DWORD bpp, DWORD offset)
 {
   SVGAFifoCmdDefineScreen *screen;
   SVGAFifoCmdDefineGMRFB  *fbgmr;
   DWORD cmdoff = 0;
+  
+  DWORD pitch = SVGA_pitch(w, bpp);
   
   wait_for_cmdbuf();
   
@@ -698,10 +700,10 @@ static void SVGA_defineScreen(DWORD w, DWORD h, DWORD bpp)
 
 	if(bpp < 32)
 	{
-		screen->screen.backingStore.pitch = SVGA_pitch(w, bpp);
+		screen->screen.backingStore.pitch = pitch;
 	}
 	
-	screen->screen.backingStore.ptr.offset = 0;
+	screen->screen.backingStore.ptr.offset = offset;
 	screen->screen.backingStore.ptr.gmrId = SVGA_GMR_FRAMEBUFFER;
 
   /* set GMR to same location as screen */
@@ -712,8 +714,8 @@ static void SVGA_defineScreen(DWORD w, DWORD h, DWORD bpp)
 	  if(fbgmr)
 	  {
 	  	fbgmr->ptr.gmrId = SVGA_GMR_FRAMEBUFFER;
-	  	fbgmr->ptr.offset = 0;
-	  	fbgmr->bytesPerLine = SVGA_pitch(w, bpp);
+	  	fbgmr->ptr.offset = offset;
+	  	fbgmr->bytesPerLine = pitch;
 	  	fbgmr->format.colorDepth = bpp;
 	  	if(bpp >= 24)
 	  	{
@@ -842,7 +844,7 @@ BOOL SVGA_setmode(DWORD w, DWORD h, DWORD bpp)
 	{
 		if(!st_useable(bpp))
 		{
-			SVGA_defineScreen(w, h, bpp);
+			SVGA_defineScreen(w, h, bpp, 0);
 			
 			/* reenable fifo */
 			SVGA_Enable();
@@ -860,6 +862,8 @@ BOOL SVGA_setmode(DWORD w, DWORD h, DWORD bpp)
 
 	SVGA_Flush_CB();
 	
+	hda->flags &= ~((DWORD)FB_SUPPORT_FLIPING);
+	
 	if(st_useable(bpp))
 	{
 		SVGA_CB_stop();
@@ -871,6 +875,11 @@ BOOL SVGA_setmode(DWORD w, DWORD h, DWORD bpp)
 	else
 	{
 		hda->flags &= ~((DWORD)FB_ACCEL_VMSVGA10_ST);
+		
+		if(bpp >= 15)
+		{
+			hda->flags |= FB_SUPPORT_FLIPING;
+		}
 	}
 	
 	if(st_useable(bpp))
@@ -1070,6 +1079,41 @@ BOOL SVGA_valid()
 
 BOOL FBHDA_swap(DWORD offset)
 {
+  if(hda->bpp == 32)
+  {
+  	FBHDA_access_begin(0);
+  	SVGA_defineScreen(hda->width, hda->height, hda->bpp, offset);
+	  hda->surface = offset;
+	  FBHDA_access_end(0);
+	  
+	  return TRUE;
+	}
+	else
+	{
+		DWORD ps = (hda->bpp + 7) / 8;
+		DWORD offset_y = offset/hda->pitch;
+		DWORD offset_x = (offset % hda->pitch)/ps;
+		
+		if(offset_y > 0 || offset_x > 0)
+		{
+			offset_y = 1;
+			offset_x = 0;
+		}
+		
+		SVGA_WriteReg(SVGA_REG_NUM_GUEST_DISPLAYS, 1);
+		SVGA_WriteReg(SVGA_REG_DISPLAY_ID, 0);
+		SVGA_WriteReg(SVGA_REG_DISPLAY_IS_PRIMARY, 1);
+		SVGA_WriteReg(SVGA_REG_DISPLAY_POSITION_X, offset_x);
+		SVGA_WriteReg(SVGA_REG_DISPLAY_POSITION_Y, offset_y);
+		SVGA_WriteReg(SVGA_REG_DISPLAY_WIDTH,      hda->width);
+		SVGA_WriteReg(SVGA_REG_DISPLAY_HEIGHT,     hda->height);
+		SVGA_WriteReg(SVGA_REG_DISPLAY_ID,         SVGA_ID_INVALID);
+		
+		hda->surface = offset;
+	  
+	  return TRUE;
+	}
+	
 	return FALSE;
 }
 

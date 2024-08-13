@@ -239,7 +239,6 @@ static void buildDDHALInfo(VMDAHAL_t __far *hal, int modeidx)
 	WORD                bytes_per_pixel;
 //	static DWORD    dwpFOURCCs[3];
 //	DWORD               bufpos;
-	DWORD               screenSize;
 
 	LPDWORD pGbl, pHAL;
 	LPDDHAL_DDEXEBUFCALLBACKS pExeBuf;
@@ -296,9 +295,7 @@ static void buildDDHALInfo(VMDAHAL_t __far *hal, int modeidx)
 	 */
 	hal->ddHALInfo.vmiData.dwNumHeaps  = 0;
 	heap = 0;
-	can_flip = TRUE;
-
-	screenSize = hal->ddHALInfo.vmiData.lDisplayPitch * hal->ddHALInfo.vmiData.dwDisplayHeight;
+	can_flip = hda->flags & FB_SUPPORT_FLIPING;
 
 	vidMem[0].dwFlags = VIDMEM_ISLINEAR;
 	vidMem[0].ddsCaps.dwCaps = DDSCAPS_OFFSCREENPLAIN;
@@ -308,7 +305,7 @@ static void buildDDHALInfo(VMDAHAL_t __far *hal, int modeidx)
 		vidMem[0].fpStart += hda->stride; // extra backbuffer for vGPU9 present
 	}
 	
-	vidMem[0].fpEnd   = hda->vram_pm32 + hda->vram_size - 1;
+	vidMem[0].fpEnd   = hda->vram_pm32 + hda->vram_size - hda->overlays_size - 1;
 	
 	hal->ddHALInfo.vmiData.dwNumHeaps = 1;
     
@@ -400,16 +397,11 @@ static void buildDDHALInfo(VMDAHAL_t __far *hal, int modeidx)
 	                                       // DDFXCAPS_BLTROTATION90
 
 	hal->ddHALInfo.ddCaps.ddsCaps.dwCaps = DDSCAPS_OFFSCREENPLAIN |
-	                                       DDSCAPS_PRIMARYSURFACE |
 	                                       DDSCAPS_ALPHA;
 
 	if(can_flip)
 	{
-		hal->ddHALInfo.ddCaps.ddsCaps.dwCaps |= DDSCAPS_FLIP;
-	}
-	else
-	{
-		hal->ddHALInfo.ddCaps.ddsCaps.dwCaps &= ~DDSCAPS_FLIP;
+		hal->ddHALInfo.ddCaps.ddsCaps.dwCaps |= DDSCAPS_FLIP | DDSCAPS_PRIMARYSURFACE;
 	}
 
   /*

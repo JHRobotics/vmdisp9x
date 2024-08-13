@@ -26,6 +26,9 @@ THE SOFTWARE.
 
 void memset(void *dst, int c, unsigned int size);
 void *memcpy(void *dst, const void *src, unsigned int size);
+unsigned int strlen(const char *s);
+char *strcpy(char *dst, const char *src);
+char *strcat(char *dst, const char *src);
 
 BOOL RegReadConf(UINT root, const char *path, const char *name, DWORD *out);
 

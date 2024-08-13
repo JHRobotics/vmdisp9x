@@ -88,8 +88,6 @@ DSTR(dbg_vbe_init, "Bochs VBE: vram: %X, size: %ld\n");
 
 DSTR(dbg_vbe_lfb, "LFB at %X\n");
 
-DSTR(dbg_fbhda_setup, "FBHDA_setup()\n");
-
 DSTR(dbg_mouse_cur, "Mouse %d %d %d %d\n");
 
 DSTR(dbg_flatptr, "Flatptr: %X\n");

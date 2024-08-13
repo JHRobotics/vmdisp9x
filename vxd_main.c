@@ -403,22 +403,55 @@ void __declspec(naked) VXD_API_entry()
 	}
 }
 
-static char reg_path[] = "Software\\vmdisp9x";
-static char reg_force_sw[] = "FORCE_SOFTWARE";
-static char reg_force_qemu3dfx[] = "FORCE_QEMU3DFX";
+const char reg_path[] = "Software\\vmdisp9x";
 
 static void configure_FBHDA()
 {
 	FBHDA_t *fbhda;
 	DWORD force_sw = 0;
 	DWORD force_qemu3dfx = 0;
+	int i;
+	char buf[32];
 	
 	fbhda = FBHDA_setup();
 	
 	if(fbhda)
-	{
-		RegReadConf(HKEY_LOCAL_MACHINE, reg_path, reg_force_sw, &force_sw);
-		RegReadConf(HKEY_LOCAL_MACHINE, reg_path, reg_force_qemu3dfx, &force_qemu3dfx);
+	{		
+		RegReadConf(HKEY_LOCAL_MACHINE, reg_path, "FORCE_SOFTWARE", &force_sw);
+		RegReadConf(HKEY_LOCAL_MACHINE, reg_path, "FORCE_QEMU3DFX", &force_qemu3dfx);
+		
+		for(i = 1; i < FBHA_OVERLAYS_MAX; i++)
+		{
+			char *ptr;
+			strcpy(buf, "OVERLAY_");
+			
+			ptr = buf + strlen(buf);
+			if(i >= 10)
+			{
+				*ptr = '0' + (i/10);
+				ptr++;
+			}
+			*ptr = '0' + (i % 10);
+			ptr++;
+			*ptr = '\0';
+			strcat(buf, "_SIZE");
+			
+			fbhda->overlays[i].size = 0;
+			
+			RegReadConf(HKEY_LOCAL_MACHINE, reg_path, buf, &fbhda->overlays[i].size);
+			
+			if(fbhda->overlays[i].size > 0)
+			{
+				fbhda->overlays_size += fbhda->overlays[i].size;
+				fbhda->overlays[i].ptr = ((BYTE*)fbhda->vram_pm32) + fbhda->vram_size - fbhda->overlays_size;
+			}
+			else
+			{
+				fbhda->overlays[i].ptr = 0;
+			}
+			
+			dbg_printf("Overlay #%d: %ld\n", fbhda->overlays[i].size);			
+		}
 		
 		if(force_sw)
 		{
@@ -543,6 +576,10 @@ DWORD __stdcall Device_IO_Control_proc(DWORD vmhandle, struct DIOCParams *params
 			rc = 0;
 			break;
 #ifdef SVGA
+		case OB_FBHDA_OVERLAY:
+			//outBuf[0] = FBHDA_overlay(inBuf[0], inBuf[1], inBuf[2], inBuf[3]);
+			rc = 0;
+			break;
 		case OP_SVGA_VALID:
 			outBuf[0] = SVGA_valid();
 			rc = 0;

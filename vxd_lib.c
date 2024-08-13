@@ -85,6 +85,36 @@ void *memcpy(void *dst, const void *src, unsigned int size)
 	return dst;
 }
 
+unsigned int strlen(const char *s)
+{
+	const char *ptr = s;
+	while(*ptr != '\0') ptr++;
+	return ptr - s;
+}
+
+char *strcpy(char *dst, const char *src)
+{	
+	char *pdst = dst;
+	
+	while(*src != '\0')
+	{
+		*pdst = *src;
+		src++;
+		pdst++;
+	}
+	
+	*pdst = '\0';
+	
+	return dst;
+}
+
+char *strcat(char *dst, const char *src)
+{	
+	unsigned int i = strlen(dst);
+	strcpy(dst+i, src);
+	return dst;
+}
+
 /* temp for reading registry */
 static union
 {
@@ -142,7 +172,7 @@ BOOL RegReadConf(UINT root, const char *path, const char *name, DWORD *out)
  **/
 DWORD Get_VMM_Version()
 {
-	static WORD ver = 0;
+	WORD ver = 0;
 	
 	_asm push ecx
 	_asm push eax
@@ -157,11 +187,8 @@ DWORD Get_VMM_Version()
 
 volatile void __cdecl Begin_Critical_Section(ULONG Flags)
 {
-	static ULONG sFlags;
-	sFlags = Flags;
-	
 	_asm push ecx
-	_asm mov ecx, [sFlags]
+	_asm mov ecx, [Flags]
 	VMMCall(Begin_Critical_Section);
 	_asm pop ecx
 }
@@ -173,48 +200,37 @@ volatile void __cdecl End_Critical_Section()
 
 ULONG __cdecl Create_Semaphore(ULONG TokenCount)
 {
-	static ULONG sTokenCount;
-	static ULONG sSemHandle;
-	sTokenCount = TokenCount;
-	sSemHandle = 0;
-	
+	ULONG SemHandle = 0;
+
 	_asm push eax
 	_asm push ecx
-	_asm mov ecx, [sTokenCount]
+	_asm mov ecx, [TokenCount]
 	VMMCall(Create_Semaphore);
 	_asm {
 		jc create_sem_error
-		mov [sSemHandle], eax
+		mov [SemHandle], eax
 		create_sem_error:
 		pop ecx
 		pop eax
 	}
 	
-	return sSemHandle;
+	return SemHandle;
 }
 
 void __cdecl Destroy_Semaphore(ULONG SemHandle)
 {
-	static ULONG sSemHandle;
-	sSemHandle = SemHandle;
-	
 	_asm push eax
-	_asm mov eax, [sSemHandle]
+	_asm mov eax, [SemHandle]
 	VMMCall(Destroy_Semaphore);
 	_asm pop eax
 }
 
 void __cdecl Wait_Semaphore(ULONG semHandle, ULONG flags)
 {
-	static ULONG sSemHandle;
-	static ULONG sFlags;
-	sSemHandle = semHandle;
-	sFlags     = flags;
-	
 	_asm push eax
 	_asm push ecx
-	_asm mov eax, [sSemHandle]
-	_asm mov ecx, [sFlags]
+	_asm mov eax, [semHandle]
+	_asm mov ecx, [flags]
 	VMMCall(Wait_Semaphore);
 	_asm pop ecx
 	_asm pop eax
@@ -222,22 +238,16 @@ void __cdecl Wait_Semaphore(ULONG semHandle, ULONG flags)
 
 void __cdecl Signal_Semaphore(ULONG SemHandle)
 {
-	static ULONG sSemHandle;
-	sSemHandle = SemHandle;
-	
 	_asm push eax
-	_asm mov eax, [sSemHandle]
+	_asm mov eax, [SemHandle]
 	VMMCall(Signal_Semaphore);
 	_asm pop eax
 }
 
 void __cdecl Resume_VM(ULONG VM)
 {
-	static ULONG sVM;
-	sVM = VM;
-	
 	_asm push ebx
-	_asm mov ebx, [sVM]
+	_asm mov ebx, [VM]
 	VMMCall(Resume_VM);
 	_asm pop ebx	
 }
@@ -249,19 +259,14 @@ void Release_Time_Slice()
 
 void __cdecl *Map_Flat(BYTE SegOffset, BYTE OffOffset)
 {
-	static BYTE sSegOffset;
-	static BYTE sOffOffset;
-	static void *result;
-	
-	sSegOffset = SegOffset;
-	sOffOffset = OffOffset;
+	void *result = NULL;
 	
 	_asm
 	{
 		push eax
 		xor eax, eax
-		mov al, [sOffOffset]
-		mov ah, [sSegOffset]
+		mov al, [OffOffset]
+		mov ah, [SegOffset]
 	}
 	VMMCall(Map_Flat);
 	_asm
@@ -275,12 +280,6 @@ void __cdecl *Map_Flat(BYTE SegOffset, BYTE OffOffset)
 
 void __cdecl Install_IO_Handler(DWORD port, DWORD callback)
 {
-	static DWORD sPort = 0;
-	static DWORD sCallback = 0;
-
-	sPort = port;
-	sCallback = callback;
-	
 /*
  * esi <- IOCallback
  * edx <- I/O port numbers
@@ -289,8 +288,8 @@ void __cdecl Install_IO_Handler(DWORD port, DWORD callback)
 	{
 		push esi
 		push edx
-		mov esi, [sCallback]
-		mov edx, [sPort]
+		mov esi, [callback]
+		mov edx, [port]
 	}
 	VMMCall(Install_IO_Handler);
 	_asm
@@ -302,8 +301,8 @@ void __cdecl Install_IO_Handler(DWORD port, DWORD callback)
 
 DWORD __cdecl _GetFreePageCount(DWORD *pLockablePages)
 {
-	static DWORD sLockablePages = 0;
-	static DWORD sFreePages = 0;
+	DWORD LockablePages = 0;
+	DWORD FreePages = 0;
 	_asm
 	{
 		push edx
@@ -313,19 +312,19 @@ DWORD __cdecl _GetFreePageCount(DWORD *pLockablePages)
 	VMMCall(_GetFreePageCount);
 	_asm
 	{
-		mov [sLockablePages], edx
-		mov [sFreePages], eax
+		mov [LockablePages], edx
+		mov [FreePages], eax
 		pop eax
 		pop ecx
 		pop edx
 	}
 	
-	if(pLockablePages != NULL)
+	if(LockablePages != NULL)
 	{
-		*pLockablePages = sLockablePages;
+		*pLockablePages = LockablePages;
 	}
 	
-	return sFreePages;
+	return FreePages;
 }
 
 static void __declspec(naked) __cdecl _BuildDescriptorDWORDs_(ULONG DESCBase, ULONG DESCLimit, ULONG DESCType, ULONG DESCSize, ULONG flags)
@@ -335,18 +334,18 @@ static void __declspec(naked) __cdecl _BuildDescriptorDWORDs_(ULONG DESCBase, UL
 
 void __cdecl _BuildDescriptorDWORDs(ULONG DESCBase, ULONG DESCLimit, ULONG DESCType, ULONG DESCSize, ULONG flags, DWORD *outDescHigh, DWORD *outDescLow)
 {
-	static DWORD sHigh;
-	static DWORD sLow;
+	DWORD High = 0;
+	DWORD Low = 0;
 	
 	_BuildDescriptorDWORDs_(DESCBase, DESCLimit, DESCType, DESCSize, flags);
 	_asm
 	{
-		mov [sHigh], edx
-		mov [sLow],  eax
+		mov [High], edx
+		mov [Low],  eax
 	}
 	
-	*outDescHigh = sHigh;
-	*outDescLow  = sLow;
+	*outDescHigh = High;
+	*outDescLow  = Low;
 }
 
 static void __declspec(naked) __cdecl _Allocate_LDT_Selector_(ULONG vm, ULONG DescHigh, ULONG DescLow, ULONG Count, ULONG flags)
@@ -356,8 +355,8 @@ static void __declspec(naked) __cdecl _Allocate_LDT_Selector_(ULONG vm, ULONG De
 
 void __cdecl _Allocate_LDT_Selector(ULONG vm, ULONG DescHigh, ULONG DescLow, ULONG Count, ULONG flags, DWORD *outFirstSelector, DWORD *outSelectorTable)
 {
-	static DWORD firstSelector;
-	static DWORD selectorTable;
+	DWORD firstSelector = 0;
+	DWORD selectorTable = 0;
 	
 	_Allocate_LDT_Selector_(vm, DescHigh, DescLow, Count, flags);
 	_asm
@@ -384,8 +383,8 @@ static void __declspec(naked) __cdecl _Allocate_GDT_Selector_(ULONG DescHigh, UL
 
 void __cdecl _Allocate_GDT_Selector(ULONG DescHigh, ULONG DescLow, ULONG flags, DWORD *outFirstSelector, DWORD *outSelectorTable)
 {
-	static DWORD firstSelector;
-	static DWORD selectorTable;
+	DWORD firstSelector = 0;
+	DWORD selectorTable = 0;
 	
 	_Allocate_GDT_Selector_(DescHigh, DescLow, flags);
 	_asm
@@ -479,37 +478,27 @@ DWORD __declspec(naked) __cdecl _RegQueryValueEx(DWORD hKey, char *lpszValueName
 
 void Enable_Global_Trapping(DWORD port)
 {
-	static DWORD sPort = 0;
-	sPort = port;
-	
 	_asm push edx
-	_asm mov edx, [sPort];
+	_asm mov edx, [port];
 	VMMCall(Enable_Global_Trapping);
 	_asm pop edx
 }
 
 void Disable_Global_Trapping(DWORD port)
 {
-	static DWORD sPort = 0;
-	sPort = port;
-	
 	_asm push edx
-	_asm mov edx, [sPort];
+	_asm mov edx, [port];
 	VMMCall(Disable_Global_Trapping);
 	_asm pop edx
 }
 
 BOOL VPICD_Virtualize_IRQ(struct _VPICD_IRQ_Descriptor *vid)
 {
-	static VPICD_IRQ_Descriptor *svid;
-	static BOOL r;
-	
-	r = 0;
-	svid = vid;
+	BOOL r = 0;
 	
 	_asm {
 		push edi
-		mov edi, [svid]
+		mov edi, [vid]
 	};
 	VxDCall(VPICD, Virtualize_IRQ)
 	_asm {

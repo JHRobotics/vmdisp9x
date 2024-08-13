@@ -36,7 +36,7 @@ FIXLINK_CC  = wcl386 -q fixlink\fixlink.c -fe=$(FIXLINK_EXE)
 #FLAGS += -DHWBLT
 
 # Set DBGPRINT to add debug printf logging.
-#DBGPRINT = 1
+DBGPRINT = 1
 
 !ifdef DBGPRINT
 FLAGS += -DDBGPRINT

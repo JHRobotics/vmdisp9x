@@ -75,7 +75,8 @@ void FBHDA_release_hw()
 
 FBHDA_t *FBHDA_setup()
 {
-	dbg_printf(dbg_fbhda_setup);
+	dbg_printf("FBHDA_setup()\n");
+	dbg_printf("sizeof(FBHDA_t) = %ld\n", sizeof(FBHDA_t));
 	
 	return hda;
 }
