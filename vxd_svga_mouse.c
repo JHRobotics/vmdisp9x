@@ -192,6 +192,7 @@ BOOL SVGA_mouse_load()
 
 BOOL SVGA_mouse_hw()
 {
+#if 0
 	if(st_used)
 	{
 		if(st_flags & ST_CURSOR)
@@ -202,6 +203,7 @@ BOOL SVGA_mouse_hw()
 			}
 		}
 	}
+#endif
 	
 	return FALSE;
 }
@@ -241,7 +243,9 @@ void SVGA_mouse_hide(BOOL invalidate)
 	gSVGA.fifoMem[SVGA_FIFO_CURSOR_ON] = 0;
 	
 	/* vbox bug, move cursor outside screen */
+#if 0
 	if((st_flags & ST_CURSOR_HIDEABLE) == 0)
+#endif
 	{
 		gSVGA.fifoMem[SVGA_FIFO_CURSOR_X] = hda->width;
 		gSVGA.fifoMem[SVGA_FIFO_CURSOR_Y] = hda->height;

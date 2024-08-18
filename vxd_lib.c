@@ -376,6 +376,7 @@ void __cdecl _Allocate_LDT_Selector(ULONG vm, ULONG DescHigh, ULONG DescLow, ULO
 	}
 }
 
+
 static void __declspec(naked) __cdecl _Allocate_GDT_Selector_(ULONG DescHigh, ULONG DescLow, ULONG flags)
 {
 	VMMJmp(_Allocate_GDT_Selector);
@@ -402,6 +403,11 @@ void __cdecl _Allocate_GDT_Selector(ULONG DescHigh, ULONG DescLow, ULONG flags, 
 	{
 		*outSelectorTable = selectorTable;
 	}
+}
+
+ULONG __declspec(naked) __cdecl _SetDescriptor(ULONG selector, ULONG vm, DWORD DescDWORD1, DWORD DescDWORD2, ULONG flags)
+{
+	VMMJmp(_SetDescriptor);
 }
 
 static ULONG __declspec(naked) __cdecl _PageAllocate_call(ULONG nPages, ULONG pType, ULONG VM, ULONG AlignMask, ULONG minPhys, ULONG maxPhys, ULONG *PhysAddr, ULONG flags)

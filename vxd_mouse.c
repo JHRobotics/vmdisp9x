@@ -215,10 +215,10 @@ void mouse_move(int x, int y)
 	
 	if(mouse_valid && mouse_visible && !mouse_empty)
 	{
-		FBHDA_access_begin(0);
+		FBHDA_access_begin(FBHDA_ACCESS_MOUSE_MOVE);
 		mouse_x = x;
 		mouse_y = y;
-		FBHDA_access_end(0);
+		FBHDA_access_end(FBHDA_ACCESS_MOUSE_MOVE);
 	}
 	else
 	{
@@ -294,11 +294,65 @@ BOOL mouse_blit()
 	return FALSE;
 }
 
-/* called by FBHA_access_begin */
+/* called by FBHDA_access_begin */
 void mouse_erase()
 {
 	if(mouse_valid && mouse_visible && !mouse_empty)
 	{
 		draw_restore();
 	}
+}
+
+BOOL mouse_get_rect(DWORD *ptr_left, DWORD *ptr_top,
+	DWORD *ptr_right, DWORD *ptr_bottom)
+{
+	int mx;
+	int my;
+	int mw;
+	int mh;
+	
+	if(mouse_valid && !mouse_empty)
+	{
+		mw = mouse_w;
+		mx = mouse_x - mouse_pointx;
+		
+		if(mx < 0)
+		{
+			mw += mx;
+			mx = 0;
+		}
+		
+		if(mx + mw > hda->width)
+		{
+			mw = hda->width - mx;
+		}
+		
+		mh = mouse_h;
+		my = mouse_y - mouse_pointy;
+		
+		if(my < 0)
+		{
+			mh += my;
+			my = 0;
+		}
+		
+		if(my + mh > hda->height)
+		{
+			mh = hda->height - my;
+		}
+		
+		if(mw > 0 && mh > 0)
+		{
+			*ptr_left    = mx;
+			*ptr_top     = my;
+			*ptr_right   = mx + mw;
+			*ptr_bottom  = my + mh;
+			
+			return TRUE;
+		}
+		
+		return TRUE;
+	}
+	
+	return FALSE;
 }

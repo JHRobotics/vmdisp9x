@@ -533,7 +533,7 @@ DWORD __stdcall Device_IO_Control_proc(DWORD vmhandle, struct DIOCParams *params
 	
 	Begin_Critical_Section(0);
 	
-	dbg_printf(dbg_deviceiocontrol, params->dwIoControlCode);
+	//dbg_printf("I%x\n", params->dwIoControlCode);
 	
 	switch(params->dwIoControlCode)
 	{
@@ -576,8 +576,8 @@ DWORD __stdcall Device_IO_Control_proc(DWORD vmhandle, struct DIOCParams *params
 			rc = 0;
 			break;
 #ifdef SVGA
-		case OB_FBHDA_OVERLAY:
-			//outBuf[0] = FBHDA_overlay(inBuf[0], inBuf[1], inBuf[2], inBuf[3]);
+		case OP_FBHDA_OVERLAY_SETUP:
+			//outBuf[0] = FBHDA_overlay_setup(inBuf[0], inBuf[1], inBuf[2], inBuf[3]);
 			rc = 0;
 			break;
 		case OP_SVGA_VALID:
@@ -678,11 +678,11 @@ DWORD __stdcall Device_IO_Control_proc(DWORD vmhandle, struct DIOCParams *params
 #endif /*DBGPRINT */
 #endif /* SVGA */
 		default:
-			dbg_printf(dbg_dic_unknown, params->dwIoControlCode);
+			dbg_printf("DeviceIOControl: Unknown: %d\n", params->dwIoControlCode);
 			break;
 	}
 	
-	dbg_printf(dbg_deviceiocontrol_leave);
+	//dbg_printf("IL\n");
 	End_Critical_Section();
 
 	return rc;

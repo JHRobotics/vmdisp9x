@@ -80,8 +80,12 @@ extern BOOL gb_support;
 extern BOOL cb_support;
 extern BOOL cb_context0;
 
+extern BOOL surface_dirty;
+
 //extern DWORD present_fence;
-extern BOOL ST_FB_invalid;
+//extern BOOL ST_FB_invalid;
+
+extern FBHDA_t *hda;
 
 BOOL CB_queue_check(SVGACBHeader *tracked);
 inline BOOL CB_queue_check_inline(SVGACBHeader *tracked);
@@ -207,12 +211,17 @@ inline BOOL CB_queue_check_inline(SVGACBHeader *tracked)
 			
 			if(cb->status > SVGA_CB_STATUS_COMPLETED)
 			{
-				#ifdef DBGPRINT
+				DWORD *cmd_ptr = (DWORD*)(cb+1);
+				dbg_printf("Error (%ld): offset %ld, error command: %ld\n", cb->status, cb->errorOffset, cmd_ptr[cb->errorOffset/4]);
+				if(cmd_ptr[cb->errorOffset/4] == SVGA_CMD_UPDATE)
 				{
-					DWORD *cmd_ptr = (DWORD*)(cb+1);
-					dbg_printf(dbg_cb_error, cb->status, cb->errorOffset, cmd_ptr[cb->errorOffset/4]);
+					if(cmd_ptr[0] == SVGA_3D_CMD_SURFACE_DMA)
+					{
+						dbg_printf("VMware update bug detected!\n");
+						hda->flags |= FB_BUG_VMWARE_UPDATE;
+					}
 				}
-				#endif
+				
 				need_restart = TRUE;
 			}
 			
@@ -369,7 +378,7 @@ static DWORD flags_to_cbq(DWORD cb_flags)
 	
 	if((cb_flags & SVGA_CB_UPDATE) != 0)
 	{
-		r |= SVGA_CB_UPDATE;
+		r |= CBQ_UPDATE;
 	}
 	
 	return r;
@@ -486,7 +495,7 @@ void SVGA_CMB_submit(DWORD FBPTR cmb, DWORD cmb_size, SVGA_CMB_status_t FBPTR st
 	
 	if(flags & SVGA_CB_DIRTY_SURFACE)
 	{
-		ST_FB_invalid = TRUE;
+		surface_dirty = TRUE;
 	}
 
 	if(proc_by_cb)

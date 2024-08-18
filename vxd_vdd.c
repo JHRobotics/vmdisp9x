@@ -92,6 +92,18 @@ DWORD map_pm16(DWORD vm, DWORD linear, DWORD size)
 	return selector << 16;
 }
 
+void update_pm16(DWORD vm, DWORD oldmap, DWORD linear, DWORD size)
+{
+	WORD selector = oldmap >> 16;
+	DWORD hi  = 0;
+	DWORD low = 0;
+	
+	dbg_printf("update_pm16: %ld\n", linear);
+	
+	_BuildDescriptorDWORDs(linear, RoundToPages(size), 0x92, 0x80, 0, &hi, &low);
+	_SetDescriptor(selector, vm, hi, low, 0);
+}
+
 /*
 You can implement all the VESA support entirely in your mini-VDD. Doing so will
 cause VESA applications to run more efficiently since all of the VESA support is
@@ -128,7 +140,7 @@ See also VDD_REGISTER_DISPLAY_DRIVER_INFO.
 **/
 VDDPROC(REGISTER_DISPLAY_DRIVER, register_display_driver)
 {
-	dbg_printf(dbg_register, state->Client_EBX, state->Client_ECX, ThisVM);
+	dbg_printf("register: ebx = %ld, ecx = %ld, VM = %lX\n", state->Client_EBX, state->Client_ECX, ThisVM);
 	
 	if(hda->vram_pm16 == 0)
 	{

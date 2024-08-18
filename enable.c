@@ -267,7 +267,7 @@ UINT WINAPI __loadds Enable( LPVOID lpDevice, UINT style, LPSTR lpDeviceType,
         lpEng->deBitsPixel    = wBpp;
         lpEng->deReserved1    = 0;
         lpEng->delpPDevice    = 0;
-        lpEng->deBitsOffset   = 0;
+        lpEng->deBitsOffset   = hda->surface;
         lpEng->deBitsSelector = ((DWORD)hda->vram_pm16) >> 16;
         lpEng->deBitmapInfo   = lpInfo;
         lpEng->deVersion      = 0x400;

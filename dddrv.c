@@ -272,7 +272,7 @@ static void buildDDHALInfo(VMDAHAL_t __far *hal, int modeidx)
 	/*
 	 * current primary surface attributes
 	 */
-	hal->ddHALInfo.vmiData.fpPrimary       = hda->vram_pm32;
+	hal->ddHALInfo.vmiData.fpPrimary       = hda->vram_pm32 + hda->system_surface;
 	hal->ddHALInfo.vmiData.dwDisplayWidth  = hda->width;
 	hal->ddHALInfo.vmiData.dwDisplayHeight = hda->height;
 	hal->ddHALInfo.vmiData.lDisplayPitch   = hda->pitch;
@@ -299,12 +299,7 @@ static void buildDDHALInfo(VMDAHAL_t __far *hal, int modeidx)
 
 	vidMem[0].dwFlags = VIDMEM_ISLINEAR;
 	vidMem[0].ddsCaps.dwCaps = DDSCAPS_OFFSCREENPLAIN;
-	vidMem[0].fpStart = hda->vram_pm32 + hda->stride;
-	if((hda->flags & FB_ACCEL_VMSVGA3D) != 0 && (hda->flags & FB_ACCEL_VMSVGA10) == 0)
-	{
-		vidMem[0].fpStart += hda->stride; // extra backbuffer for vGPU9 present
-	}
-	
+	vidMem[0].fpStart = hda->vram_pm32 + hda->system_surface + hda->stride;	
 	vidMem[0].fpEnd   = hda->vram_pm32 + hda->vram_size - hda->overlays_size - 1;
 	
 	hal->ddHALInfo.vmiData.dwNumHeaps = 1;

@@ -7,12 +7,12 @@ OBJS = &
 OBJS += &
   dbgprint32.obj svga.obj pci.obj vxd_fbhda.obj vxd_lib.obj vxd_main.obj &
   vxd_main_qemu.obj vxd_main_svga.obj vxd_svga.obj vxd_vdd.obj vxd_vdd_qemu.obj &
-  vxd_vdd_svga.obj vxd_vbe.obj vxd_vbe_qemu.obj vxd_mouse.obj vxd_svga_st.obj &
+  vxd_vdd_svga.obj vxd_vbe.obj vxd_vbe_qemu.obj vxd_mouse.obj &
   vxd_mouse_svga.obj vxd_svga_mouse.obj vxd_svga_mem.obj vxd_svga_cb.obj
 
 INCS = -I$(%WATCOM)\h\win -Iddk -Ivmware
 
-VER_BUILD = 75
+VER_BUILD = 78
 
 FLAGS = -DDRV_VER_BUILD=$(VER_BUILD)
 
@@ -36,7 +36,7 @@ FIXLINK_CC  = wcl386 -q fixlink\fixlink.c -fe=$(FIXLINK_EXE)
 #FLAGS += -DHWBLT
 
 # Set DBGPRINT to add debug printf logging.
-DBGPRINT = 1
+#DBGPRINT = 1
 
 !ifdef DBGPRINT
 FLAGS += -DDBGPRINT
@@ -161,9 +161,6 @@ vxd_mouse_svga.obj : vxd_mouse_svga.c .autodepend
 	$(CC32) $(CFLAGS32) $(INCS) $(FLAGS) $<
 
 vxd_svga.obj : vxd_svga.c .autodepend
-	$(CC32) $(CFLAGS32) $(INCS) $(FLAGS) $<
-
-vxd_svga_st.obj : vxd_svga_st.c .autodepend
 	$(CC32) $(CFLAGS32) $(INCS) $(FLAGS) $<
 
 vxd_svga_mouse.obj : vxd_svga_mouse.c .autodepend
@@ -437,7 +434,6 @@ file pci.obj
 file vxd_fbhda.obj
 file vxd_lib.obj
 file vxd_svga.obj
-file vxd_svga_st.obj
 file vxd_svga_mouse.obj
 file vxd_svga_mem.obj
 file vxd_svga_cb.obj

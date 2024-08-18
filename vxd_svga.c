@@ -45,6 +45,8 @@ THE SOFTWARE.
 
 #include "svga_ver.h"
 
+#include "vxd_color.h"
+
 /*
  * consts
  */
@@ -74,14 +76,18 @@ static DWORD prefer_fifo = 1;
 
 static BOOL SVGA_is_valid = FALSE;
 
+BOOL surface_dirty = FALSE;
+
 static DWORD fence_next_id = 1;
 void *cmdbuf = NULL;
 void *ctlbuf = NULL;
 
 DWORD async_mobs = 1;
 
-/* guest frame buffer is dirty */
-BOOL ST_FB_invalid = FALSE;
+/* vxd_mouse.vxd */
+BOOL mouse_get_rect(DWORD *ptr_left, DWORD *ptr_top,
+	DWORD *ptr_right, DWORD *ptr_bottom);
+
 
 //DWORD present_fence = 0;
 /*
@@ -97,8 +103,6 @@ static char SVGA_conf_rgb565bug[]  = "RGB565bug";
 static char SVGA_conf_cb[]         = "CommandBuffers";
 static char SVGA_conf_pref_fifo[]  = "PreferFIFO";
 static char SVGA_conf_hw_version[] = "HWVersion";
-static char SVGA_conf_st_size[]    = "STSize";
-static char SVGA_conf_st_flags[]   = "STOptions";
 static char SVGA_vxd_name[]        = "vmwsmini.vxd";
 
 static char SVGA_conf_disable_multisample[] = "NoMultisample";
@@ -331,7 +335,6 @@ BOOL SVGA_vxdcmd(DWORD cmd)
 	switch(cmd)
 	{
 		case SVGA_CMD_INVALIDATE_FB:
-			ST_FB_invalid = TRUE;
 			return TRUE;
 	}
 	
@@ -339,25 +342,10 @@ BOOL SVGA_vxdcmd(DWORD cmd)
 }
 
 static DWORD fb_pm16 = 0;
-static DWORD st_pm16 = 0;
-static DWORD st_address = 0;
+//static DWORD st_pm16 = 0;
+//static DWORD st_address = 0;
 static DWORD st_surface_mb = 0;
 static DWORD disable_multisample = 0;
-
-BOOL st_useable(DWORD bpp)
-{
-	if(st_used)
-	{
-		if(bpp == 32) return TRUE;
-			
-		if(bpp == 16 && (st_flags & ST_16BPP))
-		{
-			return TRUE;
-		}
-	}
-	
-	return FALSE;
-}
 
 static void SVGA_write_driver_id()
 {
@@ -410,9 +398,6 @@ BOOL SVGA_init_hw()
  	RegReadConf(HKEY_LOCAL_MACHINE, SVGA_conf_path, SVGA_conf_cb,         &conf_cb); 
  	RegReadConf(HKEY_LOCAL_MACHINE, SVGA_conf_path, SVGA_conf_hw_version, &conf_hw_version);
  	RegReadConf(HKEY_LOCAL_MACHINE, SVGA_conf_path, SVGA_conf_pref_fifo,  &prefer_fifo);
- 	
- 	RegReadConf(HKEY_LOCAL_MACHINE, SVGA_conf_path, SVGA_conf_st_size,    &st_surface_mb);
- 	RegReadConf(HKEY_LOCAL_MACHINE, SVGA_conf_path, SVGA_conf_st_flags,   &st_flags);
  	
  	RegReadConf(HKEY_LOCAL_MACHINE, SVGA_conf_path, SVGA_conf_disable_multisample, &disable_multisample);
  	RegReadConf(HKEY_LOCAL_MACHINE, SVGA_conf_path, SVGA_conf_async_mobs, &async_mobs);
@@ -553,14 +538,6 @@ BOOL SVGA_init_hw()
 			if(cb_support) /* SVGA_CB_start may fail */
 			{
 				SVGA_OTable_load();
-				
-				if(st_surface_mb >= 8)
-				{
-					if(st_memory_allocate(st_surface_mb*1024*1024, &st_address))
-					{
-						st_used = TRUE;
-					}
-				}
 			}
 		}
 		
@@ -568,20 +545,9 @@ BOOL SVGA_init_hw()
 		fb_pm16 = map_pm16(1, gSVGA.fbLinear, gSVGA.vramSize);
 		
 		/* fill address in FBHDA */
-		if(st_used)
-		{
-			st_pm16 = map_pm16(1, st_address, st_surface_mb*1024*1024);
-			
-			hda->vram_pm32 = (void*)st_address;
-			hda->vram_size = st_surface_mb*1024*1024;
-			hda->vram_pm16 = st_pm16;
-		}
-		else
-		{
-			hda->vram_pm32 = (void*)gSVGA.fbLinear;
-			hda->vram_size = gSVGA.vramSize;
-			hda->vram_pm16 = fb_pm16;
-		}
+		hda->vram_pm32 = (void*)gSVGA.fbLinear;
+		hda->vram_size = gSVGA.vramSize;
+		hda->vram_pm16 = fb_pm16;
 		
  		memcpy(hda->vxdname, SVGA_vxd_name, sizeof(SVGA_vxd_name));
 		
@@ -673,16 +639,24 @@ BOOL SVGA3D_Init(void)
 DWORD SVGA_pitch(DWORD width, DWORD bpp)
 {
 	DWORD bp = (bpp + 7) / 8;
-	return (bp * width + 3) & 0xFFFFFFFC;
+	return (bp * width + 3) & 0xFFFFFFFCUL;
 }
 
+static DWORD SVGA_DT_stride(DWORD w, DWORD h)
+{
+	DWORD stride = SVGA_pitch(w, 32) * h;
+	
+	return (stride + 65535) & 0xFFFF0000UL;
+}
+
+/**
+ *
+ * @return: screen offset to VRAM
+ **/
 static void SVGA_defineScreen(DWORD w, DWORD h, DWORD bpp, DWORD offset)
 {
   SVGAFifoCmdDefineScreen *screen;
-  SVGAFifoCmdDefineGMRFB  *fbgmr;
   DWORD cmdoff = 0;
-  
-  DWORD pitch = SVGA_pitch(w, bpp);
   
   wait_for_cmdbuf();
   
@@ -698,43 +672,47 @@ static void SVGA_defineScreen(DWORD w, DWORD h, DWORD bpp, DWORD offset)
 	screen->screen.root.y = 0;
 	screen->screen.cloneCount = 0;
 
-	if(bpp < 32)
-	{
-		screen->screen.backingStore.pitch = pitch;
-	}
-	
-	screen->screen.backingStore.ptr.offset = offset;
-	screen->screen.backingStore.ptr.gmrId = SVGA_GMR_FRAMEBUFFER;
-
-  /* set GMR to same location as screen */
-  if(bpp >= 15/* || bpp < 32*/)
-  {
-  	fbgmr = SVGA_cmd_ptr(cmdbuf, &cmdoff, SVGA_CMD_DEFINE_GMRFB, sizeof(SVGAFifoCmdDefineGMRFB));
-	  
-	  if(fbgmr)
-	  {
-	  	fbgmr->ptr.gmrId = SVGA_GMR_FRAMEBUFFER;
-	  	fbgmr->ptr.offset = offset;
-	  	fbgmr->bytesPerLine = pitch;
-	  	fbgmr->format.colorDepth = bpp;
-	  	if(bpp >= 24)
-	  	{
-	  		fbgmr->format.bitsPerPixel = 32;
-	  		fbgmr->format.colorDepth   = 24;
-	  		fbgmr->format.reserved     = 0;
-	  	}
-	  	else
-	  	{
-	  		fbgmr->format.bitsPerPixel = 16;
-	  		fbgmr->format.colorDepth   = 16;
-	  		fbgmr->format.reserved     = 0;
-	  	}
-	  }
-	}
+	screen->screen.backingStore.pitch = SVGA_pitch(w, bpp);
+	screen->screen.backingStore.ptr.offset = 0; /* vmware, always 0 for primary surface  */
+	screen->screen.backingStore.ptr.gmrId = SVGA_GMR_FRAMEBUFFER; /* must be framebuffer */
 	
 	submit_cmdbuf(cmdoff, SVGA_CB_SYNC|SVGA_CB_FORCE_FIFO, 0);
 }
 
+static void SVGA_FillGMRFB(SVGAFifoCmdDefineGMRFB *fbgmr)
+{
+	fbgmr->ptr.gmrId = SVGA_GMR_FRAMEBUFFER;
+	fbgmr->ptr.offset = hda->surface;
+	fbgmr->bytesPerLine = hda->pitch;
+	fbgmr->format.colorDepth = hda->bpp;
+	if(hda->bpp >= 24)
+	{
+		fbgmr->format.bitsPerPixel = 32;
+		fbgmr->format.colorDepth   = 24;
+		fbgmr->format.reserved     = 0;
+	}
+	else
+	{
+		fbgmr->format.bitsPerPixel = 16;
+		fbgmr->format.colorDepth   = 16;
+		fbgmr->format.reserved     = 0;
+	}
+}
+
+static void SVGA_DefineGMRFB()
+{
+	SVGAFifoCmdDefineGMRFB *gmrfb;
+	DWORD cmd_offset = 0;
+
+	wait_for_cmdbuf();
+	  	
+	gmrfb = SVGA_cmd_ptr(cmdbuf, &cmd_offset, SVGA_CMD_DEFINE_GMRFB, sizeof(SVGAFifoCmdDefineGMRFB));
+	SVGA_FillGMRFB(gmrfb);
+	submit_cmdbuf(cmd_offset, 0, 0);
+	
+	dbg_printf("SVGA_DefineGMRFB: %ld\n", hda->surface);
+	
+}
 
 /**
  * Test if display mode is supported
@@ -746,9 +724,6 @@ BOOL SVGA_validmode(DWORD w, DWORD h, DWORD bpp)
 		case 8:
 		case 16:
 		case 32:
-			break;
-		case 24:
-			if(!st_useable(24)) return FALSE;
 			break;
 		default:
 			return FALSE;
@@ -826,7 +801,7 @@ BOOL SVGA_setmode(DWORD w, DWORD h, DWORD bpp)
 	SVGA_CB_stop();
   
    /* setup by legacy registry */
-  if(st_useable(bpp))
+  if(SVGA_hasAccelScreen())
   {
 		SVGA_SetModeLegacy(w, h, 32);
 	}
@@ -834,6 +809,7 @@ BOOL SVGA_setmode(DWORD w, DWORD h, DWORD bpp)
 	{
 		SVGA_SetModeLegacy(w, h, bpp);
 	}
+	
 	/* VMware, vGPU10: OK, when screen has change, whoale GPU is reset including FIFO */
 	SVGA_Enable();
 	
@@ -842,15 +818,14 @@ BOOL SVGA_setmode(DWORD w, DWORD h, DWORD bpp)
 	/* setting screen by fifo, this method is required in VB 6.1 */
 	if(SVGA_hasAccelScreen())
 	{
-		if(!st_useable(bpp))
-		{
-			SVGA_defineScreen(w, h, bpp, 0);
+		SVGA_defineScreen(w, h, bpp, 0);
 			
-			/* reenable fifo */
-			SVGA_Enable();
-		}
+		/* reenable fifo */
+		SVGA_Enable();
 		
 		SVGA_Flush();
+		
+		/* TODO, not do this on vGPU10 */
 	}
 	SVGA_Sync();
 	
@@ -864,56 +839,43 @@ BOOL SVGA_setmode(DWORD w, DWORD h, DWORD bpp)
 	
 	hda->flags &= ~((DWORD)FB_SUPPORT_FLIPING);
 	
-	if(st_useable(bpp))
-	{
-		SVGA_CB_stop();
-		st_defineScreen(w, h, bpp);
-		hda->flags |= FB_ACCEL_VMSVGA10_ST;
-		
-		SVGA_CB_start();
-	}
-	else
-	{
-		hda->flags &= ~((DWORD)FB_ACCEL_VMSVGA10_ST);
-		
-		if(bpp >= 15)
-		{
-			hda->flags |= FB_SUPPORT_FLIPING;
-		}
-	}
-	
-	if(st_useable(bpp))
-	{
-		hda->vram_pm32 = (void*)st_address;
-		hda->vram_size = st_surface_mb*1024*1024;
-		hda->vram_pm16 = st_pm16;
-	}
-	else
-	{
-		hda->vram_pm32 = (void*)gSVGA.fbLinear;
-		hda->vram_size = gSVGA.vramSize;
-		hda->vram_pm16 = fb_pm16;
-	}
+	hda->flags &= ~((DWORD)FB_ACCEL_VMSVGA10_ST);
 
-	hda->width   = SVGA_ReadReg(SVGA_REG_WIDTH);
-	hda->height  = SVGA_ReadReg(SVGA_REG_HEIGHT);
-	if(st_useable(bpp))
+	hda->vram_pm32 = (void*)gSVGA.fbLinear;
+	hda->vram_size = gSVGA.vramSize;
+	hda->vram_pm16 = fb_pm16;
+
+	hda->width   = w;//SVGA_ReadReg(SVGA_REG_WIDTH);
+	hda->height  = h;//SVGA_ReadReg(SVGA_REG_HEIGHT);
+	
+	if(SVGA_hasAccelScreen())
 	{
-		/*
-		 when screen target is used, screen bpp and pitch may be different from 
-		 backscreen surface.
-		 */
-		hda->bpp     = bpp;
-		hda->pitch   = SVGA_pitch(hda->width, bpp);
+		if(bpp >= 8)
+		{
+			DWORD offset = SVGA_DT_stride(hda->width, hda->height);
+			
+			hda->bpp     = bpp;
+			hda->pitch   = SVGA_pitch(hda->width, bpp);
+			hda->system_surface = offset;
+			hda->surface = offset;
+		}
+		else
+		{
+			hda->bpp     = SVGA_ReadReg(SVGA_REG_BITS_PER_PIXEL);
+			hda->pitch   = SVGA_ReadReg(SVGA_REG_BYTES_PER_LINE);
+			hda->surface = 0;
+			hda->system_surface = 0;
+		}
 	}
 	else
 	{
 		hda->bpp     = SVGA_ReadReg(SVGA_REG_BITS_PER_PIXEL);
 		hda->pitch   = SVGA_ReadReg(SVGA_REG_BYTES_PER_LINE);
+		hda->surface = 0;
+		hda->system_surface = 0;
 	}
 	hda->stride  = hda->height * hda->pitch;
-	hda->surface = 0;
-
+	
 	if(has3D && SVGA_GetDevCap(SVGA3D_DEVCAP_3D) > 0)
 	{
 		hda->flags |= FB_ACCEL_VMSVGA3D;
@@ -921,6 +883,12 @@ BOOL SVGA_setmode(DWORD w, DWORD h, DWORD bpp)
 	else
 	{
 		hda->flags &= ~((DWORD)FB_ACCEL_VMSVGA3D);
+	}
+	
+	if(hda->system_surface > 0)
+	{
+		hda->flags |= FB_SUPPORT_FLIPING;
+		SVGA_DefineGMRFB();
 	}
 	
 	mouse_invalidate();
@@ -1079,47 +1047,19 @@ BOOL SVGA_valid()
 
 BOOL FBHDA_swap(DWORD offset)
 {
-  if(hda->bpp == 32)
-  {
-  	FBHDA_access_begin(0);
-  	SVGA_defineScreen(hda->width, hda->height, hda->bpp, offset);
-	  hda->surface = offset;
-	  FBHDA_access_end(0);
-	  
-	  return TRUE;
-	}
-	else
+	BOOL rc = FALSE;
+	if(offset >= hda->system_surface) /* DON'T touch surface 0 */
 	{
-		DWORD ps = (hda->bpp + 7) / 8;
-		DWORD offset_y = offset/hda->pitch;
-		DWORD offset_x = (offset % hda->pitch)/ps;
-		
-		if(offset_y > 0 || offset_x > 0)
-		{
-			offset_y = 1;
-			offset_x = 0;
+	 	FBHDA_access_begin(0);
+	 	if(hda->bpp > 8)
+	 	{
+	 		SVGA_DefineGMRFB();
+	  	hda->surface = offset;
 		}
-		
-		SVGA_WriteReg(SVGA_REG_NUM_GUEST_DISPLAYS, 1);
-		SVGA_WriteReg(SVGA_REG_DISPLAY_ID, 0);
-		SVGA_WriteReg(SVGA_REG_DISPLAY_IS_PRIMARY, 1);
-		SVGA_WriteReg(SVGA_REG_DISPLAY_POSITION_X, offset_x);
-		SVGA_WriteReg(SVGA_REG_DISPLAY_POSITION_Y, offset_y);
-		SVGA_WriteReg(SVGA_REG_DISPLAY_WIDTH,      hda->width);
-		SVGA_WriteReg(SVGA_REG_DISPLAY_HEIGHT,     hda->height);
-		SVGA_WriteReg(SVGA_REG_DISPLAY_ID,         SVGA_ID_INVALID);
-		
-		hda->surface = offset;
-	  
-	  return TRUE;
+	  FBHDA_access_end(0);
 	}
-	
-	return FALSE;
-}
 
-void FBHDA_access_begin(DWORD flags)
-{
-	FBHDA_access_rect(0, 0, hda->width, hda->height);
+	return rc;
 }
 
 static DWORD rect_left;
@@ -1127,125 +1067,249 @@ static DWORD rect_top;
 static DWORD rect_right;
 static DWORD rect_bottom;
 
+static inline void update_rect(DWORD left, DWORD top, DWORD right, DWORD bottom)
+{
+	if(left < rect_left)
+		rect_left = left;
+
+	if(top < rect_top)
+		rect_top = top;
+
+	if(right > rect_right)
+	{
+		rect_right = right;
+		if(rect_right > hda->width)
+		{
+			rect_right = hda->width;
+		}
+	}
+
+	if(bottom > rect_bottom)
+	{
+		rect_bottom = bottom;
+		if(rect_bottom > hda->height)
+		{
+			rect_bottom = hda->height;
+		}
+	}
+}
+
+static inline void check_dirty()
+{
+	if(surface_dirty)
+	{
+		switch(hda->bpp)
+		{
+			case 32:
+			{
+			 	SVGAFifoCmdBlitScreenToGMRFB *gmrblit;
+			 	DWORD cmd_offset = 0;
+		
+				wait_for_cmdbuf();
+						
+				gmrblit = SVGA_cmd_ptr(cmdbuf, &cmd_offset, SVGA_CMD_BLIT_SCREEN_TO_GMRFB, sizeof(SVGAFifoCmdBlitScreenToGMRFB));
+	
+				gmrblit->destOrigin.x    = 0;
+				gmrblit->destOrigin.y    = 0;
+				gmrblit->srcRect.left    = 0;
+				gmrblit->srcRect.top     = 0;
+				gmrblit->srcRect.right   = hda->width;
+				gmrblit->srcRect.bottom  = hda->height;
+				gmrblit->srcScreenId = 0;
+				  	
+				submit_cmdbuf(cmd_offset, SVGA_CB_UPDATE, 0);
+				break;
+			}
+			case 16:
+			{
+				readback16(
+					hda->vram_pm32, SVGA_pitch(hda->width, 32),
+					((BYTE*)hda->vram_pm32)+hda->surface, hda->pitch,
+					0, 0, hda->width, hda->height
+				);
+				break;
+			}
+		} // switch
+		
+		surface_dirty = FALSE;
+	}
+}
+
 void FBHDA_access_rect(DWORD left, DWORD top, DWORD right, DWORD bottom)
 {
 	Wait_Semaphore(hda_sem, 0);
 	
+/*	dbg_printf("FBHDA_access_rect(%ld, %ld, %ld, %ld)\n",
+		left, top, right, bottom
+	);*/
+	
+	if(left > hda->width)
+		return;
+	
+	if(top > hda->height)
+		return;
+	
+	if(right > hda->width)
+		right = hda->width;
+	
+	if(bottom > hda->height)
+		bottom = hda->height;
+
 	if(fb_lock_cnt++ == 0)
 	{
-		BOOL readback = FALSE;
 		SVGA_CMB_wait_update();
-		
-		if(ST_FB_invalid)
-		{
-			readback = TRUE;		
-			ST_FB_invalid = FALSE;
-		}
-		
-		if(readback)
-		{
-			if(st_useable(hda->bpp))
-			{
-				DWORD cmd_offset = 0;
-				SVGA3dCmdReadbackGBSurface *gbreadback;
-				
-				wait_for_cmdbuf();
-				
-				gbreadback = SVGA_cmd3d_ptr(cmdbuf, &cmd_offset, SVGA_3D_CMD_READBACK_GB_SURFACE, sizeof(SVGA3dCmdReadbackGBSurface));
-				gbreadback->sid = ST_SURFACE_ID;
-				submit_cmdbuf(cmd_offset, SVGA_CB_SYNC, 0);
-			}
-		}
-		
-		mouse_erase();
+		check_dirty();
 		
 		rect_left   = left;
 		rect_top    = top;
 		rect_right  = right;
 		rect_bottom = bottom;
+
+		mouse_erase();
+
+		if(mouse_get_rect(&left, &top, &right, &bottom))
+		{
+			update_rect(left, top, right, bottom);
+		}
 	}
 	else
 	{
-		if(left < rect_left)
-			rect_left = left;
-		
-		if(top < rect_top)
-			rect_top = top;
-		
-		if(right > rect_right)
-			rect_right = right;
-		
-		if(bottom > rect_bottom)
-			rect_bottom = bottom;
+		update_rect(left, top, right, bottom);
 	}
-	
+
 	Signal_Semaphore(hda_sem);
+}
+
+void FBHDA_access_begin(DWORD flags)
+{
+	if(flags & (FBHDA_ACCESS_RAW_BUFFERING | FBHDA_ACCESS_MOUSE_MOVE))
+	{
+		Wait_Semaphore(hda_sem, 0);
+		check_dirty();
+		
+//		dbg_printf("FBHDA_access_begin(%ld)\n", flags);
+		
+		if(fb_lock_cnt++ == 0)
+		{
+			SVGA_CMB_wait_update();
+			mouse_erase();
+			
+			if(!mouse_get_rect(&rect_left, &rect_top, &rect_right, &rect_bottom))
+			{
+				rect_left   = 0;
+				rect_top    = 0;
+				rect_right  = 0;
+				rect_bottom = 0;
+			}
+		}
+		else
+		{
+			DWORD l, t, r, b;
+			
+			if(mouse_get_rect(&l, &t, &r, &b))
+			{
+				update_rect(l, t, r, b);
+			}
+		}
+		
+		Signal_Semaphore(hda_sem);
+	}
+	else
+	{
+		FBHDA_access_rect(0, 0, hda->width, hda->height);
+	}
 }
 
 void FBHDA_access_end(DWORD flags)
 {
 	Wait_Semaphore(hda_sem, 0);
+	
+	if(flags & FBHDA_ACCESS_MOUSE_MOVE)
+	{
+		DWORD l, t, r, b;
+		
+		if(mouse_get_rect(&l, &t, &r, &b))
+		{
+			update_rect(l, t, r, b);
+		}
+	}
 
 	fb_lock_cnt--;
 	if(fb_lock_cnt < 0) fb_lock_cnt = 0;
 	
 	if(fb_lock_cnt == 0)
 	{
-		mouse_blit();		
-		if(st_useable(hda->bpp))
+		BOOL need_refresh = ((hda->bpp == 32) && (hda->system_surface == 0));
+		
+/*		dbg_printf("FBHDA_access_end(%ld %ld %ld %ld)\n", 
+			rect_left, rect_top, rect_right, rect_bottom);*/
+		mouse_blit();
+		if(hda->surface > 0)
 		{
-			SVGA3dCmdUpdateGBSurface *gbupdate;
-			SVGA3dCmdUpdateGBScreenTarget *stupdate;
-			SVGA3dCmdUpdateGBImage   *gbupdate_rect;
-			DWORD cmd_offset = 0;
-			DWORD w = rect_right - rect_left;
-			DWORD h = rect_bottom - rect_top;
-
-		 	wait_for_cmdbuf();
-
-			if(w == hda->width && h == hda->height)
+			switch(hda->bpp)
 			{
-				/* full screen update */
-				gbupdate = SVGA_cmd3d_ptr(cmdbuf, &cmd_offset, SVGA_3D_CMD_UPDATE_GB_SURFACE, sizeof(SVGA3dCmdUpdateGBSurface));
-				gbupdate->sid = ST_SURFACE_ID;
-			}
-			else
-			{
-				/* partial box */
-				gbupdate_rect = SVGA_cmd3d_ptr(cmdbuf, &cmd_offset, SVGA_3D_CMD_UPDATE_GB_IMAGE, sizeof(SVGA3dCmdUpdateGBImage));
-				gbupdate_rect->image.sid = ST_SURFACE_ID;
-				gbupdate_rect->image.face = 0;
-				gbupdate_rect->image.mipmap = 0;
-				gbupdate_rect->box.x = rect_left;
-				gbupdate_rect->box.y = rect_top;
-				gbupdate_rect->box.z = 0;
-				gbupdate_rect->box.w = w;
-				gbupdate_rect->box.h = h;
-				gbupdate_rect->box.d = 1;
-			}
-
-			stupdate = SVGA_cmd3d_ptr(cmdbuf, &cmd_offset, SVGA_3D_CMD_UPDATE_GB_SCREENTARGET, sizeof(SVGA3dCmdUpdateGBScreenTarget));
-			stupdate->stid = 0;
-	  	stupdate->rect.x = rect_left;
-	  	stupdate->rect.y = rect_top;
-	  	stupdate->rect.w = w;
-	  	stupdate->rect.h = h;
-
-			submit_cmdbuf(cmd_offset, SVGA_CB_UPDATE, 0);
+				case 32:
+				{
+					DWORD w, h;
+			  	SVGAFifoCmdBlitGMRFBToScreen *gmrblit;
+			  	DWORD cmd_offset = 0;
+		
+					w = rect_right - rect_left;
+					h = rect_bottom - rect_top;
+					
+					if(w > 0 && h > 0)
+					{
+						wait_for_cmdbuf();
+						
+				  	gmrblit = SVGA_cmd_ptr(cmdbuf, &cmd_offset, SVGA_CMD_BLIT_GMRFB_TO_SCREEN, sizeof(SVGAFifoCmdBlitGMRFBToScreen));
+	
+				  	gmrblit->srcOrigin.x      = rect_left;
+				  	gmrblit->srcOrigin.y      = rect_top;
+				  	gmrblit->destRect.left    = rect_left;
+				  	gmrblit->destRect.top     = rect_top;
+				  	gmrblit->destRect.right   = rect_right;
+				  	gmrblit->destRect.bottom  = rect_bottom;
+	
+				  	gmrblit->destScreenId = 0;
+				  	
+						submit_cmdbuf(cmd_offset, SVGA_CB_UPDATE, 0);
+					}
+					break;
+				}
+				case 16:
+					blit16(
+						((BYTE*)hda->vram_pm32)+hda->surface, hda->pitch,
+						hda->vram_pm32,  SVGA_pitch(hda->width, 32),
+						rect_left, rect_top,
+						rect_right - rect_left, rect_bottom - rect_top
+					);
+					need_refresh = TRUE;
+					break;
+				case 8:
+					blit8(
+						((BYTE*)hda->vram_pm32)+hda->surface, hda->pitch,
+						hda->vram_pm32,  SVGA_pitch(hda->width, 32),
+						rect_left, rect_top,
+						rect_right - rect_left, rect_bottom - rect_top
+					);
+					need_refresh = TRUE;
+					break;
+			} // switch
 		}
-	  else if(hda->bpp == 32)
+
+	  if(need_refresh)
 	  {
-	  	SVGAFifoCmdUpdate  *cmd_update;
+	  	SVGAFifoCmdUpdate *cmd_update;
 	  	DWORD cmd_offset = 0;
 
 	  	wait_for_cmdbuf();
 
 	  	cmd_update = SVGA_cmd_ptr(cmdbuf, &cmd_offset, SVGA_CMD_UPDATE, sizeof(SVGAFifoCmdUpdate));
-	  	cmd_update->x = 0;
-	  	cmd_update->y = 0;
-	  	cmd_update->width  = hda->width;
-	  	cmd_update->height = hda->height;
-	  	
+	  	cmd_update->x = rect_left;
+	  	cmd_update->y = rect_top;
+	  	cmd_update->width  = rect_right - rect_left;
+	  	cmd_update->height = rect_bottom - rect_top;
+
 			submit_cmdbuf(cmd_offset, SVGA_CB_UPDATE, 0);
 	  }
 	} // fb_lock_cnt == 0
@@ -1253,20 +1317,35 @@ void FBHDA_access_end(DWORD flags)
 	Signal_Semaphore(hda_sem);
 }
 
-void  FBHDA_palette_set(unsigned char index, DWORD rgb)
+void FBHDA_palette_set(unsigned char index, DWORD rgb)
 {
-	UINT sIndex = SVGA_PALETTE_BASE + index*3;
-	
-  SVGA_WriteReg(sIndex+0, (rgb >> 16) & 0xFF);
-  SVGA_WriteReg(sIndex+1, (rgb >>  8) & 0xFF);
-  SVGA_WriteReg(sIndex+2,  rgb        & 0xFF);
+	if(hda->system_surface > 0)
+	{
+		palette_emulation[index] = rgb;
+	}
+	else
+	{
+		UINT sIndex = SVGA_PALETTE_BASE + index*3;
+		
+  	SVGA_WriteReg(sIndex+0, (rgb >> 16) & 0xFF);
+  	SVGA_WriteReg(sIndex+1, (rgb >>  8) & 0xFF);
+  	SVGA_WriteReg(sIndex+2,  rgb        & 0xFF);
+  }
+  hda->palette_update++;
 }
 
 DWORD FBHDA_palette_get(unsigned char index)
 {
-	UINT sIndex = SVGA_PALETTE_BASE + index*3;
+	if(hda->system_surface > 0)
+	{
+		return palette_emulation[index];
+	}
+	else
+	{
+		UINT sIndex = SVGA_PALETTE_BASE + index*3;
 	
-	return ((SVGA_ReadReg(sIndex+0) & 0xFF) << 16) |
-		((SVGA_ReadReg(sIndex+1) & 0xFF) << 8) |
-		 (SVGA_ReadReg(sIndex+2) & 0xFF);
+		return ((SVGA_ReadReg(sIndex+0) & 0xFF) << 16) |
+			((SVGA_ReadReg(sIndex+1) & 0xFF) << 8) |
+		 	(SVGA_ReadReg(sIndex+2) & 0xFF);
+	}
 }

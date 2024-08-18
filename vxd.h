@@ -5,18 +5,20 @@
  * https://fd.lod.bz/rbil/interrup/windows/2f1684.html#sect-4579
  * This looks like free
  */
+/*
 #define VXD_DEVICE_SVGA_ID 0x4331
 #define VXD_DEVICE_QEMU_ID 0x4332
-#define VXD_DEVICE_VBE_ID  0x4333
+#define VXD_DEVICE_VBE_ID  0x4333*/
+#define VXD_DEVICE_VMDISP9X_ID  0x4333
 
 #if defined(SVGA)
-#define VXD_DEVICE_ID VXD_DEVICE_SVGA_ID
+#define VXD_DEVICE_ID VXD_DEVICE_VMDISP9X_ID
 #define VXD_DEVICE_NAME "VMWSVXD"
 #elif defined(QEMU)
-#define VXD_DEVICE_ID VXD_DEVICE_QEMU_ID
+#define VXD_DEVICE_ID VXD_DEVICE_VMDISP9X_ID
 #define VXD_DEVICE_NAME "QEMUVXD"
 #else
-#define VXD_DEVICE_ID VXD_DEVICE_VBE_ID
+#define VXD_DEVICE_ID VXD_DEVICE_VMDISP9X_ID
 #define VXD_DEVICE_NAME "BOXVVXD"
 #endif
 

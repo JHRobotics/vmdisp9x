@@ -30,7 +30,6 @@ DSTR(dbg_Device_Init_proc, "Device_Init_proc\n");
 DSTR(dbg_Device_Init_proc_succ, "Device_Init_proc success\n");
 DSTR(dbg_dic_ring, "DeviceIOControl: Ring\n");
 DSTR(dbg_dic_sync, "DeviceIOControl: Sync\n");
-DSTR(dbg_dic_unknown, "DeviceIOControl: Unknown: %d\n");
 DSTR(dbg_dic_system, "DeviceIOControl: System code: %d\n");
 DSTR(dbg_get_ppa, "%lx -> %lx\n");
 DSTR(dbg_get_ppa_beg, "Virtual: %lx\n");
@@ -66,9 +65,6 @@ DSTR(dbg_update, "Update screen: %d %d %d\n");
 DSTR(dbg_cmd_on, "SVGA_CMB_submit: ptr=%X, first cmd=%X, flags=%X, size=%d\n");
 DSTR(dbg_cmd_off, "SVGA_CMB_submit: end - cmd: %X\n");
 DSTR(dbg_cmd_error, "CB error: %d, first cmd %X (error at %d)\n");
-
-DSTR(dbg_deviceiocontrol, "I%x\n");
-DSTR(dbg_deviceiocontrol_leave, "IL\n");
 
 DSTR(dbg_gmr, "GMR: %ld at %X\n");
 DSTR(dbg_gmr_succ, "GMR ALLOC: %ld (size: %ld)\n");
@@ -120,8 +116,6 @@ DSTR(dbg_map_pm16, "map_pm16: vm = %ld, linear = %lX, size = %ld\n");
 
 DSTR(dbg_map_pm16_sel, "map_pm16: selector %lX\n");
 
-DSTR(dbg_register, "register: ebx = %ld, ecx = %ld, VM = %lX\n");
-
 DSTR(dbg_map_pm16_qw, "map_pm16: high=%lX, low=%lX\n");
 
 DSTR(dbg_lock_cb, "Lock CB buffer: %ld (line: %ld)\n");
@@ -158,8 +152,6 @@ DSTR(dbg_cb_suc, "submit SVGA_CB_SYNC success\n");
 
 DSTR(dbg_region_1, "SVGA_region_create #1: %ld, max: %ld\n");
 DSTR(dbg_region_2, "SVGA_region_create #2: %ld\n");
-
-DSTR(dbg_cb_error, "Error (%ld): offset %ld, error command: %ld\n");
 
 DSTR(dbg_cs_underflow, "WARNING: closing inactive CS!\n");
 DSTR(dbg_cs_active, "WARNING: CS is still active!\n");

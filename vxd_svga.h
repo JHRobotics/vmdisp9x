@@ -30,19 +30,9 @@ void SVGA_fence_wait_dbg(DWORD fence_id, int line);
 #define SVGA_fence_wait(_fence) SVGA_fence_wait_dbg(_fence, __LINE__)
 #endif
 
-
-/* screen target */
-extern BOOL  st_used;
-extern DWORD st_flags;
-BOOL st_memory_allocate(DWORD size, DWORD *out);
-void st_defineScreen(DWORD w, DWORD h, DWORD bpp);
-void st_destroyScreen();
-
-SVGA_DB_surface_t *SVGA_GetSurfaceInfo(DWORD sid);
-BOOL st_useable(DWORD bpp);
-
 /* VDD */
 DWORD map_pm16(DWORD vm, DWORD linear, DWORD size);
+void update_pm16(DWORD vm, DWORD oldmap, DWORD linear, DWORD size);
 
 void SVGA_Sync();
 void SVGA_Flush_CB();
