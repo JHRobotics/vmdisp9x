@@ -109,23 +109,23 @@ extern LONG fb_lock_cnt;
 
 extern BOOL gb_support;
 
-
 /**
  * Return PPN (physical page number) to virtual address
  *
  **/
+
 static DWORD getPPN(DWORD virtualaddr)
 {
 	DWORD phy = 0;
-	_CopyPageTable(virtualaddr/P_SIZE, 1, &phy, 0);
-	return phy/P_SIZE;
+	_CopyPageTable(_PAGE(virtualaddr), 1, &phy, 0);
+	return _PAGE(phy);
 }
 
 /**
  * Return PPN for pointer
  *
  **/
-static DWORD getPtrPPN(void *ptr)
+static inline DWORD getPtrPPN(void *ptr)
 {
 	return getPPN((DWORD)ptr);
 }
@@ -681,7 +681,7 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 	if(laddr)
 	{
 		desc = (SVGAGuestMemDescriptor*)laddr;
-		desc->ppn = (phy/P_SIZE)+1;
+		desc->ppn = _PAGE(phy)+1;
 		desc->numPages = nPages;
 		desc++;
 		desc->ppn = 0;
@@ -689,9 +689,9 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 		
 		rinfo->address        = (void*)(laddr+P_SIZE);
 		rinfo->region_address = 0;
-		rinfo->region_ppn     = (phy/P_SIZE);
+		rinfo->region_ppn     = _PAGE(phy);
 		rinfo->mob_address    = 0;
-		rinfo->mob_ppn        = (phy/P_SIZE)+1;
+		rinfo->mob_ppn        = _PAGE(phy)+1;
 		rinfo->mob_pt_depth   = SVGA3D_MOBFMT_RANGE;
 		
 		//dbg_printf(dbg_region_simple, laddr, rinfo->address);

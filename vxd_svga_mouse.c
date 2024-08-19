@@ -45,6 +45,7 @@ THE SOFTWARE.
 #include "vxd_strings.h"
 
 extern FBHDA_t *hda;
+extern DWORD hw_cursor;
 
 static BOOL hw_cursor_valid = FALSE;
 static BOOL hw_cursor_visible = FALSE;
@@ -192,19 +193,14 @@ BOOL SVGA_mouse_load()
 
 BOOL SVGA_mouse_hw()
 {
-#if 0
-	if(st_used)
+	if(hw_cursor)
 	{
-		if(st_flags & ST_CURSOR)
+		if(SVGA_HasFIFOCap(SVGA_FIFO_CAP_CURSOR_BYPASS_3))
 		{
-			if(SVGA_HasFIFOCap(SVGA_FIFO_CAP_CURSOR_BYPASS_3))
-			{
-				return TRUE;
-			}
+			return TRUE;
 		}
 	}
-#endif
-	
+
 	return FALSE;
 }
 

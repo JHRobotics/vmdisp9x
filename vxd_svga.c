@@ -83,6 +83,7 @@ void *cmdbuf = NULL;
 void *ctlbuf = NULL;
 
 DWORD async_mobs = 1;
+DWORD hw_cursor  = 0;
 
 /* vxd_mouse.vxd */
 BOOL mouse_get_rect(DWORD *ptr_left, DWORD *ptr_top,
@@ -94,10 +95,8 @@ BOOL mouse_get_rect(DWORD *ptr_left, DWORD *ptr_top,
  * strings
  */
 static char SVGA_conf_path[] = "Software\\VMWSVGA";
-/*
 static char SVGA_conf_hw_cursor[]  = "HWCursor";
-	^ removed, use screen target + ST_CURSOR
-*/
+/*	^ recovered */
 static char SVGA_conf_vram_limit[] = "VRAMLimit";
 static char SVGA_conf_rgb565bug[]  = "RGB565bug";
 static char SVGA_conf_cb[]         = "CommandBuffers";
@@ -107,6 +106,16 @@ static char SVGA_vxd_name[]        = "vmwsmini.vxd";
 
 static char SVGA_conf_disable_multisample[] = "NoMultisample";
 static char SVGA_conf_async_mobs[] = "AsyncMOBs";
+
+typedef struct _svga_saved_state_t
+{
+	BOOL enabled;
+	DWORD width;
+	DWORD height;
+	DWORD bpp;
+} svga_saved_state_t;
+
+static svga_saved_state_t svga_saved_state = {FALSE};
 
 /**
  * Notify virtual HW that is some work to do
@@ -401,6 +410,7 @@ BOOL SVGA_init_hw()
  	
  	RegReadConf(HKEY_LOCAL_MACHINE, SVGA_conf_path, SVGA_conf_disable_multisample, &disable_multisample);
  	RegReadConf(HKEY_LOCAL_MACHINE, SVGA_conf_path, SVGA_conf_async_mobs, &async_mobs);
+ 	RegReadConf(HKEY_LOCAL_MACHINE, SVGA_conf_path, SVGA_conf_hw_cursor,  &hw_cursor);
  	
  	if(async_mobs < 1)
  		async_mobs = 1;
@@ -639,7 +649,7 @@ BOOL SVGA3D_Init(void)
 DWORD SVGA_pitch(DWORD width, DWORD bpp)
 {
 	DWORD bp = (bpp + 7) / 8;
-	return (bp * width + 3) & 0xFFFFFFFCUL;
+	return (bp * width + 15) & 0xFFFFFFF0UL;
 }
 
 static DWORD SVGA_DT_stride(DWORD w, DWORD h)
@@ -679,13 +689,14 @@ static void SVGA_defineScreen(DWORD w, DWORD h, DWORD bpp, DWORD offset)
 	submit_cmdbuf(cmdoff, SVGA_CB_SYNC|SVGA_CB_FORCE_FIFO, 0);
 }
 
-static void SVGA_FillGMRFB(SVGAFifoCmdDefineGMRFB *fbgmr)
+static void SVGA_FillGMRFB(SVGAFifoCmdDefineGMRFB *fbgmr, 
+	DWORD offset, DWORD pitch, DWORD bpp)
 {
 	fbgmr->ptr.gmrId = SVGA_GMR_FRAMEBUFFER;
-	fbgmr->ptr.offset = hda->surface;
-	fbgmr->bytesPerLine = hda->pitch;
-	fbgmr->format.colorDepth = hda->bpp;
-	if(hda->bpp >= 24)
+	fbgmr->ptr.offset = offset;
+	fbgmr->bytesPerLine = pitch;
+	fbgmr->format.colorDepth = bpp;
+	if(bpp >= 24)
 	{
 		fbgmr->format.bitsPerPixel = 32;
 		fbgmr->format.colorDepth   = 24;
@@ -707,11 +718,10 @@ static void SVGA_DefineGMRFB()
 	wait_for_cmdbuf();
 	  	
 	gmrfb = SVGA_cmd_ptr(cmdbuf, &cmd_offset, SVGA_CMD_DEFINE_GMRFB, sizeof(SVGAFifoCmdDefineGMRFB));
-	SVGA_FillGMRFB(gmrfb);
+	SVGA_FillGMRFB(gmrfb, hda->surface, hda->pitch, hda->bpp);
 	submit_cmdbuf(cmd_offset, 0, 0);
 	
 	dbg_printf("SVGA_DefineGMRFB: %ld\n", hda->surface);
-	
 }
 
 /**
@@ -749,29 +759,8 @@ BOOL SVGA_validmode(DWORD w, DWORD h, DWORD bpp)
 	return FALSE;
 }
 
-/**
- * Set display mode
- *
- **/
-BOOL SVGA_setmode(DWORD w, DWORD h, DWORD bpp)
+static void SVGA_setmode_phy(DWORD w, DWORD h, DWORD bpp)
 {
-	BOOL has3D;
-	if(!SVGA_validmode(w, h, bpp))
-	{
-		return FALSE;
-	}
-	
-	/* free chached regions */
-	/*
-	SVGA_flushcache();
-	 ^JH: no alloc/free operations here (don't know why,
-				but when VXD si called from 16 bits, these
-				operations are bit unstable)
-	*/
-	
-	mouse_invalidate();
-	FBHDA_access_begin(0);
-	
 	//SVGA_OTable_unload(); // unload otables
 	
 	/* Make sure, that we drain full FIFO */
@@ -832,10 +821,47 @@ BOOL SVGA_setmode(DWORD w, DWORD h, DWORD bpp)
 	/* start command buffer context 0 */
 	SVGA_CB_start();
 	
-	has3D = SVGA3D_Init();
 	SVGA_Sync();
-
 	SVGA_Flush_CB();
+}
+
+/**
+ * Set display mode
+ *
+ **/
+BOOL SVGA_setmode(DWORD w, DWORD h, DWORD bpp)
+{
+	BOOL has3D;
+	if(!SVGA_validmode(w, h, bpp))
+	{
+		return FALSE;
+	}
+	
+	svga_saved_state.width = w;
+	svga_saved_state.height = h;
+	svga_saved_state.bpp = bpp;
+	svga_saved_state.enabled = TRUE;
+
+	/* when on overlay silently eat change mode requests */
+	if(hda->overlay > 0)
+	{
+		return TRUE;
+	}
+	
+	/* free chached regions */
+	/*
+	SVGA_flushcache();
+	 ^JH: no alloc/free operations here (don't know why,
+				but when VXD si called from 16 bits, these
+				operations are bit unstable)
+	*/
+	
+	mouse_invalidate();
+	FBHDA_access_begin(0);
+	
+	SVGA_setmode_phy(w, h, bpp);
+		
+	has3D = SVGA3D_Init();
 	
 	hda->flags &= ~((DWORD)FB_SUPPORT_FLIPING);
 	
@@ -1028,6 +1054,8 @@ void SVGA_HW_enable()
 		SVGA_WriteReg(SVGA_REG_ENABLE, TRUE);
 		
 		SVGA_CB_start();
+		
+		svga_saved_state.enabled = TRUE;
 	}
 }
 
@@ -1038,6 +1066,8 @@ void SVGA_HW_disable()
 	SVGA_CB_stop();
 	
 	SVGA_Disable();
+	
+	svga_saved_state.enabled = FALSE;
 }
 
 BOOL SVGA_valid()
@@ -1048,6 +1078,18 @@ BOOL SVGA_valid()
 BOOL FBHDA_swap(DWORD offset)
 {
 	BOOL rc = FALSE;
+
+	if(hda->overlay > 0)
+	{
+		/* on overlay emulate behaviour */
+		if(offset >= hda->system_surface && hda->bpp > 8)
+		{
+			hda->surface = offset;
+			return TRUE;
+		}
+		return FALSE;
+	}
+	
 	if(offset >= hda->system_surface) /* DON'T touch surface 0 */
 	{
 	 	FBHDA_access_begin(0);
@@ -1055,6 +1097,7 @@ BOOL FBHDA_swap(DWORD offset)
 	 	{
 	 		SVGA_DefineGMRFB();
 	  	hda->surface = offset;
+	  	rc = TRUE;
 		}
 	  FBHDA_access_end(0);
 	}
@@ -1137,6 +1180,11 @@ static inline void check_dirty()
 
 void FBHDA_access_rect(DWORD left, DWORD top, DWORD right, DWORD bottom)
 {
+	if(hda->overlay > 0)
+	{
+		return;
+	}
+	
 	Wait_Semaphore(hda_sem, 0);
 	
 /*	dbg_printf("FBHDA_access_rect(%ld, %ld, %ld, %ld)\n",
@@ -1182,6 +1230,11 @@ void FBHDA_access_rect(DWORD left, DWORD top, DWORD right, DWORD bottom)
 
 void FBHDA_access_begin(DWORD flags)
 {
+	if(hda->overlay > 0)
+	{
+		return;
+	}
+	
 	if(flags & (FBHDA_ACCESS_RAW_BUFFERING | FBHDA_ACCESS_MOUSE_MOVE))
 	{
 		Wait_Semaphore(hda_sem, 0);
@@ -1222,6 +1275,11 @@ void FBHDA_access_begin(DWORD flags)
 
 void FBHDA_access_end(DWORD flags)
 {
+	if(hda->overlay > 0)
+	{
+		return;
+	}
+	
 	Wait_Semaphore(hda_sem, 0);
 	
 	if(flags & FBHDA_ACCESS_MOUSE_MOVE)
@@ -1347,5 +1405,144 @@ DWORD FBHDA_palette_get(unsigned char index)
 		return ((SVGA_ReadReg(sIndex+0) & 0xFF) << 16) |
 			((SVGA_ReadReg(sIndex+1) & 0xFF) << 8) |
 		 	(SVGA_ReadReg(sIndex+2) & 0xFF);
+	}
+}
+
+static DWORD ov_width = 0;
+static DWORD ov_height = 0;
+static DWORD ov_pitch = 0;
+static DWORD ov_bpp = 0;
+
+DWORD FBHDA_overlay_setup(DWORD overlay, DWORD width, DWORD height, DWORD bpp)
+{
+	dbg_printf("FBHDA_overlay_setup: %ld\n", overlay);
+
+	if(overlay >= FBHA_OVERLAYS_MAX)
+		return 0;
+
+	if(overlay == 0)
+	{
+		/* restore */
+		SVGA_setmode_phy(svga_saved_state.width, svga_saved_state.height, svga_saved_state.bpp);
+		SVGA_DefineGMRFB();
+		
+		hda->overlay = 0;
+
+		if(!svga_saved_state.enabled)
+		{
+			SVGA_Disable();
+		}
+		else
+		{
+			/* redraw framebuffer */
+			FBHDA_access_begin(0);
+			FBHDA_access_end(0);
+		}
+
+		return hda->pitch;
+	}
+	else
+	{
+		if(bpp == 32)
+		{
+			SVGAFifoCmdDefineGMRFB *gmrfb;
+			DWORD cmd_offset = 0;
+
+			DWORD pitch  = SVGA_pitch(width, bpp);
+			DWORD offset = ((BYTE*)hda->overlays[overlay].ptr) - ((BYTE*)hda->vram_pm32);
+			DWORD stride = pitch*height;
+
+			if(hda->overlays[overlay].size > stride)
+			{
+				hda->overlay = overlay;
+				SVGA_setmode_phy(width, height, bpp);
+
+				wait_for_cmdbuf();
+				gmrfb = SVGA_cmd_ptr(cmdbuf, &cmd_offset, SVGA_CMD_DEFINE_GMRFB, sizeof(SVGAFifoCmdDefineGMRFB));
+				SVGA_FillGMRFB(gmrfb, offset, pitch, bpp);
+				submit_cmdbuf(cmd_offset, SVGA_CB_SYNC, 0);
+
+				ov_width  = width;
+				ov_height = height;
+				ov_pitch  = pitch;
+				ov_bpp    = bpp;
+
+				/* clear screen */
+				FBHDA_overlay_lock(0, 0, width, height);
+				memset(hda->overlays[overlay].ptr, 0, stride);
+				FBHDA_overlay_unlock(0);
+
+				return pitch;
+			}
+		} // bpp == 32
+	} // overlay > 0
+	
+	return 0;
+}
+
+static int overlay_lock_cnt = 0;
+static DWORD ov_rect_left   = 0;
+static DWORD ov_rect_top    = 0;
+static DWORD ov_rect_right  = 0;
+static DWORD ov_rect_bottom = 0;
+
+void FBHDA_overlay_lock(DWORD left, DWORD top, DWORD right, DWORD bottom)
+{	
+	if(hda->overlay == 0) return;
+	
+	if(overlay_lock_cnt++ == 0)
+	{
+		ov_rect_left   = left;
+		ov_rect_top    = top;
+		ov_rect_right  = right;
+		ov_rect_bottom = bottom;
+	}
+	else
+	{
+		if(left < ov_rect_left) ov_rect_left = left;
+
+		if(top < ov_rect_top) ov_rect_top = top;
+
+		if(right > ov_rect_right) ov_rect_right = right;
+
+		if(bottom > ov_rect_bottom) ov_rect_bottom = bottom;
+
+	}
+	
+	if(ov_rect_right > ov_width) ov_rect_right = ov_width;
+
+	if(ov_rect_bottom > ov_height) ov_rect_right = ov_height;
+}
+
+void  FBHDA_overlay_unlock(DWORD flags)
+{
+	if(hda->overlay == 0) return;
+	
+	if(--overlay_lock_cnt <= 0)
+	{
+		if(ov_rect_left < ov_rect_right && ov_rect_top < ov_rect_bottom)
+		{
+			SVGAFifoCmdBlitGMRFBToScreen *gmrblit;
+			DWORD cmd_offset = 0;
+			
+			wait_for_cmdbuf();
+			gmrblit = SVGA_cmd_ptr(cmdbuf, &cmd_offset, SVGA_CMD_BLIT_GMRFB_TO_SCREEN, sizeof(SVGAFifoCmdBlitGMRFBToScreen));
+
+	  	gmrblit->srcOrigin.x      = ov_rect_left;
+	  	gmrblit->srcOrigin.y      = ov_rect_top;
+	  	gmrblit->destRect.left    = ov_rect_left;
+	  	gmrblit->destRect.top     = ov_rect_top;
+	  	gmrblit->destRect.right   = ov_rect_right;
+	  	gmrblit->destRect.bottom  = ov_rect_bottom;
+	
+	  	gmrblit->destScreenId = 0;
+				  	
+			submit_cmdbuf(cmd_offset, SVGA_CB_UPDATE, 0);
+		}
+
+		if(overlay_lock_cnt < 0)
+		{
+			overlay_lock_cnt = 0;
+		}
 	}
 }

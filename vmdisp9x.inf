@@ -399,5 +399,6 @@ QemuStd.DeviceDesc="QEMU STD VGA PCI Adapter"
 QemuQXL.DeviceDesc="QEMU QXL VGA PCI Adapter"
 
 [VM.regextra]
+HKLM,Software\vmdisp9x,OVERLAY_1_SIZE,,8
 ; extra registry section for installers (eg. SoftGPU)
 ; please do not add any other section below these lines!

@@ -336,3 +336,19 @@ void FBHDA_access_end(DWORD flags)
 	
 	//Signal_Semaphore(hda_sem);
 }
+
+DWORD FBHDA_overlay_setup(DWORD overlay, DWORD width, DWORD height, DWORD bpp)
+{
+	return 0;
+}
+
+void FBHDA_overlay_lock(DWORD left, DWORD top, DWORD right, DWORD bottom)
+{
+	
+}
+
+void  FBHDA_overlay_unlock(DWORD flags)
+{
+	
+}
+

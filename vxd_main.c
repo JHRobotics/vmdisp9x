@@ -62,6 +62,9 @@ void __stdcall Device_Dynamic_Init_proc(DWORD VM);
 void __stdcall Device_Exit_proc(DWORD VM);
 void __stdcall Device_Init_Complete(DWORD VM);
 
+#define SERVICE_TABLE_CNT (FBHDA__OVERLAY_UNLOCK+1)
+extern DWORD service_table[SERVICE_TABLE_CNT];
+
 /*
   VXD structure
   this variable must be in first address in code segment.
@@ -82,8 +85,8 @@ DDB VXD_DDB = {
 	NULL,// CS:IP of API entry point
 	NULL,// CS:IP of API entry point
 	NULL,// Reference data from real mode
-	NULL,// Pointer to service table
-	NULL,// Number of services
+	(DWORD)&service_table,// Pointer to service table
+	SERVICE_TABLE_CNT,// Number of services
 	NULL, // DDB_Win32_Service_Table
 	'Prev', //NULL, // prev
 	sizeof(DDB),
@@ -416,7 +419,9 @@ static void configure_FBHDA()
 	fbhda = FBHDA_setup();
 	
 	if(fbhda)
-	{		
+	{
+		DWORD size_mb;
+		
 		RegReadConf(HKEY_LOCAL_MACHINE, reg_path, "FORCE_SOFTWARE", &force_sw);
 		RegReadConf(HKEY_LOCAL_MACHINE, reg_path, "FORCE_QEMU3DFX", &force_qemu3dfx);
 		
@@ -436,10 +441,10 @@ static void configure_FBHDA()
 			*ptr = '\0';
 			strcat(buf, "_SIZE");
 			
-			fbhda->overlays[i].size = 0;
-			
-			RegReadConf(HKEY_LOCAL_MACHINE, reg_path, buf, &fbhda->overlays[i].size);
-			
+			size_mb = 0;
+			RegReadConf(HKEY_LOCAL_MACHINE, reg_path, buf, &size_mb);
+			fbhda->overlays[i].size = size_mb*(1024*1024);
+
 			if(fbhda->overlays[i].size > 0)
 			{
 				fbhda->overlays_size += fbhda->overlays[i].size;
@@ -450,7 +455,7 @@ static void configure_FBHDA()
 				fbhda->overlays[i].ptr = 0;
 			}
 			
-			dbg_printf("Overlay #%d: %ld\n", fbhda->overlays[i].size);			
+			dbg_printf("Overlay #%ld: %ld\n", i, fbhda->overlays[i].size);			
 		}
 		
 		if(force_sw)
@@ -575,11 +580,19 @@ DWORD __stdcall Device_IO_Control_proc(DWORD vmhandle, struct DIOCParams *params
 			outBuf[0] = FBHDA_palette_get(inBuf[0]);
 			rc = 0;
 			break;
-#ifdef SVGA
 		case OP_FBHDA_OVERLAY_SETUP:
-			//outBuf[0] = FBHDA_overlay_setup(inBuf[0], inBuf[1], inBuf[2], inBuf[3]);
+			outBuf[0] = FBHDA_overlay_setup(inBuf[0], inBuf[1], inBuf[2], inBuf[3]);
 			rc = 0;
 			break;
+		case OP_FBHDA_OVERLAY_LOCK:
+			FBHDA_overlay_lock(inBuf[0], inBuf[1], inBuf[2], inBuf[3]);
+			rc = 0;
+			break;
+		case OP_FBHDA_OVERLAY_UNLOCK:
+			FBHDA_overlay_unlock(inBuf[0]);
+			rc = 0;
+			break;
+#ifdef SVGA
 		case OP_SVGA_VALID:
 			outBuf[0] = SVGA_valid();
 			rc = 0;
@@ -730,3 +743,43 @@ void Device_Exit_proc(DWORD VM)
 	
 	// TODO: free memory
 }
+
+static DWORD __stdcall service_get_ver()
+{
+	return API_3DACCEL_VER;
+}
+
+static FBHDA_t *__stdcall service_setup()
+{
+	return FBHDA_setup();
+}
+
+static DWORD __stdcall service_overlay_setup(DWORD overlay, DWORD width, DWORD height, DWORD bpp)
+{
+	return FBHDA_overlay_setup(overlay, width, height, bpp);
+}
+
+static void __stdcall service_overlay_lock(DWORD left, DWORD top, DWORD right, DWORD bottom)
+{
+	FBHDA_overlay_lock(left, top, right, bottom);
+}
+
+static void __stdcall service_overlay_unlock(DWORD flags)
+{
+	FBHDA_overlay_unlock(flags);
+}
+
+DWORD service_table[SERVICE_TABLE_CNT] = {
+	(DWORD)&service_get_ver, // 0
+	(DWORD)&service_setup, // 1
+	0, // 2
+	0, // 3
+	0, // 4
+	0, // 5
+	0, // 6
+	0, // 7
+	0, // 8
+	(DWORD)&service_overlay_setup, // 9
+	(DWORD)&service_overlay_lock, // 10
+	(DWORD)&service_overlay_unlock, // 11
+};

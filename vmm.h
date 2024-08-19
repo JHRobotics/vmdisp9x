@@ -67,6 +67,7 @@ typedef struct tagVxD_Desc_Block
 } DDB ;
 #pragma pack(pop)
 
+//#define DDK_VERSION 0x300
 //#define DDK_VERSION 0x30A
 #define DDK_VERSION 0x400
 //#define DDK_VERSION 0x40A
@@ -196,6 +197,8 @@ typedef struct tagVxD_Desc_Block
 
 #define Power_Event           0x001A
 
+#define Sys_Dynamic_Device_Init 0x001B
+#define Sys_Dynamic_Device_Exit 0x001C
 
 /* 
  * Macro to call VXD service
@@ -1132,6 +1135,8 @@ typedef struct tagCRS_32
  *****************************************************************************/
 
 #define P_SIZE      0x1000      /* page size */
+#define P_SHIFT     12
+#define _PAGE(_addr) ((_addr) >> P_SHIFT)
 
 /******************************************************************************
  *
@@ -1235,5 +1240,99 @@ struct DIOCParams
 #define DIOC_GETVERSION     0x0
 #define DIOC_OPEN       DIOC_GETVERSION
 #define DIOC_CLOSEHANDLE    -1
+
+/*
+ *  Data structure for Hook_Invalid_Page_Fault handlers.
+ *
+ *  This is the structure of the "invalid page fault information"
+ *  which is pointed to by EDI when Invalid page fault hookers
+ *  are called.
+ *
+ *  Page faults can occur on a VM which is not current by touching the VM at
+ *  its high linear address.  In this case, IPF_FaultingVM may not be the
+ *  current VM, it will be set to the VM whos high linear address was touched.
+ */
+
+typedef struct IPF_Data
+{
+    ULONG IPF_LinAddr;      /* CR2 address of fault */
+    ULONG IPF_MapPageNum;   /* Possible converted page # of fault */
+    ULONG IPF_PTEEntry;     /* Contents of PTE that faulted */
+    ULONG IPF_FaultingVM;   /* May not = Current VM (IPF_V86PgH set) */
+    ULONG IPF_Flags;        /* Flags */
+} IPF_Data_t;
+
+/*
+ *
+ * Install_Exception_Handler data structure
+ *
+ */
+
+struct Exception_Handler_Struc
+{
+    ULONG EH_Reserved;
+    ULONG EH_Start_EIP;
+    ULONG EH_End_EIP;
+    ULONG EH_Handler;
+};
+
+/*
+ *  Flags passed in new memory manager functions
+ */
+
+/* PageReserve arena values */
+#define PR_PRIVATE  0x80000400  /* anywhere in private arena */
+#define PR_SHARED   0x80060000  /* anywhere in shared arena */
+#define PR_SYSTEM   0x80080000  /* anywhere in system arena */
+
+/* PageReserve flags */
+#define PR_FIXED    0x00000008  /* don't move during PageReAllocate */
+#define PR_4MEG     0x00000001  /* allocate on 4mb boundary */
+#define PR_STATIC   0x00000010  /* see PageReserve documentation */
+
+/* PageCommit default pager handle values */
+#define PD_ZEROINIT 0x00000001  /* swappable zero-initialized pages */
+#define PD_NOINIT   0x00000002  /* swappable uninitialized pages */
+#define PD_FIXEDZERO    0x00000003  /* fixed zero-initialized pages */
+#define PD_FIXED    0x00000004  /* fixed uninitialized pages */
+
+/* PageCommit flags */
+#define PC_FIXED    0x00000008  /* pages are permanently locked */
+#define PC_LOCKED   0x00000080  /* pages are made present and locked*/
+#define PC_LOCKEDIFDP   0x00000100  /* pages are locked if swap via DOS */
+#define PC_WRITEABLE    0x00020000  /* make the pages writeable */
+#define PC_USER     0x00040000  /* make the pages ring 3 accessible */
+#define PC_INCR     0x40000000  /* increment "pagerdata" each page */
+#define PC_PRESENT  0x80000000  /* make pages initially present */
+#define PC_STATIC   0x20000000  /* allow commit in PR_STATIC object */
+#define PC_DIRTY    0x08000000  /* make pages initially dirty */
+
+/* PageCommitContig additional flags */
+#define PCC_ZEROINIT    0x00000001  /* zero-initialize new pages */
+#define PCC_NOLIN   0x10000000  /* don't map to any linear address */
+
+/*
+ *  Structure and flags for PageQuery
+ */
+#ifndef _WINNT_
+typedef struct _MEMORY_BASIC_INFORMATION
+{
+    ULONG mbi_BaseAddress;
+    ULONG mbi_AllocationBase;
+    ULONG mbi_AllocationProtect;
+    ULONG mbi_RegionSize;
+    ULONG mbi_State;
+    ULONG mbi_Protect;
+    ULONG mbi_Type;
+} MEMORY_BASIC_INFORMATION, *PMEMORY_BASIC_INFORMATION;
+
+#define PAGE_NOACCESS          0x01     
+#define PAGE_READONLY          0x02     
+#define PAGE_READWRITE         0x04     
+#define MEM_COMMIT           0x1000     
+#define MEM_RESERVE          0x2000     
+#define MEM_FREE            0x10000     
+#define MEM_PRIVATE         0x20000     
+#endif /* _WINNT_ */
 
 #endif /* __VMM_H__INCLUDED__ */
