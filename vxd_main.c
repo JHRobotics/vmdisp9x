@@ -231,7 +231,7 @@ WORD __stdcall VXD_API_Proc(PCRS_32 state)
 	WORD rc = 0xFFFF;
 	WORD service = state->Client_EDX & 0xFFFF;
 	
-//	dbg_printf(dbg_vxd_api, service);
+	//dbg_printf(dbg_vxd_api, service);
 	Begin_Critical_Section(0);
 	
 	switch(service)
@@ -288,6 +288,16 @@ WORD __stdcall VXD_API_Proc(PCRS_32 state)
 				rc = 1;
 				break;
 			}
+		case OP_FBHDA_GAMMA_GET:
+			dbg_printf("OP_FBHDA_GAMMA_GET\n");
+			state->Client_ECX = FBHDA_gamma_get((void *)state->Client_EDI, state->Client_ECX);
+			rc = 1;
+			break;
+		case OP_FBHDA_GAMMA_SET:
+			dbg_printf("OP_FBHDA_GAMMA_SET\n");
+			state->Client_ECX = FBHDA_gamma_set((void *)state->Client_ESI, state->Client_ECX);
+			rc = 1;
+			break;
 		/* mouse */
 		case OP_MOUSE_LOAD:
 			state->Client_ECX = mouse_load();

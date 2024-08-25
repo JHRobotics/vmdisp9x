@@ -177,20 +177,22 @@ DWORD WINAPI __loadds ExtTextOut( LPDIBENGINE lpDestDev, WORD wDestXOrg, WORD wD
                                         LPSTR lpString, int wCount, LPFONTINFO lpFontInfo, LPDRAWMODE lpDrawMode,
                                         LPTEXTXFORM lpTextXForm, LPSHORT lpCharWidths, LPRECT lpOpaqueRect, WORD wOptions )
 {
-/*	if(wOptions & ETO_GLYPH_INDEX)
-	{
-		return 0x80000000UL;
-	}*/
-	
-	/*if(wCount > 0)
-	{
-		dbg_printf("ExtTextOut: ");
-	 	for(i = 0; i < wCount; i++)
-	 	{
-	 		dbg_printf("%c", lpString[i]);
-	 	}
- 	  dbg_printf("(%X) %d\n", lpString[0], wCount);
-  }*/
-	
 	return DIB_ExtTextOut(lpDestDev, wDestXOrg, wDestYOrg, lpClipRect, lpString, wCount, lpFontInfo, lpDrawMode, lpTextXForm, lpCharWidths, lpOpaqueRect, wOptions);
+}
+
+BOOL WINAPI __loadds DDIGammaRamp(LPDIBENGINE lpDev, BOOL fGetSet, LPARAM lpGammaRamp)
+{
+	BOOL rc;
+	if(fGetSet)
+	{
+		rc = FBHDA_gamma_set((VOID FBPTR)lpGammaRamp, sizeof(WORD)*256*3);
+		dbg_printf("set the ramp: %d\n", rc);
+	}
+	else
+	{
+		rc = FBHDA_gamma_get((VOID FBPTR)lpGammaRamp, sizeof(WORD)*256*3);
+		dbg_printf("get the ramp\n");
+	}
+	
+	return rc;
 }

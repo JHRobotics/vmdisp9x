@@ -579,7 +579,10 @@ BOOL SVGA_init_hw()
 				cache_enable(TRUE);
 			}
 		}
-				
+		
+		/* switch back to VGA mode, SVGA mode will be request by 16 bit driver later */
+		SVGA_HW_disable();
+		
 		return TRUE;
 	}
 	
@@ -1279,9 +1282,14 @@ void FBHDA_access_end(DWORD flags)
 	{
 		return;
 	}
-	
+
 	Wait_Semaphore(hda_sem, 0);
-	
+
+	if(flags & FBHDA_ACCESS_SURFACE_DIRTY)
+	{
+		surface_dirty = TRUE;
+	}
+
 	if(flags & FBHDA_ACCESS_MOUSE_MOVE)
 	{
 		DWORD l, t, r, b;
@@ -1297,26 +1305,28 @@ void FBHDA_access_end(DWORD flags)
 	
 	if(fb_lock_cnt == 0)
 	{
+		DWORD w, h;
 		BOOL need_refresh = ((hda->bpp == 32) && (hda->system_surface == 0));
+		
+		w = rect_right - rect_left;
+		h = rect_bottom - rect_top;
 		
 /*		dbg_printf("FBHDA_access_end(%ld %ld %ld %ld)\n", 
 			rect_left, rect_top, rect_right, rect_bottom);*/
-		mouse_blit();
-		if(hda->surface > 0)
+
+		if(w > 0 && h > 0)
 		{
-			switch(hda->bpp)
+			check_dirty();
+			mouse_blit();
+			if(hda->surface > 0)
 			{
-				case 32:
+				switch(hda->bpp)
 				{
-					DWORD w, h;
-			  	SVGAFifoCmdBlitGMRFBToScreen *gmrblit;
-			  	DWORD cmd_offset = 0;
-		
-					w = rect_right - rect_left;
-					h = rect_bottom - rect_top;
-					
-					if(w > 0 && h > 0)
+					case 32:
 					{
+				  	SVGAFifoCmdBlitGMRFBToScreen *gmrblit;
+				  	DWORD cmd_offset = 0;
+		
 						wait_for_cmdbuf();
 						
 				  	gmrblit = SVGA_cmd_ptr(cmdbuf, &cmd_offset, SVGA_CMD_BLIT_GMRFB_TO_SCREEN, sizeof(SVGAFifoCmdBlitGMRFBToScreen));
@@ -1329,47 +1339,51 @@ void FBHDA_access_end(DWORD flags)
 				  	gmrblit->destRect.bottom  = rect_bottom;
 	
 				  	gmrblit->destScreenId = 0;
-				  	
+	
 						submit_cmdbuf(cmd_offset, SVGA_CB_UPDATE, 0);
+						break;
 					}
-					break;
-				}
-				case 16:
-					blit16(
-						((BYTE*)hda->vram_pm32)+hda->surface, hda->pitch,
-						hda->vram_pm32,  SVGA_pitch(hda->width, 32),
-						rect_left, rect_top,
-						rect_right - rect_left, rect_bottom - rect_top
-					);
-					need_refresh = TRUE;
-					break;
-				case 8:
-					blit8(
-						((BYTE*)hda->vram_pm32)+hda->surface, hda->pitch,
-						hda->vram_pm32,  SVGA_pitch(hda->width, 32),
-						rect_left, rect_top,
-						rect_right - rect_left, rect_bottom - rect_top
-					);
-					need_refresh = TRUE;
-					break;
-			} // switch
+					case 16:
+						blit16(
+							((BYTE*)hda->vram_pm32)+hda->surface, hda->pitch,
+							hda->vram_pm32,  SVGA_pitch(hda->width, 32),
+							rect_left, rect_top,
+							rect_right - rect_left, rect_bottom - rect_top
+						);
+						need_refresh = TRUE;
+						break;
+					case 8:
+						blit8(
+							((BYTE*)hda->vram_pm32)+hda->surface, hda->pitch,
+							hda->vram_pm32,  SVGA_pitch(hda->width, 32),
+							rect_left, rect_top,
+							rect_right - rect_left, rect_bottom - rect_top
+						);
+						need_refresh = TRUE;
+						break;
+				} // switch
+			}
+	
+		  if(need_refresh)
+		  {
+		  	SVGAFifoCmdUpdate *cmd_update;
+		  	DWORD cmd_offset = 0;
+	
+		  	wait_for_cmdbuf();
+	
+		  	cmd_update = SVGA_cmd_ptr(cmdbuf, &cmd_offset, SVGA_CMD_UPDATE, sizeof(SVGAFifoCmdUpdate));
+		  	cmd_update->x = rect_left;
+		  	cmd_update->y = rect_top;
+		  	cmd_update->width  = rect_right - rect_left;
+		  	cmd_update->height = rect_bottom - rect_top;
+	
+				submit_cmdbuf(cmd_offset, SVGA_CB_UPDATE, 0);
+		  }
 		}
-
-	  if(need_refresh)
-	  {
-	  	SVGAFifoCmdUpdate *cmd_update;
-	  	DWORD cmd_offset = 0;
-
-	  	wait_for_cmdbuf();
-
-	  	cmd_update = SVGA_cmd_ptr(cmdbuf, &cmd_offset, SVGA_CMD_UPDATE, sizeof(SVGAFifoCmdUpdate));
-	  	cmd_update->x = rect_left;
-	  	cmd_update->y = rect_top;
-	  	cmd_update->width  = rect_right - rect_left;
-	  	cmd_update->height = rect_bottom - rect_top;
-
-			submit_cmdbuf(cmd_offset, SVGA_CB_UPDATE, 0);
-	  }
+		else
+		{
+			mouse_blit(); /* in this case is mouse unvisible, but we need still switch visibility state */
+		} // w == 0 && h == 0
 	} // fb_lock_cnt == 0
 	
 	Signal_Semaphore(hda_sem);

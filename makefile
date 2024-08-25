@@ -12,7 +12,7 @@ OBJS += &
 
 INCS = -I$(%WATCOM)\h\win -Iddk -Ivmware
 
-VER_BUILD = 78
+VER_BUILD = 80
 
 FLAGS = -DDRV_VER_BUILD=$(VER_BUILD)
 
@@ -277,6 +277,7 @@ export StretchDIBits.28
 export SelectBitmap.29
 export BitmapBits.30
 export ReEnable.31
+export DDIGammaRamp.32
 export Inquire.101
 export SetCursor.102
 export MoveCursor.103
@@ -344,6 +345,7 @@ export StretchDIBits.28
 export SelectBitmap.29
 export BitmapBits.30
 export ReEnable.31
+export DDIGammaRamp.32
 export Inquire.101
 export SetCursor.102
 export MoveCursor.103
@@ -411,6 +413,7 @@ export StretchDIBits.28
 export SelectBitmap.29
 export BitmapBits.30
 export ReEnable.31
+export DDIGammaRamp.32
 export Inquire.101
 export SetCursor.102
 export MoveCursor.103

@@ -97,6 +97,10 @@ static svga_cache_state_t cache_state = {0, 0};
 
 static BOOL cache_enabled = FALSE;
 
+#define PHY_CACHE_SIZE (8192 + 1024)
+static DWORD phycache[PHY_CACHE_SIZE];
+static DWORD phycache_starta = 0;
+static DWORD phycache_enda   = 0;
 
 /*
  * globals
@@ -109,14 +113,40 @@ extern LONG fb_lock_cnt;
 
 extern BOOL gb_support;
 
+static void cachePPN(DWORD virtualaddr, DWORD pages)
+{
+	DWORD i = 0;
+	if(pages > PHY_CACHE_SIZE)
+	{
+		pages = PHY_CACHE_SIZE;
+	}
+	
+	_CopyPageTable(_PAGE(virtualaddr), pages, &phycache, 0);
+	
+	for(i = 0; i < pages; i++)
+	{
+		phycache[i] = _PAGE(phycache[i]);
+	}
+	
+	dbg_printf("cachePPN: %lX (size: %ld)\n", virtualaddr, pages);
+	
+	phycache_starta = virtualaddr;
+	phycache_enda   = virtualaddr + (pages << P_SHIFT);
+}
+
 /**
  * Return PPN (physical page number) to virtual address
  *
  **/
-
 static DWORD getPPN(DWORD virtualaddr)
 {
 	DWORD phy = 0;
+	
+	if(virtualaddr >= phycache_starta && virtualaddr < phycache_enda)
+	{
+		return phycache[_PAGE(virtualaddr - phycache_starta)];
+	}
+	
 	_CopyPageTable(_PAGE(virtualaddr), 1, &phy, 0);
 	return _PAGE(phy);
 }
@@ -725,6 +755,8 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 		{
 			return FALSE;
 		}
+		
+		cachePPN(maddr, nPages+pt_pages);
 
 		laddr = maddr + pt_pages*P_SIZE;
 		

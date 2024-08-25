@@ -31,6 +31,8 @@ THE SOFTWARE.
 
 #include "code32.h"
 
+#include "vxd_gamma.h"
+
 FBHDA_t *hda = NULL;
 ULONG hda_sem = 0;
 LONG fb_lock_cnt = 0;
@@ -47,6 +49,8 @@ BOOL FBHDA_init_hw()
 		hda->cb = sizeof(FBHDA_t);
 		hda->version = API_3DACCEL_VER;
 		hda->flags = 0;
+		
+		hda->gamma = 1 << 16;
 		
 		hda_sem = Create_Semaphore(1);
 		if(hda_sem == 0)
@@ -87,3 +91,88 @@ void FBHDA_clean()
 	memset(hda->vram_pm32, 0, hda->stride);
 	FBHDA_access_end(0);
 }
+
+static WORD gamma_ramp[3][256];
+static BOOL gamma_ramp_init = FALSE;
+
+static void init_ramp()
+{
+	WORD i = 0;
+	for(i = 0; i < 256; i++)
+	{
+		gamma_ramp[0][i] = i << 8;
+		gamma_ramp[1][i] = i << 8;
+		gamma_ramp[2][i] = i << 8;
+	}
+	
+	gamma_ramp_init = TRUE;
+}
+
+BOOL FBHDA_gamma_get(VOID FBPTR ramp, DWORD buffer_size)
+{
+	if(sizeof(gamma_ramp) == buffer_size)
+	{
+		if(!gamma_ramp_init)
+			init_ramp();
+		
+		memcpy(ramp, &gamma_ramp[0][0], sizeof(gamma_ramp));
+		return TRUE;
+	}
+	else
+	{
+		dbg_printf("Wrong ramp size: %ld\n", buffer_size);
+	}
+	
+	return FALSE;
+}
+
+
+
+BOOL FBHDA_gamma_set(VOID FBPTR ramp, DWORD buffer_size)
+{
+	if(sizeof(gamma_ramp) == buffer_size)
+	{
+		WORD *new_ramp = ramp;
+		DWORD gamma = (
+			gamma_table[(new_ramp[0*256 + 128] >> 8)] +
+			gamma_table[(new_ramp[1*256 + 128] >> 8)] +
+			gamma_table[(new_ramp[2*256 + 128] >> 8)]
+		) / 3;
+		
+		if(gamma >= 0x3000 && gamma < 0xFF0000) /* from ~0.2000 to 255.0000 */
+		{
+			hda->gamma = gamma;
+			hda->gamma_update++;
+			
+			/* copy new ramp */
+			memcpy(&gamma_ramp[0][0], ramp, sizeof(gamma_ramp));
+			gamma_ramp_init = TRUE;
+			
+			dbg_printf("gamma update to 0x%lX\n", hda->gamma);
+			
+			return TRUE;
+		}
+		else
+		{
+			dbg_printf("Gamma out of reach: 0x%lX\n", gamma);
+			{
+				int i = 0;
+				dbg_printf("RAMP\n");
+				for(i = 0; i < 256; i++)
+				{
+					dbg_printf("%d: R: %X, G: %X, B: %X\n", i,
+						new_ramp[0*256 + i],
+						new_ramp[1*256 + i],
+						new_ramp[2*256 + i]);
+				}
+			}
+		}
+	}
+	else
+	{
+		dbg_printf("Wrong ramp size: %ld\n", buffer_size);
+	}
+	
+	return FALSE;
+}
+

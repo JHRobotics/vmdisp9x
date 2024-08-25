@@ -176,6 +176,7 @@ void FBHDA_free();
 
 #define FBHDA_ACCESS_RAW_BUFFERING 1
 #define FBHDA_ACCESS_MOUSE_MOVE 2
+#define FBHDA_ACCESS_SURFACE_DIRTY 4
 
 void FBHDA_access_begin(DWORD flags);
 void FBHDA_access_end(DWORD flags);

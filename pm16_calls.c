@@ -308,6 +308,74 @@ DWORD FBHDA_palette_get(unsigned char index)
 	return sRGB;
 }
 
+BOOL FBHDA_gamma_get(VOID FBPTR ramp, DWORD buffer_size)
+{
+	static DWORD ramp_linear;
+	static DWORD ramp_size;
+	static unsigned short status;
+	
+	ramp_linear = DPMI_GetSegBase(((DWORD)ramp) >> 16);
+	ramp_linear += ((DWORD)ramp) & 0xFFFFUL;
+	
+	ramp_size = buffer_size;
+	
+	_asm
+	{
+		.386
+		push eax
+		push edx
+		push ecx
+		push edi
+		
+		mov edx, OP_FBHDA_GAMMA_GET
+		mov ecx, [buffer_size]
+		mov edi, [ramp_linear]
+		call dword ptr [VXD_VM]
+		mov [status],cx
+		
+		pop edi
+		pop ecx
+		pop edx
+		pop eax
+	}
+	
+	return status == 0 ? FALSE : TRUE;
+}
+
+BOOL FBHDA_gamma_set(VOID FBPTR ramp, DWORD buffer_size)
+{
+	static DWORD ramp_linear;
+	static DWORD ramp_size;
+	static unsigned short status;
+	
+	ramp_linear = DPMI_GetSegBase(((DWORD)ramp) >> 16);
+	ramp_linear += ((DWORD)ramp) & 0xFFFFUL;
+	
+	ramp_size = buffer_size;
+	
+	_asm
+	{
+		.386
+		push eax
+		push edx
+		push ecx
+		push esi
+		
+		mov edx, OP_FBHDA_GAMMA_SET
+		mov ecx, [buffer_size]
+		mov esi, [ramp_linear]
+		call dword ptr [VXD_VM]
+		mov [status],cx
+		
+		pop esi
+		pop ecx
+		pop edx
+		pop eax
+	}
+	
+	return status == 0 ? FALSE : TRUE;
+}
+
 BOOL mouse_load()
 {
 	static BOOL status;
