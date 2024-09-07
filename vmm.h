@@ -186,6 +186,7 @@ typedef struct tagVxD_Desc_Block
 #define BPA_32_Bit_Flag       0x0001
 
 #define End_PM_App            0x0016
+#define End_PM_App2           0x002C
 
 #define Device_Reboot_Notify  0x0017
 #define Crit_Reboot_Notify    0x0018
@@ -200,6 +201,61 @@ typedef struct tagVxD_Desc_Block
 #define Sys_Dynamic_Device_Init 0x001B
 #define Sys_Dynamic_Device_Exit 0x001C
 
+
+/* -------------------- CALLS FOR Win32  ------------------------- */
+
+/* vWin32 communicates with Vxds on behalf of Win32 apps thru this mechanism.
+ * BUGBUG: need more doc here, describing the interface
+ */
+
+#define W32_DEVICEIOCONTROL 0x0023
+
+/* sub-functions */
+#define DIOC_GETVERSION     0x0
+#define DIOC_OPEN	DIOC_GETVERSION
+#define DIOC_CLOSEHANDLE    -1
+
+/* -------------------- MORE SYSTEM CALLS ------------------------- */
+
+/*
+ * All these messages are sent immediately following the corresponding
+ * message of the same name, except that the "2" messages are sent
+ * in *reverse* init order.
+ */
+
+#define SYS_VM_TERMINATE2   0x0024
+#define SYSTEM_EXIT2	    0x0025
+#define SYS_CRITICAL_EXIT2  0x0026
+#define VM_TERMINATE2	    0x0027
+#define VM_NOT_EXECUTEABLE2 0x0028
+#define DESTROY_VM2	0x0029
+#define VM_SUSPEND2	0x002A
+#define END_MESSAGE_MODE2   0x002B
+#define END_PM_APP2	0x002C
+#define DEVICE_REBOOT_NOTIFY2	0x002D
+#define CRIT_REBOOT_NOTIFY2 0x002E
+#define CLOSE_VM_NOTIFY2    0x002F
+
+/*
+ * VCOMM gets Address of Contention handler from VxDs by sending this
+ * control message
+ */
+
+#define GET_CONTENTION_HANDLER	0x0030
+
+#define KERNEL32_INITIALIZED	0x0031
+
+#define KERNEL32_SHUTDOWN	0x0032
+
+#define CREATE_PROCESS		0x0033
+#define DESTROY_PROCESS 	0x0034
+
+#ifndef WIN40COMPAT
+#define SYS_DYNAMIC_DEVICE_REINIT 0x0035
+#endif
+#define SYS_POWER_DOWN		0x0036
+
+#define MAX_SYSTEM_CONTROL	0x0036
 /* 
  * Macro to call VXD service
  * @param _vxd: VXD name (numeric id must be defined as _vxd ## _DEVICE_ID)
@@ -1334,5 +1390,13 @@ typedef struct _MEMORY_BASIC_INFORMATION
 #define MEM_FREE            0x10000     
 #define MEM_PRIVATE         0x20000     
 #endif /* _WINNT_ */
+
+/*
+ *   Protected mode application control blocks
+ */
+struct pmcb_s {
+    ULONG PMCB_Flags;
+    ULONG PMCB_Parent;
+};
 
 #endif /* __VMM_H__INCLUDED__ */

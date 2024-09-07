@@ -111,6 +111,13 @@ static uint64 cb_next_id = {0, 0};
 #define WAIT_FOR_CB_SYNC_0
 #define WAIT_FOR_CB_SYNC_1 SVGA_Sync();
 
+#define WAIT_FOR_CB_FINAL(_cb) \
+	do{ \
+			while(!CB_queue_check_inline(_cb)){ \
+				SVGA_Sync(); \
+		} \
+	}while(0)
+
 /* wait for all commands */
 void SVGA_Flush_CB()
 {
@@ -158,7 +165,8 @@ void SVGA_CMB_free(DWORD *cmb)
 {
 	SVGACBHeader *cb = ((SVGACBHeader *)cmb)-1;
 
-	WAIT_FOR_CB(cb, 1);
+	//WAIT_FOR_CB(cb, 1);
+	WAIT_FOR_CB_FINAL(cb);
 		
 	_PageFree(cb-1, 0);
 }
@@ -469,6 +477,8 @@ void SVGA_CMB_submit(DWORD FBPTR cmb, DWORD cmb_size, SVGA_CMB_status_t FBPTR st
 	SVGACBHeader *cb = ((SVGACBHeader *)cmb)-1;
 	BOOL proc_by_cb = cb_support && cb_context0 && (flags & SVGA_CB_FORCE_FIFO) == 0;
 	
+	Wait_Semaphore(cb_sem, 0);
+	
 	/* wait and tidy CB queue */
 	if(proc_by_cb)
 	{
@@ -678,6 +688,7 @@ void SVGA_CMB_submit(DWORD FBPTR cmb, DWORD cmb_size, SVGA_CMB_status_t FBPTR st
 		status->fifo_fence_last = SVGA_fence_passed();
 	}
 	
+	Signal_Semaphore(cb_sem);
 	//dbg_printf(dbg_cmd_off, cmb[0]);
 }
 

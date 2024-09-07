@@ -85,6 +85,9 @@ void *ctlbuf = NULL;
 DWORD async_mobs = 1;
 DWORD hw_cursor  = 0;
 
+ULONG cb_sem = 0;
+ULONG mem_sem = 0;
+
 /* vxd_mouse.vxd */
 BOOL mouse_get_rect(DWORD *ptr_left, DWORD *ptr_top,
 	DWORD *ptr_right, DWORD *ptr_bottom);
@@ -400,6 +403,10 @@ BOOL SVGA_init_hw()
 #endif
 
 	int rc;
+
+	/* some semaphores */
+	mem_sem = Create_Semaphore(1);
+	cb_sem = Create_Semaphore(1);
 	
 	/* configs in registry */
  	RegReadConf(HKEY_LOCAL_MACHINE, SVGA_conf_path, SVGA_conf_vram_limit, &conf_vram_limit);
@@ -1190,15 +1197,17 @@ void FBHDA_access_rect(DWORD left, DWORD top, DWORD right, DWORD bottom)
 	
 	Wait_Semaphore(hda_sem, 0);
 	
-/*	dbg_printf("FBHDA_access_rect(%ld, %ld, %ld, %ld)\n",
-		left, top, right, bottom
-	);*/
-	
 	if(left > hda->width)
+	{
+		Signal_Semaphore(hda_sem);
 		return;
+	}
 	
 	if(top > hda->height)
+	{
+		Signal_Semaphore(hda_sem);
 		return;
+	}
 	
 	if(right > hda->width)
 		right = hda->width;
@@ -1241,7 +1250,6 @@ void FBHDA_access_begin(DWORD flags)
 	if(flags & (FBHDA_ACCESS_RAW_BUFFERING | FBHDA_ACCESS_MOUSE_MOVE))
 	{
 		Wait_Semaphore(hda_sem, 0);
-		check_dirty();
 		
 //		dbg_printf("FBHDA_access_begin(%ld)\n", flags);
 		
@@ -1249,6 +1257,7 @@ void FBHDA_access_begin(DWORD flags)
 		{
 			SVGA_CMB_wait_update();
 			mouse_erase();
+			check_dirty();
 			
 			if(!mouse_get_rect(&rect_left, &rect_top, &rect_right, &rect_bottom))
 			{
@@ -1560,3 +1569,115 @@ void  FBHDA_overlay_unlock(DWORD flags)
 		}
 	}
 }
+
+#define BSTEP (sizeof(DWORD)*8)
+
+static inline void map_reset(DWORD *bitmap, DWORD id)
+{
+	DWORD i = id / BSTEP;
+	DWORD ii = id % BSTEP;
+	
+	bitmap += i;
+	*bitmap |= ((DWORD)1 << ii);
+}
+
+void SVGA_ProcessCleanup(DWORD pid)
+{
+	DWORD id;
+	
+	/* just for safety */
+	if(pid == 0)
+		return;
+
+	Begin_Critical_Section(0);
+	if(svga_db != NULL)
+	{
+		/* clean surfaces */
+		for(id = 0; id < svga_db->surfaces_cnt; id++)
+		{
+			SVGA_DB_surface_t *sinfo = &svga_db->surfaces[id];
+			if(sinfo->pid == pid)
+			{
+				dbg_printf("Cleaning surface: %d\n", id);
+				if(sinfo->gmrId) // GB surface
+				{
+					DWORD cmd_offset =  0;
+					SVGA3dCmdBindGBSurface *unbind;
+					SVGA3dCmdDestroySurface *destgb;
+
+					wait_for_cmdbuf();
+					unbind = SVGA_cmd3d_ptr(cmdbuf, &cmd_offset, SVGA_3D_CMD_BIND_GB_SURFACE, sizeof(SVGA3dCmdBindGBSurface));
+					unbind->sid   = id+1;
+					unbind->mobid = SVGA3D_INVALID_ID;
+
+					destgb = SVGA_cmd3d_ptr(cmdbuf, &cmd_offset, SVGA_3D_CMD_DESTROY_GB_SURFACE, sizeof(SVGA3dCmdDestroySurface));
+					destgb->sid = id+1;
+
+					submit_cmdbuf(cmd_offset, SVGA_CB_SYNC, 0);
+				}
+				else
+				{
+					DWORD cmd_offset =  0;
+					SVGA3dCmdDestroySurface *dest;
+					
+					wait_for_cmdbuf();
+					dest = SVGA_cmd3d_ptr(cmdbuf, &cmd_offset, SVGA_3D_CMD_SURFACE_DESTROY, sizeof(SVGA3dCmdDestroySurface));
+					dest->sid = id+1;
+					
+					submit_cmdbuf(cmd_offset, SVGA_CB_SYNC, 0);
+				}
+
+				sinfo->pid = 0;
+				map_reset(svga_db->surfaces_map, id);
+			}
+		} // for
+
+		/* clean contexts */
+		for(id = 0; id < svga_db->contexts_cnt; id++)
+		{
+			SVGA_DB_context_t *cinfo = &svga_db->contexts[id];
+			
+			if(cinfo->pid == pid)
+			{
+				DWORD cmd_offset = 0;
+				dbg_printf("Cleaning context: %d\n", id);
+				
+				wait_for_cmdbuf();
+				if(cinfo->gmrId != 0) /* GB Context */
+				{
+					SVGA3dCmdDXDestroyContext *dest_ctx_gb =
+						SVGA_cmd3d_ptr(cmdbuf, &cmd_offset, SVGA_3D_CMD_DX_DESTROY_CONTEXT, sizeof(SVGA3dCmdDXDestroyContext));
+					dest_ctx_gb->cid = id+1;
+					submit_cmdbuf(cmd_offset, SVGA_CB_SYNC, 0);
+				}
+				else
+				{
+					SVGA3dCmdDestroyContext *dest_ctx =
+						SVGA_cmd3d_ptr(cmdbuf, &cmd_offset, SVGA_3D_CMD_CONTEXT_DESTROY, sizeof(SVGA3dCmdDestroyContext));
+					dest_ctx->cid = id+1;
+					submit_cmdbuf(cmd_offset, SVGA_CB_SYNC, 0);
+				}
+				
+				cinfo->pid = 0;
+				map_reset(svga_db->contexts_map, id);
+			}
+		} // for
+
+		/* clean regision */
+		for(id = 0; id < svga_db->regions_cnt; id++)
+		{
+			SVGA_DB_region_t *rinfo = &svga_db->regions[id];
+			if(rinfo->pid == pid)
+			{
+				dbg_printf("Cleaning regions: %d\n", id);
+
+				SVGA_region_free(&rinfo->info);
+				rinfo->pid = 0;
+				map_reset(svga_db->regions_map, id);
+			}
+		} // for
+	} // db != NULL
+	
+	End_Critical_Section();
+}
+

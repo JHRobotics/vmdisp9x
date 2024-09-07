@@ -9,6 +9,9 @@
 #define ST_CURSOR  2
 #define ST_CURSOR_HIDEABLE 4
 
+/* semaphores */
+extern ULONG cb_sem;
+extern ULONG mem_sem;
 
 /* VM handle */
 extern DWORD ThisVM;
@@ -36,6 +39,7 @@ void update_pm16(DWORD vm, DWORD oldmap, DWORD linear, DWORD size);
 
 void SVGA_Sync();
 void SVGA_Flush_CB();
+void SVGA_ProcessCleanup(DWORD pid);
 
 /* mouse */
 BOOL SVGA_mouse_hw();

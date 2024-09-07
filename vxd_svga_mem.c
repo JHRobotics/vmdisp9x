@@ -690,6 +690,8 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 	
 	DWORD pt_pages = PT_count(new_size);
 
+	Wait_Semaphore(mem_sem, 0);
+
 #ifdef GMR_SYSTEM
 		pa_vm = 0;
 		pa_type = PG_SYS;
@@ -753,6 +755,7 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 
 		if(!maddr)
 		{
+			Signal_Semaphore(mem_sem);
 			return FALSE;
 		}
 		
@@ -796,6 +799,7 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 			if(!pgblk)
 			{
 				_PageFree((PVOID)laddr, 0);
+				Signal_Semaphore(mem_sem);
 				return FALSE;
 			}
 	
@@ -918,6 +922,7 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 	svga_db->stat_regions_usage += rinfo->size;
 	
 //	dbg_printf(dbg_gmr_succ, rinfo->region_id, rinfo->size);
+	Signal_Semaphore(mem_sem);
 	
 	return TRUE;
 }
@@ -932,6 +937,8 @@ void SVGA_region_free(SVGA_region_info_t *rinfo)
 	BYTE *free_ptr = (BYTE*)rinfo->address;
 
 	svga_db->stat_regions_usage -= rinfo->size;
+	
+	Wait_Semaphore(mem_sem, 0);
 	
 	saved_in_cache = cache_insert(rinfo);
 	
@@ -988,7 +995,8 @@ void SVGA_region_free(SVGA_region_info_t *rinfo)
 	}
 		
 	//dbg_printf(dbg_pagefree_end, rinfo->region_id, rinfo->size, saved_in_cache);
-		
+	Signal_Semaphore(mem_sem);
+	
 	rinfo->address        = NULL;
 	rinfo->region_address = NULL;
 	rinfo->mob_address    = NULL;
@@ -1004,6 +1012,7 @@ void SVGA_region_free(SVGA_region_info_t *rinfo)
 void SVGA_flushcache()
 {
 	int i;
+	Wait_Semaphore(mem_sem, 0);
 	
 	for(i = 0; i < cache_state.free_index_max ; i++)
 	{
@@ -1015,5 +1024,7 @@ void SVGA_flushcache()
 	cache_state.cnt_large      = 0;
 	cache_state.cnt_medium     = 0;
 	cache_state.cnt_small      = 0;
+	
+	Signal_Semaphore(mem_sem);
 }
 

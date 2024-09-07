@@ -419,6 +419,7 @@ ULONG __cdecl _PageAllocate(ULONG nPages, ULONG pType, ULONG VM, ULONG AlignMask
 {
 	ULONG r = _PageAllocate_call(nPages, pType, VM, AlignMask, minPhys, maxPhys, PhysAddr, flags);
 	
+#if 0
 	/* do examplicit TLB flush, help much for stability.
 	 * There is probably another TLB bug in VMM...
 	 */
@@ -429,6 +430,7 @@ ULONG __cdecl _PageAllocate(ULONG nPages, ULONG pType, ULONG VM, ULONG AlignMask
 		mov cr3, eax
 		pop eax
 	};
+#endif
 	return r;
 }
 

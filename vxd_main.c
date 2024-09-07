@@ -57,10 +57,10 @@ THE SOFTWARE.
 
 void VXD_control();
 void VXD_API_entry();
-void Device_Init_proc();
-void __stdcall Device_Dynamic_Init_proc(DWORD VM);
+void __stdcall Device_Init_proc(DWORD VM);
 void __stdcall Device_Exit_proc(DWORD VM);
 void __stdcall Device_Init_Complete(DWORD VM);
+void __stdcall win32_destroy_process_proc(DWORD pid);
 
 #define SERVICE_TABLE_CNT (FBHDA__OVERLAY_UNLOCK+1)
 extern DWORD service_table[SERVICE_TABLE_CNT];
@@ -161,6 +161,11 @@ void __declspec(naked) Device_IO_Control_entry()
 	}
 }
 
+void __stdcall print_ctrl(DWORD type)
+{
+	dbg_printf("VXD_control: %d\n", type);
+}
+
 /*
  * service module calls (init, exit, deviceIoControl, ...)
  * clear carry if succes (this is always success)
@@ -184,6 +189,7 @@ void __declspec(naked) VXD_control()
 		control_1: 
 		cmp eax,Device_Init
 		jnz control_2
+			push ebx ; VM handle
 		  call Device_Init_proc
 			popad
 			clc
@@ -198,11 +204,11 @@ void __declspec(naked) VXD_control()
 			clc
 			ret
 		control_3:
-		cmp eax,0x1B
+		cmp eax,Sys_Dynamic_Device_Init
 		jnz control_4
 			pushad
 			push ebx ; VM handle
-		  call Device_Dynamic_Init_proc
+		  call Device_Init_proc
 		  popad
 			clc
 			ret
@@ -219,7 +225,28 @@ void __declspec(naked) VXD_control()
 			popad
 			clc
 			ret
+/*
+	https://www.codeproject.com/Articles/3874/The-Ultimate-Process-Thread-spy-for-Windows-9x
+	
+	"You will find the definition of CREATE_PROCESS, but wont find how to get the
+	PID of a newly created process. For thread (CREATE_THREAD), the thread ID is
+	passed in EDI register, but for CREATE_PROCESS it's not there. At last, by
+	trial and error I found where it is, the PID value, it is in EDX reg."
+*/
 		control_6:
+		cmp eax,DESTROY_PROCESS
+		jnz control_7
+			pushad
+			push edx ; PID
+			call win32_destroy_process_proc
+			popad
+			clc
+			ret
+		control_7:
+;			pushad
+;			push eax
+;			call print_ctrl
+;			popad
 		clc
 	  ret
 	};
@@ -231,8 +258,8 @@ WORD __stdcall VXD_API_Proc(PCRS_32 state)
 	WORD rc = 0xFFFF;
 	WORD service = state->Client_EDX & 0xFFFF;
 	
-	//dbg_printf(dbg_vxd_api, service);
-	Begin_Critical_Section(0);
+	//dbg_printf("VXD_API_Proc, service: %X\n", service);
+	//Begin_Critical_Section(0);
 	
 	switch(service)
 	{
@@ -281,20 +308,18 @@ WORD __stdcall VXD_API_Proc(PCRS_32 state)
 			rc = 1;
 			break;
 		case OP_FBHDA_PALETTE_GET:
-			{
-				DWORD color;
-				color = FBHDA_palette_get(state->Client_ECX & 0xFF);
-				state->Client_EDI = color;
-				rc = 1;
-				break;
-			}
+		{
+			DWORD color;
+			color = FBHDA_palette_get(state->Client_ECX & 0xFF);
+			state->Client_EDI = color;
+			rc = 1;
+			break;
+		}
 		case OP_FBHDA_GAMMA_GET:
-			dbg_printf("OP_FBHDA_GAMMA_GET\n");
 			state->Client_ECX = FBHDA_gamma_get((void *)state->Client_EDI, state->Client_ECX);
 			rc = 1;
 			break;
 		case OP_FBHDA_GAMMA_SET:
-			dbg_printf("OP_FBHDA_GAMMA_SET\n");
 			state->Client_ECX = FBHDA_gamma_set((void *)state->Client_ESI, state->Client_ECX);
 			rc = 1;
 			break;
@@ -321,29 +346,31 @@ WORD __stdcall VXD_API_Proc(PCRS_32 state)
 			break;
 #ifdef SVGA
 		case OP_SVGA_VALID:
-			{
-				BOOL rs;
-				rs = SVGA_valid();
-				state->Client_ECX = (DWORD)rs;
-				rc = 1;
-				break;
-			}
+		{
+			BOOL rs;
+			rs = SVGA_valid();
+			state->Client_ECX = (DWORD)rs;
+			rc = 1;
+			break;
+		}
 		case OP_SVGA_SETMODE:
-			{
-				BOOL rs;
-				rs = SVGA_setmode(state->Client_ESI, state->Client_EDI, state->Client_ECX);
-				state->Client_ECX = (DWORD)rs;
-				rc = 1;
-				break;
-			}
+		{
+			BOOL rs;
+			Begin_Critical_Section(0);
+			rs = SVGA_setmode(state->Client_ESI, state->Client_EDI, state->Client_ECX);
+			End_Critical_Section();
+			state->Client_ECX = (DWORD)rs;
+			rc = 1;
+			break;
+		}
 		case OP_SVGA_VALIDMODE:
-			{
-				BOOL rs;
-				rs = SVGA_validmode(state->Client_ESI, state->Client_EDI, state->Client_ECX);
-				state->Client_ECX = (DWORD)rs;
-				rc = 1;
-				break;
-			}
+		{
+			BOOL rs;
+			rs = SVGA_validmode(state->Client_ESI, state->Client_EDI, state->Client_ECX);
+			state->Client_ECX = (DWORD)rs;
+			rc = 1;
+			break;
+		}
 		case OP_SVGA_HW_ENABLE:
 			SVGA_HW_enable();
 			rc = 1;
@@ -356,29 +383,31 @@ WORD __stdcall VXD_API_Proc(PCRS_32 state)
 
 #ifdef VBE
 		case OP_VBE_VALID:
-			{
-				BOOL rs;
-				rs = VBE_valid();
-				state->Client_ECX = (DWORD)rs;
-				rc = 1;
-				break;
-			}
+		{
+			BOOL rs;
+			rs = VBE_valid();
+			state->Client_ECX = (DWORD)rs;
+			rc = 1;
+			break;
+		}
 		case OP_VBE_SETMODE:
-			{
-				BOOL rs;
-				rs = VBE_setmode(state->Client_ESI, state->Client_EDI, state->Client_ECX);
-				state->Client_ECX = (DWORD)rs;
-				rc = 1;
-				break;
-			}
+		{
+			BOOL rs;
+			Begin_Critical_Section(0);
+			rs = VBE_setmode(state->Client_ESI, state->Client_EDI, state->Client_ECX);
+			End_Critical_Section();
+			state->Client_ECX = (DWORD)rs;
+			rc = 1;
+			break;
+		}
 		case OP_VBE_VALIDMODE:
-			{
-				BOOL rs;
-				rs = VBE_validmode(state->Client_ESI, state->Client_EDI, state->Client_ECX);
-				state->Client_ECX = (DWORD)rs;
-				rc = 1;
-				break;
-			}
+		{
+			BOOL rs;
+			rs = VBE_validmode(state->Client_ESI, state->Client_EDI, state->Client_ECX);
+			state->Client_ECX = (DWORD)rs;
+			rc = 1;
+			break;
+		}
 #endif
 
 	}
@@ -392,7 +421,9 @@ WORD __stdcall VXD_API_Proc(PCRS_32 state)
 		state->Client_EFlags &= 0xFFFFFFFEUL; // clear carry
 	}
 	
-	End_Critical_Section();
+	//dbg_printf("VXD_API_Proc end\n");
+	
+	//End_Critical_Section();
 	
 	return rc;
 }
@@ -505,8 +536,9 @@ static void configure_FBHDA()
 #define VDDNAKED VDDFUNC
 
 /* init device and fill dispatch table */
-void Device_Dynamic_Init_proc(DWORD VM)
+void Device_Init_proc(DWORD VM)
 {
+	Begin_Critical_Section(0);
 	dbg_printf(dbg_Device_Init_proc);
 
 	VMMCall(_Allocate_Device_CB_Area);
@@ -535,6 +567,7 @@ void Device_Dynamic_Init_proc(DWORD VM)
 	}
 	
 	configure_FBHDA();
+	End_Critical_Section();
 }
 #undef VDDFUNC
 #undef VDDNAKED
@@ -546,7 +579,7 @@ DWORD __stdcall Device_IO_Control_proc(DWORD vmhandle, struct DIOCParams *params
 	DWORD *outBuf = (DWORD*)params->lpOutBuffer;
 	DWORD rc = 1;
 	
-	Begin_Critical_Section(0);
+	//Begin_Critical_Section(0);
 	
 	//dbg_printf("I%x\n", params->dwIoControlCode);
 	
@@ -616,14 +649,14 @@ DWORD __stdcall Device_IO_Control_proc(DWORD vmhandle, struct DIOCParams *params
 			rc = 0;
 			break;
 		case OP_SVGA_CMB_SUBMIT:
-			{
+		{
 				SVGA_CMB_submit_io_t *inio  = (SVGA_CMB_submit_io_t*)inBuf;
 				SVGA_CMB_status_t *status = (SVGA_CMB_status_t*)outBuf;
 				
 				SVGA_CMB_submit(inio->cmb, inio->cmb_size, status, inio->flags, inio->DXCtxId);
 				rc = 0;
 				break;
-			}
+		}
 		case OP_SVGA_FENCE_GET:
 			outBuf[0] = SVGA_fence_get();
 			rc = 0;
@@ -637,22 +670,22 @@ DWORD __stdcall Device_IO_Control_proc(DWORD vmhandle, struct DIOCParams *params
 			rc = 0;
 			break;
 		case OP_SVGA_REGION_CREATE:
+		{
+			SVGA_region_info_t *inio  = (SVGA_region_info_t*)inBuf;
+			SVGA_region_info_t *outio = (SVGA_region_info_t*)outBuf;
+			if(outio != inio)
 			{
-				SVGA_region_info_t *inio  = (SVGA_region_info_t*)inBuf;
-				SVGA_region_info_t *outio = (SVGA_region_info_t*)outBuf;
-				if(outio != inio)
-				{
-					memcpy(outio, inio, sizeof(SVGA_region_info_t));
-				}
-				outio->address = NULL;
-				if(!SVGA_region_create(outio))
-				{
-					SVGA_flushcache();
-					SVGA_region_create(outio);
-				}
-				rc = 0;
-				break;
+				memcpy(outio, inio, sizeof(SVGA_region_info_t));
 			}
+			outio->address = NULL;
+			if(!SVGA_region_create(outio))
+			{
+				SVGA_flushcache();
+				SVGA_region_create(outio);
+			}
+			rc = 0;
+			break;
+		}
 		case OP_SVGA_REGION_FREE:
 			{
 				SVGA_region_info_t *inio  = (SVGA_region_info_t*)inBuf;
@@ -706,14 +739,9 @@ DWORD __stdcall Device_IO_Control_proc(DWORD vmhandle, struct DIOCParams *params
 	}
 	
 	//dbg_printf("IL\n");
-	End_Critical_Section();
+	//End_Critical_Section();
 
 	return rc;
-}
-
-void Device_Init_proc()
-{
-	/* nop */
 }
 
 void Device_Init_Complete(DWORD VM)
@@ -793,3 +821,12 @@ DWORD service_table[SERVICE_TABLE_CNT] = {
 	(DWORD)&service_overlay_lock, // 10
 	(DWORD)&service_overlay_unlock, // 11
 };
+
+void __stdcall win32_destroy_process_proc(DWORD pid)
+{
+	dbg_printf("DESTROY_PROCESS: %lX\n", pid);
+	
+#ifdef SVGA
+	SVGA_ProcessCleanup(pid);
+#endif
+}
