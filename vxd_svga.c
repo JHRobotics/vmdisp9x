@@ -1584,9 +1584,12 @@ static inline void map_reset(DWORD *bitmap, DWORD id)
 void SVGA_ProcessCleanup(DWORD pid)
 {
 	DWORD id;
-	
 	/* just for safety */
 	if(pid == 0)
+		return;
+
+	/* some process are terminated when SVGA is disabled, clean not possible */
+	if(!svga_saved_state.enabled)
 		return;
 
 	Begin_Critical_Section(0);
