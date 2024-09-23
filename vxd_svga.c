@@ -110,15 +110,7 @@ static char SVGA_vxd_name[]        = "vmwsmini.vxd";
 static char SVGA_conf_disable_multisample[] = "NoMultisample";
 static char SVGA_conf_async_mobs[] = "AsyncMOBs";
 
-typedef struct _svga_saved_state_t
-{
-	BOOL enabled;
-	DWORD width;
-	DWORD height;
-	DWORD bpp;
-} svga_saved_state_t;
-
-static svga_saved_state_t svga_saved_state = {FALSE};
+svga_saved_state_t svga_saved_state = {FALSE};
 
 /**
  * Notify virtual HW that is some work to do
@@ -1059,6 +1051,8 @@ void SVGA_query_vector(DWORD type, DWORD index_start, DWORD count, DWORD *out)
 
 void SVGA_HW_enable()
 {
+	dbg_printf("SVGA_HW_enable()\n");
+	
 	if(hda->width > 0 && hda->height > 0)
 	{
 		SVGA_WriteReg(SVGA_REG_ENABLE, TRUE);
@@ -1071,7 +1065,7 @@ void SVGA_HW_enable()
 
 void SVGA_HW_disable()
 {
-	dbg_printf(dbg_disable);
+	dbg_printf("SVGA_HW_disable()\n");
 	
 	SVGA_CB_stop();
 	

@@ -68,4 +68,14 @@ void SVGA_CMB_wait_update();
 void mob_cb_alloc();
 void *mob_cb_get();
 
+typedef struct _svga_saved_state_t
+{
+	BOOL enabled;
+	DWORD width;
+	DWORD height;
+	DWORD bpp;
+} svga_saved_state_t;
+
+extern svga_saved_state_t svga_saved_state;
+
 #endif /* __VXD_SVGA_H__INCLUDED__ */

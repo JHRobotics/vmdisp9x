@@ -168,6 +168,7 @@ void SwitchToBgnd( void )
 #endif
 
     lpDriverPDevice->deFlags |= BUSY;   /// @todo Does this need to be a locked op?
+    wEnabled = 0;
 }
 
 /* Called from INT 2Fh hook when the device is switching to the
@@ -186,6 +187,7 @@ void SwitchToFgnd( void )
     if( lpDriverPDevice->deFlags & BUSY )
         RestoreDesktopMode(); /* Will clear the BUSY flag. */
     RepaintScreen();
+    wEnabled = 1;
 }
 
 /* This minidriver does not currently disable or enable switching.
