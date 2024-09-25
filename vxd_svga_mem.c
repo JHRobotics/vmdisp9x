@@ -107,7 +107,7 @@ static DWORD phycache_enda   = 0;
  */
 extern FBHDA_t *hda;
 extern ULONG hda_sem;
-static SVGA_DB_t *svga_db = NULL;
+extern SVGA_DB_t *svga_db;
 
 extern LONG fb_lock_cnt;
 
@@ -921,7 +921,7 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 	
 	svga_db->stat_regions_usage += rinfo->size;
 	
-//	dbg_printf(dbg_gmr_succ, rinfo->region_id, rinfo->size);
+	dbg_printf("More memory usage: %ld (+%ld)\n", svga_db->stat_regions_usage, rinfo->size);
 	Signal_Semaphore(mem_sem);
 	
 	return TRUE;
@@ -936,10 +936,11 @@ void SVGA_region_free(SVGA_region_info_t *rinfo)
 	BOOL saved_in_cache;
 	BYTE *free_ptr = (BYTE*)rinfo->address;
 
-	svga_db->stat_regions_usage -= rinfo->size;
-	
 	Wait_Semaphore(mem_sem, 0);
-	
+
+	svga_db->stat_regions_usage -= rinfo->size;
+	dbg_printf("Less memory usage: %ld (-%ld)\n", svga_db->stat_regions_usage, rinfo->size);
+
 	saved_in_cache = cache_insert(rinfo);
 	
 	if(gb_support)

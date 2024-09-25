@@ -63,7 +63,7 @@ BOOL CB_queue_check(SVGACBHeader *tracked);
  */
 extern FBHDA_t *hda;
 extern ULONG hda_sem;
-static SVGA_DB_t *svga_db = NULL;
+SVGA_DB_t *svga_db = NULL;
 
 extern LONG fb_lock_cnt;
 
@@ -185,6 +185,8 @@ static void SVGA_DB_alloc()
 			
 		svga_db->stat_regions_usage = 0;
 	}
+	
+	dbg_printf("SVGA_DB alloc, mem_usage: %ld\n", svga_db->stat_regions_usage);
 }
 
 void SVGA_region_usage_reset()
@@ -1673,8 +1675,10 @@ void SVGA_ProcessCleanup(DWORD pid)
 				map_reset(svga_db->regions_map, id);
 			}
 		} // for
+		
+		dbg_printf("Free - pid: %ld, used memory: %ld\n", pid, svga_db->stat_regions_usage);
 	} // db != NULL
-	
+
 	End_Critical_Section();
 }
 
