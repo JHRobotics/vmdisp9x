@@ -36,6 +36,7 @@ THE SOFTWARE.
 FBHDA_t *hda = NULL;
 ULONG hda_sem = 0;
 LONG fb_lock_cnt = 0;
+DWORD gamma_quirk = 0;
 
 #include "vxd_strings.h"
 
@@ -100,9 +101,9 @@ static void init_ramp()
 	WORD i = 0;
 	for(i = 0; i < 256; i++)
 	{
-		gamma_ramp[0][i] = i << 8;
-		gamma_ramp[1][i] = i << 8;
-		gamma_ramp[2][i] = i << 8;
+		gamma_ramp[0][i] = (i << 8) | i;
+		gamma_ramp[1][i] = (i << 8) | i;
+		gamma_ramp[2][i] = (i << 8) | i;
 	}
 	
 	gamma_ramp_init = TRUE;
@@ -126,45 +127,92 @@ BOOL FBHDA_gamma_get(VOID FBPTR ramp, DWORD buffer_size)
 	return FALSE;
 }
 
-
-
 BOOL FBHDA_gamma_set(VOID FBPTR ramp, DWORD buffer_size)
 {
 	if(sizeof(gamma_ramp) == buffer_size)
 	{
 		WORD *new_ramp = ramp;
-		DWORD gamma = (
-			gamma_table[(new_ramp[0*256 + 128] >> 8)] +
-			gamma_table[(new_ramp[1*256 + 128] >> 8)] +
-			gamma_table[(new_ramp[2*256 + 128] >> 8)]
-		) / 3;
-		
-		if(gamma >= 0x3000 && gamma < 0xFF0000) /* from ~0.2000 to 255.0000 */
+		DWORD gamma = 0;
+		DWORD used_quirk = gamma_quirk;
+		if(used_quirk == 0)
 		{
-			hda->gamma = gamma;
-			hda->gamma_update++;
-			
-			/* copy new ramp */
-			memcpy(&gamma_ramp[0][0], ramp, sizeof(gamma_ramp));
-			gamma_ramp_init = TRUE;
-			
-			dbg_printf("gamma update to 0x%lX\n", hda->gamma);
-			
-			return TRUE;
+			if(new_ramp[0*256 + 128] == 0xFFFF)
+			{
+				used_quirk = 1;
+			}
+			else
+			{
+				used_quirk = 2;
+			}
 		}
-		else
+		
+		dbg_printf("Gamma quirk: %ld\n", used_quirk);
+
+		if(used_quirk == 1) /* gamma quirk for ID Software games */
 		{
-			dbg_printf("Gamma out of reach: 0x%lX\n", gamma);
+			gamma = (
+				gamma_table[(new_ramp[0*256 + 64] >> 8)] +
+				gamma_table[(new_ramp[1*256 + 64] >> 8)] +
+				gamma_table[(new_ramp[2*256 + 64] >> 8)]
+			) / 3;
+			
+			if(gamma >= 0x3000 && gamma < 0x1000000) /* from ~0.2000 to 256.0000 */
 			{
 				int i = 0;
-				dbg_printf("RAMP\n");
-				for(i = 0; i < 256; i++)
+				hda->gamma = gamma;
+				hda->gamma_update++;
+				
+				/* copy new ramp and duplicate odd values */
+				for(i = 0; i < 128; i ++)
 				{
-					dbg_printf("%d: R: %X, G: %X, B: %X\n", i,
-						new_ramp[0*256 + i],
-						new_ramp[1*256 + i],
-						new_ramp[2*256 + i]);
+					gamma_ramp[0][(i*2) + 0] = new_ramp[0*256 + i];
+					gamma_ramp[0][(i*2) + 1] = new_ramp[0*256 + i];
+					gamma_ramp[1][(i*2) + 0] = new_ramp[1*256 + i];
+					gamma_ramp[1][(i*2) + 1] = new_ramp[1*256 + i];
+					gamma_ramp[2][(i*2) + 0] = new_ramp[2*256 + i];
+					gamma_ramp[2][(i*2) + 1] = new_ramp[2*256 + i];
 				}
+				
+				gamma_ramp_init = TRUE;
+				
+				dbg_printf("gamma update to 0x%lX\n", hda->gamma);
+				
+				return TRUE;
+			}
+		}
+		else /* normal way by MS specification */
+		{
+			gamma = (
+				gamma_table[(new_ramp[0*256 + 128] >> 8)] +
+				gamma_table[(new_ramp[1*256 + 128] >> 8)] +
+				gamma_table[(new_ramp[2*256 + 128] >> 8)]
+			) / 3;
+			
+			if(gamma >= 0x3000 && gamma < 0x1000000) /* from ~0.2000 to 256.0000 */
+			{
+				hda->gamma = gamma;
+				hda->gamma_update++;
+				
+				/* copy new ramp */
+				memcpy(&gamma_ramp[0][0], ramp, sizeof(gamma_ramp));
+				gamma_ramp_init = TRUE;
+				
+				dbg_printf("gamma update to 0x%lX\n", hda->gamma);
+				
+				return TRUE;
+			}
+		}
+
+		dbg_printf("Gamma out of reach: 0x%lX\n", gamma);
+		{
+			int i = 0;
+			dbg_printf("RAMP\n");
+			for(i = 0; i < 256; i++)
+			{
+				dbg_printf("%d: R: %X, G: %X, B: %X\n", i,
+					new_ramp[0*256 + i],
+					new_ramp[1*256 + i],
+					new_ramp[2*256 + i]);
 			}
 		}
 	}
@@ -172,7 +220,7 @@ BOOL FBHDA_gamma_set(VOID FBPTR ramp, DWORD buffer_size)
 	{
 		dbg_printf("Wrong ramp size: %ld\n", buffer_size);
 	}
-	
+
 	return FALSE;
 }
 

@@ -247,6 +247,7 @@ HKR,"MODES\32\1920,1080"
 HKR,"MODES\32\1920,1200"
 HKLM,Software\vmdisp9x,FORCE_QEMU3DFX,,0
 HKLM,Software\vmdisp9x,FORCE_SOFTWARE,,0
+HKLM,Software\vmdisp9x,GAMMA_QUIRK,,2
 HKLM,Software\VMWSVGA,RGB565bug,,0
 HKLM,Software\VMWSVGA,CommandBuffers,,1
 HKLM,Software\VMWSVGA,VRAMLimit,,128
@@ -399,6 +400,6 @@ QemuStd.DeviceDesc="QEMU STD VGA PCI Adapter"
 QemuQXL.DeviceDesc="QEMU QXL VGA PCI Adapter"
 
 [VM.regextra]
-HKLM,Software\vmdisp9x,OVERLAY_1_SIZE,,8
+;swvoodoo:HKLM,Software\vmdisp9x,OVERLAY_1_SIZE,,8
 ; extra registry section for installers (eg. SoftGPU)
 ; please do not add any other section below these lines!

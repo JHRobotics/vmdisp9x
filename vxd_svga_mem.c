@@ -128,7 +128,7 @@ static void cachePPN(DWORD virtualaddr, DWORD pages)
 		phycache[i] = _PAGE(phycache[i]);
 	}
 	
-	dbg_printf("cachePPN: %lX (size: %ld)\n", virtualaddr, pages);
+	//dbg_printf("cachePPN: %lX (size: %ld)\n", virtualaddr, pages);
 	
 	phycache_starta = virtualaddr;
 	phycache_enda   = virtualaddr + (pages << P_SHIFT);
@@ -921,7 +921,7 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 	
 	svga_db->stat_regions_usage += rinfo->size;
 	
-	dbg_printf("More memory usage: %ld (+%ld)\n", svga_db->stat_regions_usage, rinfo->size);
+	//dbg_printf("More memory usage: %ld (+%ld)\n", svga_db->stat_regions_usage, rinfo->size);
 	Signal_Semaphore(mem_sem);
 	
 	return TRUE;
@@ -939,7 +939,7 @@ void SVGA_region_free(SVGA_region_info_t *rinfo)
 	Wait_Semaphore(mem_sem, 0);
 
 	svga_db->stat_regions_usage -= rinfo->size;
-	dbg_printf("Less memory usage: %ld (-%ld)\n", svga_db->stat_regions_usage, rinfo->size);
+	//dbg_printf("Less memory usage: %ld (-%ld)\n", svga_db->stat_regions_usage, rinfo->size);
 
 	saved_in_cache = cache_insert(rinfo);
 	

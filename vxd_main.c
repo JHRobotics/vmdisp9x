@@ -448,6 +448,7 @@ void __declspec(naked) VXD_API_entry()
 }
 
 const char reg_path[] = "Software\\vmdisp9x";
+extern DWORD gamma_quirk;
 
 static void configure_FBHDA()
 {
@@ -465,7 +466,8 @@ static void configure_FBHDA()
 		
 		RegReadConf(HKEY_LOCAL_MACHINE, reg_path, "FORCE_SOFTWARE", &force_sw);
 		RegReadConf(HKEY_LOCAL_MACHINE, reg_path, "FORCE_QEMU3DFX", &force_qemu3dfx);
-		
+		RegReadConf(HKEY_LOCAL_MACHINE, reg_path, "GAMMA_QUIRK",    &gamma_quirk);
+
 		for(i = 1; i < FBHA_OVERLAYS_MAX; i++)
 		{
 			char *ptr;
