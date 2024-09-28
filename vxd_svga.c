@@ -108,6 +108,7 @@ static char SVGA_conf_hw_version[] = "HWVersion";
 static char SVGA_vxd_name[]        = "vmwsmini.vxd";
 
 static char SVGA_conf_disable_multisample[] = "NoMultisample";
+static char SVGA_conf_reg_multisample[] = "RegMultisample";
 static char SVGA_conf_async_mobs[] = "AsyncMOBs";
 
 svga_saved_state_t svga_saved_state = {FALSE};
@@ -352,6 +353,7 @@ static DWORD fb_pm16 = 0;
 //static DWORD st_address = 0;
 static DWORD st_surface_mb = 0;
 static DWORD disable_multisample = 0;
+static DWORD reg_multisample = 0;
 
 static void SVGA_write_driver_id()
 {
@@ -401,15 +403,17 @@ BOOL SVGA_init_hw()
 	/* some semaphores */
 	mem_sem = Create_Semaphore(1);
 	cb_sem = Create_Semaphore(1);
-	
+
 	/* configs in registry */
  	RegReadConf(HKEY_LOCAL_MACHINE, SVGA_conf_path, SVGA_conf_vram_limit, &conf_vram_limit);
  	RegReadConf(HKEY_LOCAL_MACHINE, SVGA_conf_path, SVGA_conf_rgb565bug,  &conf_rgb565bug);
  	RegReadConf(HKEY_LOCAL_MACHINE, SVGA_conf_path, SVGA_conf_cb,         &conf_cb); 
  	RegReadConf(HKEY_LOCAL_MACHINE, SVGA_conf_path, SVGA_conf_hw_version, &conf_hw_version);
  	RegReadConf(HKEY_LOCAL_MACHINE, SVGA_conf_path, SVGA_conf_pref_fifo,  &prefer_fifo);
- 	
+
  	RegReadConf(HKEY_LOCAL_MACHINE, SVGA_conf_path, SVGA_conf_disable_multisample, &disable_multisample);
+ 	RegReadConf(HKEY_LOCAL_MACHINE, SVGA_conf_path, SVGA_conf_reg_multisample, &reg_multisample);
+
  	RegReadConf(HKEY_LOCAL_MACHINE, SVGA_conf_path, SVGA_conf_async_mobs, &async_mobs);
  	RegReadConf(HKEY_LOCAL_MACHINE, SVGA_conf_path, SVGA_conf_hw_cursor,  &hw_cursor);
  	
@@ -501,6 +505,11 @@ BOOL SVGA_init_hw()
 			dbg_printf(dbg_no_irq);
 		}
 #endif
+		if(reg_multisample)
+		{
+			SVGA_WriteReg(SVGA_REG_MSHINT, reg_multisample);
+			dbg_printf("Value of SVGA_REG_MSHINT: %lX!\n", SVGA_ReadReg(SVGA_REG_MSHINT));
+		}
 		
 		/* enable FIFO */
 		SVGA_Enable();
@@ -641,7 +650,7 @@ BOOL SVGA3D_Init(void)
 		//dbg_printf("3D disabled by host.");
 		return FALSE;
 	}
-	if (hwVersion < SVGA3D_HWVERSION_WS65_B1)
+	if(hwVersion < SVGA3D_HWVERSION_WS65_B1)
 	{
 		//dbg_printf("Host SVGA3D protocol is too old, not binary compatible.");
 		return FALSE;
