@@ -337,11 +337,14 @@ void __declspec(naked) SVGA_IRQ_entry()
 }
 #endif
 
-BOOL SVGA_vxdcmd(DWORD cmd)
+BOOL SVGA_vxdcmd(DWORD cmd, DWORD arg)
 {
 	switch(cmd)
 	{
 		case SVGA_CMD_INVALIDATE_FB:
+			return TRUE;
+		case SVGA_CMD_CLEANUP:
+			SVGA_ProcessCleanup(arg);
 			return TRUE;
 	}
 	
@@ -1691,3 +1694,104 @@ void SVGA_ProcessCleanup(DWORD pid)
 	End_Critical_Section();
 }
 
+void SVGA_AllProcessCleanup()
+{
+	DWORD id;
+
+	/* some process are terminated when SVGA is disabled, clean not possible */
+	if(!svga_saved_state.enabled)
+		return;
+
+	Begin_Critical_Section(0);
+	if(svga_db != NULL)
+	{
+		/* clean surfaces */
+		for(id = 0; id < svga_db->surfaces_cnt; id++)
+		{
+			SVGA_DB_surface_t *sinfo = &svga_db->surfaces[id];
+			if(sinfo->pid != 0)
+			{
+				dbg_printf("Cleaning surface: %d\n", id);
+				if(sinfo->gmrId) // GB surface
+				{
+					DWORD cmd_offset =  0;
+					SVGA3dCmdBindGBSurface *unbind;
+					SVGA3dCmdDestroySurface *destgb;
+
+					wait_for_cmdbuf();
+					unbind = SVGA_cmd3d_ptr(cmdbuf, &cmd_offset, SVGA_3D_CMD_BIND_GB_SURFACE, sizeof(SVGA3dCmdBindGBSurface));
+					unbind->sid   = id+1;
+					unbind->mobid = SVGA3D_INVALID_ID;
+
+					destgb = SVGA_cmd3d_ptr(cmdbuf, &cmd_offset, SVGA_3D_CMD_DESTROY_GB_SURFACE, sizeof(SVGA3dCmdDestroySurface));
+					destgb->sid = id+1;
+
+					submit_cmdbuf(cmd_offset, SVGA_CB_SYNC, 0);
+				}
+				else
+				{
+					DWORD cmd_offset =  0;
+					SVGA3dCmdDestroySurface *dest;
+					
+					wait_for_cmdbuf();
+					dest = SVGA_cmd3d_ptr(cmdbuf, &cmd_offset, SVGA_3D_CMD_SURFACE_DESTROY, sizeof(SVGA3dCmdDestroySurface));
+					dest->sid = id+1;
+					
+					submit_cmdbuf(cmd_offset, SVGA_CB_SYNC, 0);
+				}
+
+				sinfo->pid = 0;
+				map_reset(svga_db->surfaces_map, id);
+			}
+		} // for
+
+		/* clean contexts */
+		for(id = 0; id < svga_db->contexts_cnt; id++)
+		{
+			SVGA_DB_context_t *cinfo = &svga_db->contexts[id];
+			
+			if(cinfo->pid != 0)
+			{
+				DWORD cmd_offset = 0;
+				dbg_printf("Cleaning context: %d\n", id);
+				
+				wait_for_cmdbuf();
+				if(cinfo->gmrId != 0) /* GB Context */
+				{
+					SVGA3dCmdDXDestroyContext *dest_ctx_gb =
+						SVGA_cmd3d_ptr(cmdbuf, &cmd_offset, SVGA_3D_CMD_DX_DESTROY_CONTEXT, sizeof(SVGA3dCmdDXDestroyContext));
+					dest_ctx_gb->cid = id+1;
+					submit_cmdbuf(cmd_offset, SVGA_CB_SYNC, 0);
+				}
+				else
+				{
+					SVGA3dCmdDestroyContext *dest_ctx =
+						SVGA_cmd3d_ptr(cmdbuf, &cmd_offset, SVGA_3D_CMD_CONTEXT_DESTROY, sizeof(SVGA3dCmdDestroyContext));
+					dest_ctx->cid = id+1;
+					submit_cmdbuf(cmd_offset, SVGA_CB_SYNC, 0);
+				}
+				
+				cinfo->pid = 0;
+				map_reset(svga_db->contexts_map, id);
+			}
+		} // for
+
+		/* clean region */
+		for(id = 0; id < svga_db->regions_cnt; id++)
+		{
+			SVGA_DB_region_t *rinfo = &svga_db->regions[id];
+			if(rinfo->pid != 0)
+			{
+				dbg_printf("Cleaning regions: %d\n", id);
+
+				SVGA_region_free(&rinfo->info);
+				rinfo->pid = 0;
+				map_reset(svga_db->regions_map, id);
+			}
+		} // for
+		
+		dbg_printf("Cleanup: used memory: %ld\n", svga_db->stat_regions_usage);
+	} // db != NULL
+
+	End_Critical_Section();
+}

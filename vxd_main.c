@@ -574,6 +574,8 @@ void Device_Init_proc(DWORD VM)
 #undef VDDFUNC
 #undef VDDNAKED
 
+static DWORD io_open_cnt = 0;
+
 /* process user space (PM32, RING-3) call */
 DWORD __stdcall Device_IO_Control_proc(DWORD vmhandle, struct DIOCParams *params)
 {
@@ -589,8 +591,19 @@ DWORD __stdcall Device_IO_Control_proc(DWORD vmhandle, struct DIOCParams *params
 	{
 		/* DX */
 		case DIOC_OPEN:
+			dbg_printf("DIOC_OPEN\n");
+			io_open_cnt++;
+			rc = 0;
+			break;
 		case DIOC_CLOSEHANDLE:
-			dbg_printf(dbg_dic_system, params->dwIoControlCode);
+			io_open_cnt--;
+#ifdef SVGA
+			if(io_open_cnt == 0)
+			{
+				dbg_printf("Zero reference, do ALL cleanup!\n");
+				SVGA_AllProcessCleanup();
+			}
+#endif
 			rc = 0;
 			break;
 		case OP_FBHDA_SETUP:
@@ -716,7 +729,7 @@ DWORD __stdcall Device_IO_Control_proc(DWORD vmhandle, struct DIOCParams *params
 			rc = 0;
 			break;
 		case OP_SVGA_VXDCMD:
-			outBuf[0] = (DWORD)SVGA_vxdcmd(inBuf[0]);
+			outBuf[0] = (DWORD)SVGA_vxdcmd(inBuf[0], inBuf[1]);
 			rc = 0;
 			break;
 #ifdef DBGPRINT

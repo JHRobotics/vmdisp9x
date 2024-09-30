@@ -40,6 +40,7 @@ void update_pm16(DWORD vm, DWORD oldmap, DWORD linear, DWORD size);
 void SVGA_Sync();
 void SVGA_Flush_CB();
 void SVGA_ProcessCleanup(DWORD pid);
+void SVGA_AllProcessCleanup();
 
 /* mouse */
 BOOL SVGA_mouse_hw();

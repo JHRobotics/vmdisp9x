@@ -366,8 +366,9 @@ SVGA_OT_info_entry_t *SVGA_OT_setup();
 
 void SVGA_flushcache();
 
-BOOL SVGA_vxdcmd(DWORD cmd);
+BOOL SVGA_vxdcmd(DWORD cmd, DWORD arg);
 #define SVGA_CMD_INVALIDATE_FB 1
+#define SVGA_CMD_CLEANUP 2
 
 #endif /* SVGA */
 
