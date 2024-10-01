@@ -600,8 +600,9 @@ DWORD __stdcall Device_IO_Control_proc(DWORD vmhandle, struct DIOCParams *params
 #ifdef SVGA
 			if(io_open_cnt == 0)
 			{
-				dbg_printf("Zero reference, do ALL cleanup!\n");
-				SVGA_AllProcessCleanup();
+				// JH: too aggressive - cause problems
+				//dbg_printf("Zero reference, do ALL cleanup!\n");
+				//SVGA_AllProcessCleanup();
 			}
 #endif
 			rc = 0;
