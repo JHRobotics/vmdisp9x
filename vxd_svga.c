@@ -665,7 +665,7 @@ BOOL SVGA3D_Init(void)
 DWORD SVGA_pitch(DWORD width, DWORD bpp)
 {
 	DWORD bp = (bpp + 7) / 8;
-	return (bp * width + 15) & 0xFFFFFFF0UL;
+	return (bp * width + (FBHDA_ROW_ALIGN-1)) & (~((DWORD)FBHDA_ROW_ALIGN-1));
 }
 
 static DWORD SVGA_DT_stride(DWORD w, DWORD h)
@@ -1448,7 +1448,7 @@ DWORD FBHDA_overlay_setup(DWORD overlay, DWORD width, DWORD height, DWORD bpp)
 {
 	dbg_printf("FBHDA_overlay_setup: %ld\n", overlay);
 
-	if(overlay >= FBHA_OVERLAYS_MAX)
+	if(overlay >= FBHDA_OVERLAYS_MAX)
 		return 0;
 
 	if(overlay == 0)

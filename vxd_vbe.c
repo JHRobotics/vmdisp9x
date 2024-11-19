@@ -172,7 +172,8 @@ BOOL VBE_valid()
 static DWORD VBE_pitch(DWORD width, DWORD bpp)
 {
 	DWORD bp = (bpp + 7) / 8;
-	return (bp * width + 3) & 0xFFFFFFFC;
+//	return (bp * width + 3) & 0xFFFFFFFC;
+	return (bp * width + (FBHDA_ROW_ALIGN-1)) & (~((DWORD)FBHDA_ROW_ALIGN-1));
 }
 
 BOOL VBE_validmode(DWORD w, DWORD h, DWORD bpp)

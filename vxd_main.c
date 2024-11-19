@@ -325,11 +325,15 @@ WORD __stdcall VXD_API_Proc(PCRS_32 state)
 			break;
 		/* mouse */
 		case OP_MOUSE_LOAD:
+			Begin_Critical_Section(0);
 			state->Client_ECX = mouse_load();
+			End_Critical_Section();
 			rc = 1;
 			break;
 		case OP_MOUSE_BUFFER:
+			Begin_Critical_Section(0);
 			state->Client_ECX = (DWORD)mouse_buffer();
+			End_Critical_Section();
 			rc = 1;
 			break;
 		case OP_MOUSE_MOVE:
@@ -468,7 +472,7 @@ static void configure_FBHDA()
 		RegReadConf(HKEY_LOCAL_MACHINE, reg_path, "FORCE_QEMU3DFX", &force_qemu3dfx);
 		RegReadConf(HKEY_LOCAL_MACHINE, reg_path, "GAMMA_QUIRK",    &gamma_quirk);
 
-		for(i = 1; i < FBHA_OVERLAYS_MAX; i++)
+		for(i = 1; i < FBHDA_OVERLAYS_MAX; i++)
 		{
 			char *ptr;
 			strcpy(buf, "OVERLAY_");

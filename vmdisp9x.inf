@@ -23,7 +23,7 @@ DX.CopyBackup=10,SYSBCKUP
 
 [SourceDisksNames]
 ; BOXV9X is the driver disk volume label
-1="Virtual Display Driver for Win9x Disk",,0
+1="VMDisp9x Display Driver for Win9x Disk",,0
 
 [SourceDisksFiles]
 boxvmini.drv=1
@@ -391,7 +391,7 @@ HKR,"MODES\24\5120,4096"
 HKR,"MODES\32\5120,4096"
 
 [Strings]
-Mfg="VirtualBox"
+Mfg="JHRobotics"
 VBoxVideoVGA.DeviceDesc="VBox VGA PCI Adapter"
 VBoxVideoSVGA.DeviceDesc="VBox SVGA PCI Adapter"
 VBoxVideoVM2.DeviceDesc="VMWare SVGA-II PCI Adapter"

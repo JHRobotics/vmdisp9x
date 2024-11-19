@@ -44,45 +44,6 @@ const static DD32BITDRIVERDATA_t drv_vmhal9x = {
 };
 
 /*
-static DDHALMODEINFO_t modeInfo[] = {
-	{  640,  480,  640,  8, DDMODEINFO_PALETTIZED, 0, 0x00000000, 0x00000000, 0x00000000, 0x00000000 },
-	{  640,  480, 1280, 16,                     0, 0, 0x0000F800, 0x000007E0, 0x0000001F, 0x00000000 },
-	{  640,  480, 2560, 32,                     0, 0, 0x00FF0000, 0x0000FF00, 0x000000FF, 0x00000000 },
-	{  800,  600,  800,  8, DDMODEINFO_PALETTIZED, 0, 0x00000000, 0x00000000, 0x00000000, 0x00000000 },
-	{  800,  600, 1600, 16,                     0, 0, 0x0000F800, 0x000007E0, 0x0000001F, 0x00000000 },
-	{  800,  600, 3200, 32,                     0, 0, 0x00FF0000, 0x0000FF00, 0x000000FF, 0x00000000 },
-	{ 1024,  768, 1024,  8, DDMODEINFO_PALETTIZED, 0, 0x00000000, 0x00000000, 0x00000000, 0x00000000 },
-	{ 1024,  768, 2048, 16,                     0, 0, 0x0000F800, 0x000007E0, 0x0000001F, 0x00000000 },
-	{ 1024,  768, 4096, 32,                     0, 0, 0x00FF0000, 0x0000FF00, 0x000000FF, 0x00000000 },
-	{ 1280, 1024, 1280,  8, DDMODEINFO_PALETTIZED, 0, 0x00000000, 0x00000000, 0x00000000, 0x00000000 },
-	{ 1280, 1024, 2560, 16,                     0, 0, 0x0000F800, 0x000007E0, 0x0000001F, 0x00000000 },
-	{ 1280, 1024, 5120, 32,                     0, 0, 0x00FF0000, 0x0000FF00, 0x000000FF, 0x00000000 },
-	{ 1600, 1200, 1600,  8, DDMODEINFO_PALETTIZED, 0, 0x00000000, 0x00000000, 0x00000000, 0x00000000 },
-	{ 1600, 1200, 3200, 16,                     0, 0, 0x0000F800, 0x000007E0, 0x0000001F, 0x00000000 },
-	{ 1600, 1200, 6400, 32,                     0, 0, 0x00FF0000, 0x0000FF00, 0x000000FF, 0x00000000 },
-	{  720,  480,  720,  8, DDMODEINFO_PALETTIZED, 0, 0x00000000, 0x00000000, 0x00000000, 0x00000000 },
-	{  720,  480, 1440, 16,                     0, 0, 0x0000F800, 0x000007E0, 0x0000001F, 0x00000000 },
-	{  720,  480, 2880, 32,                     0, 0, 0x00FF0000, 0x0000FF00, 0x000000FF, 0x00000000 },
-	{ 1280,  720, 1280,  8, DDMODEINFO_PALETTIZED, 0, 0x00000000, 0x00000000, 0x00000000, 0x00000000 },
-	{ 1280,  720, 2560, 16,                     0, 0, 0x0000F800, 0x000007E0, 0x0000001F, 0x00000000 },
-	{ 1280,  720, 5120, 32,                     0, 0, 0x00FF0000, 0x0000FF00, 0x000000FF, 0x00000000 },
-	{ 1366,  768, 1280,  8, DDMODEINFO_PALETTIZED, 0, 0x00000000, 0x00000000, 0x00000000, 0x00000000 },
-	{ 1366,  768, 2732, 16,                     0, 0, 0x0000F800, 0x000007E0, 0x0000001F, 0x00000000 },
-	{ 1366,  768, 5464, 32,                     0, 0, 0x00FF0000, 0x0000FF00, 0x000000FF, 0x00000000 },
-	{ 1440,  900, 1440,  8, DDMODEINFO_PALETTIZED, 0, 0x00000000, 0x00000000, 0x00000000, 0x00000000 },
-	{ 1440,  900, 2880, 16,                     0, 0, 0x0000F800, 0x000007E0, 0x0000001F, 0x00000000 },
-	{ 1440,  900, 5760, 32,                     0, 0, 0x00FF0000, 0x0000FF00, 0x000000FF, 0x00000000 },
-	{ 1920, 1080, 1920,  8, DDMODEINFO_PALETTIZED, 0, 0x00000000, 0x00000000, 0x00000000, 0x00000000 },
-	{ 1920, 1080, 3840, 16,                     0, 0, 0x0000F800, 0x000007E0, 0x0000001F, 0x00000000 },
-	{ 1920, 1080, 7680, 32,                     0, 0, 0x00FF0000, 0x0000FF00, 0x000000FF, 0x00000000 },
-	{ 1920, 1200, 1920,  8, DDMODEINFO_PALETTIZED, 0, 0x00000000, 0x00000000, 0x00000000, 0x00000000 },
-	{ 1920, 1200, 3840, 16,                     0, 0, 0x0000F800, 0x000007E0, 0x0000001F, 0x00000000 },
-	{ 1920, 1200, 7680, 32,                     0, 0, 0x00FF0000, 0x0000FF00, 0x000000FF, 0x00000000 },
-};*/
-
-//#define NUMMODES (sizeof(modeInfo)/sizeof(DDHALMODEINFO_t))
-
-/*
  * pre-declare our HAL fns
  */
 DWORD __loadds __far __fastcall HALDestroyDriver(LPDDHAL_DESTROYDRIVERDATA);
@@ -232,7 +193,12 @@ static void buildPixelFormat(LPDDHALMODEINFO lpMode, LPDDPIXELFORMAT lpddpf)
  */
 static void buildDDHALInfo(VMDAHAL_t __far *hal, int modeidx)
 {
-	static DWORD        AlignTbl [ 9 ] = { 16, 16, 16, 16, 16, 16, 16, 16, 16 }; /* we can now use aligned AVX to manipulate with surfaces */
+	static DWORD        AlignTbl [ 9 ] = {
+		FBHDA_ROW_ALIGN, FBHDA_ROW_ALIGN, FBHDA_ROW_ALIGN,
+		FBHDA_ROW_ALIGN, FBHDA_ROW_ALIGN, FBHDA_ROW_ALIGN,
+		FBHDA_ROW_ALIGN, FBHDA_ROW_ALIGN, FBHDA_ROW_ALIGN
+	}; /* reduced to 8 to work correctly with glPixelStorei */
+	
 	int                 ii;
 	BOOL                can_flip;
 	WORD                heap;
@@ -307,68 +273,6 @@ static void buildDDHALInfo(VMDAHAL_t __far *hal, int modeidx)
 	/*
 	 * capabilities supported
 	 */
-	 
-	//! hal->ddHALInfo.ddCaps.dwCaps = DDCAPS_GDI;
-/*
-	hal->ddHALInfo.ddCaps.dwCaps         = DDCAPS_GDI |
-                                      DDCAPS_BLT |
-                                      //DDCAPS_3D |  //fix #SPR 15230
-                                      DDCAPS_ALPHA |
-                                      DDCAPS_BLTDEPTHFILL |
-                                      DDCAPS_BLTCOLORFILL |
-                                      DDCAPS_COLORKEY ;
-
-	hal->ddHALInfo.ddCaps.dwCKeyCaps     = DDCKEYCAPS_SRCBLT;
-
-	hal->ddHALInfo.ddCaps.dwFXCaps       = 0x00000000;
-
-	hal->ddHALInfo.ddCaps.ddsCaps.dwCaps = DDSCAPS_OFFSCREENPLAIN |
-                                      DDSCAPS_PRIMARYSURFACE |
-                                      DDSCAPS_ALPHA;//ly |               //###
-//ly                                      DDSCAPS_3DDEVICE |
-//ly                                      DDSCAPS_TEXTURE |
-//ly                                      DDSCAPS_ZBUFFER;
-
-//    if (S3MobileData.b3DCaps & (Virge_3D | VirgeGX_3D)){
-    if (wBpp >= 16){ //ly
-    ddHALInfo.ddCaps.dwCaps     |= DDCAPS_BLTDEPTHFILL;
-    ddHALInfo.ddCaps.ddsCaps.dwCaps |=
-                       DDSCAPS_3DDEVICE |
-                       DDSCAPS_TEXTURE |
-                       DDSCAPS_ZBUFFER |
-                       DDSCAPS_MIPMAP;
-
-    //ddHALInfo.ddCaps.dwZBufferBitDepths = DDBD_16;
-    }
-*/
-/*
-        if( STREAMS_PROCESSOR_PRESENT )
-        {
-        ddHALInfo.ddCaps.dwCaps |=
-                    DDCAPS_ALPHA |
-                    DDCAPS_COLORKEY |
-                    DDCAPS_OVERLAY |
-                    DDCAPS_OVERLAYSTRETCH |
-                    DDCAPS_OVERLAYFOURCC |
-                    DDCAPS_OVERLAYCANTCLIP;
-
-        ddHALInfo.ddCaps.dwCKeyCaps |=
-                    DDCKEYCAPS_SRCOVERLAY |
-                    DDCKEYCAPS_SRCOVERLAYCLRSPACEYUV |
-                    DDCKEYCAPS_SRCOVERLAYONEACTIVE |
-                    DDCKEYCAPS_SRCOVERLAYYUV |
-                    DDCKEYCAPS_DESTOVERLAY |
-                    DDCKEYCAPS_DESTOVERLAYCLRSPACEYUV |
-                    DDCKEYCAPS_DESTOVERLAYONEACTIVE |
-                    DDCKEYCAPS_DESTOVERLAYYUV;
-
-          ddHALInfo.ddCaps.ddsCaps.dwCaps |= DDSCAPS_OVERLAY;   //###
-
-        ddHALInfo.ddCaps.dwFXAlphaCaps |= DDFXALPHACAPS_OVERLAYALPHAPIXELS;
-        ddHALInfo.ddCaps.dwFXCaps |=
-                    DDFXCAPS_OVERLAYSTRETCHX |
-                    DDFXCAPS_OVERLAYSTRETCHY;
-        }*/
 	hal->ddHALInfo.ddCaps.dwCaps = DDCAPS_GDI | /* HW is shared with GDI */
 	                               DDCAPS_BLT | /* BLT is supported */
 	                               DDCAPS_BLTDEPTHFILL | /* depth fill */
@@ -393,6 +297,15 @@ static void buildDDHALInfo(VMDAHAL_t __far *hal, int modeidx)
 
 	hal->ddHALInfo.ddCaps.ddsCaps.dwCaps = DDSCAPS_OFFSCREENPLAIN |
 	                                       DDSCAPS_ALPHA;
+
+
+	/* 3D support */
+	if(hal->d3dhal_global != NULL)
+	{
+		hal->ddHALInfo.ddCaps.dwCaps         |= DDCAPS_3D;
+  	hal->ddHALInfo.ddCaps.ddsCaps.dwCaps |= hal->d3dhal_flags.ddscaps;
+  	hal->ddHALInfo.ddCaps.dwZBufferBitDepths |= hal->d3dhal_flags.zcaps;
+  }
 
 	if(can_flip)
 	{
@@ -433,7 +346,7 @@ static void buildDDHALInfo(VMDAHAL_t __far *hal, int modeidx)
 	hal->ddHALInfo.lpDDPaletteCallbacks = &cbDDPaletteCallbacks;
 
 	/*
-	 *  FOURCCs supported
+	 *  FOURCCs not supported
 	 */
 	hal->ddHALInfo.ddCaps.dwNumFourCCCodes = 0;
 	hal->ddHALInfo.lpdwFourCC = NULL;
@@ -443,6 +356,13 @@ static void buildDDHALInfo(VMDAHAL_t __far *hal, int modeidx)
    */
 	hal->ddHALInfo.dwNumModes = hal->modes_count;
 	hal->ddHALInfo.lpModeInfo = VMDAHAL_modes(hal);
+	
+	/*
+	 * D3D HAL
+	 */
+	hal->ddHALInfo.lpD3DGlobalDriverData = (ULONG_PTR)hal->d3dhal_global;
+	hal->ddHALInfo.lpD3DHALCallbacks     = (ULONG_PTR)hal->d3dhal_callbacks;
+	hal->ddHALInfo.lpDDExeBufCallbacks   = NULL;
 
 } /* buildDDHALInfo */
 
@@ -535,7 +455,16 @@ BOOL DDCreateDriverObject(int bReset)
 	cbDDCallbacks.SetExclusiveMode = hal->cb32.SetExclusiveMode;
 	if(cbDDCallbacks.SetExclusiveMode) cbDDCallbacks.dwFlags |= DDHAL_CB32_SETEXCLUSIVEMODE;
 	
-	dbg_printf("Dup DD32 calls\n");
+	cbDDCallbacks.FlipToGDISurface = hal->cb32.FlipToGDISurface;
+	if(cbDDCallbacks.FlipToGDISurface) cbDDCallbacks.dwFlags |= DDHAL_CB32_FLIPTOGDISURFACE;
+	
+	if(hal->cb32.DestroyDriver)
+	{
+		cbDDCallbacks.DestroyDriver = hal->cb32.DestroyDriver;
+		cbDDCallbacks.dwFlags |= DDHAL_CB32_DESTROYDRIVER;
+	}
+	
+	dbg_printf("Dump DD32 calls\n");
 	dbg_printf("  CanCreateSurface = %lX\n", cbDDCallbacks.CanCreateSurface);
 	dbg_printf("  CreateSurface = %lX\n", cbDDCallbacks.CreateSurface);
 	dbg_printf("  Blt = %lX\n", cbDDSurfaceCallbacks.Blt);
@@ -546,7 +475,8 @@ BOOL DDCreateDriverObject(int bReset)
 	dbg_printf("  GetFlipStatus = %lX\n", cbDDSurfaceCallbacks.GetFlipStatus);
 	dbg_printf("  DestroySurface = %lX\n", cbDDSurfaceCallbacks.DestroySurface);
 	dbg_printf("  GetDriverInfo = %lX\n", hal->ddHALInfo.GetDriverInfo);
-	dbg_printf("  WaitForVerticalBlank = %lX\n\n", cbDDCallbacks.WaitForVerticalBlank);
+	dbg_printf("  WaitForVerticalBlank = %lX\n", cbDDCallbacks.WaitForVerticalBlank);
+	dbg_printf("  DestroyDriver = %lX\n\n", cbDDCallbacks.DestroyDriver);
 
 	return lpDDHAL_SetInfo(&(hal->ddHALInfo), bReset);
 }

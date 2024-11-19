@@ -2126,4 +2126,17 @@ DWORD DDHinstance(void);
 /* DCI-Defined error codes */
 #define DCI_OK                                  0 /* success */
 
+
+
+/*
+ * DIRECTDRAW BITDEPTH CONSTANTS
+ */
+#define DDBD_1			0x00004000l
+#define DDBD_2			0x00002000l
+#define DDBD_4			0x00001000l
+#define DDBD_8			0x00000800l
+#define DDBD_16			0x00000400l
+#define DDBD_24			0X00000200l
+#define DDBD_32			0x00000100l
+
 #endif /* __DDRAWI_H__INCLUDED__ */

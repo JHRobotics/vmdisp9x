@@ -105,7 +105,8 @@ THE SOFTWARE.
 # define FBPTR *
 #endif
 
-#define FBHA_OVERLAYS_MAX 16
+#define FBHDA_OVERLAYS_MAX 16
+#define FBHDA_ROW_ALIGN 8
 
 typedef struct FBHDA_overlay
 {
@@ -138,7 +139,7 @@ typedef struct FBHDA
 	         DWORD vram_size;
 	         char vxdname[16]; /* file name or "NT" */
 	         DWORD overlay;
-	         FBHDA_overlay_t overlays[FBHA_OVERLAYS_MAX];
+	         FBHDA_overlay_t overlays[FBHDA_OVERLAYS_MAX];
 	         DWORD overlays_size;
 	         DWORD gamma; /* fixed decimal point, 65536 = 1.0 */
 	         DWORD system_surface;
