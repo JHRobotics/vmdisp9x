@@ -231,6 +231,101 @@ typedef struct DDSCAPS __far* LPDDSCAPS;
  */
 #define DDCAPS_CANBLTSYSMEM             0x80000000l
 
+ /****************************************************************************
+ *
+ * MORE DIRECTDRAW DRIVER CAPABILITY FLAGS (dwCaps2)
+ *
+ ****************************************************************************/
+
+/*
+ * Display hardware is certified
+ */
+#define DDCAPS2_CERTIFIED		0x00000001l
+
+/*
+ * Driver cannot interleave 2D operations (lock and blt) to surfaces with
+ * Direct3D rendering operations between calls to BeginScene() and EndScene()
+ */
+#define DDCAPS2_NO2DDURING3DSCENE       0x00000002l
+
+/*
+ * Display hardware contains a video port
+ */
+#define DDCAPS2_VIDEOPORT		0x00000004l
+
+/*
+ * The overlay can be automatically flipped according to the video port
+ * VSYNCs, providing automatic doubled buffered display of video port
+ * data using an overlay
+ */
+#define DDCAPS2_AUTOFLIPOVERLAY		0x00000008l
+
+/*
+ * Overlay can display each field of interlaced data individually while
+ * it is interleaved in memory without causing jittery artifacts.
+ */
+#define DDCAPS2_CANBOBINTERLEAVED	0x00000010l
+
+/*
+ * Overlay can display each field of interlaced data individually while
+ * it is not interleaved in memory without causing jittery artifacts.
+ */
+#define DDCAPS2_CANBOBNONINTERLEAVED	0x00000020l
+
+/*
+ * The overlay surface contains color controls (brightness, sharpness, etc.)
+ */
+#define DDCAPS2_COLORCONTROLOVERLAY	0x00000040l
+
+/*
+ * The primary surface contains color controls (gamma, etc.)
+ */
+#define DDCAPS2_COLORCONTROLPRIMARY	0x00000080l
+
+/*
+ * RGBZ -> RGB supported for 16:16 RGB:Z
+ */
+#define DDCAPS2_CANDROPZ16BIT		0x00000100l
+
+/*
+ * Driver supports non-local video memory.
+ */
+#define DDCAPS2_NONLOCALVIDMEM          0x00000200l
+
+/*
+ * Dirver supports non-local video memory but has different capabilities for
+ * non-local video memory surfaces. If this bit is set then so must
+ * DDCAPS2_NONLOCALVIDMEM.
+ */
+#define DDCAPS2_NONLOCALVIDMEMCAPS      0x00000400l
+
+/*
+ * Driver neither requires nor prefers surfaces to be pagelocked when performing
+ * blts involving system memory surfaces
+ */
+#define DDCAPS2_NOPAGELOCKREQUIRED      0x00000800l
+
+/*
+ * Driver can create surfaces which are wider than the primary surface
+ */
+#define DDCAPS2_WIDESURFACES            0x00001000l
+
+/*
+ * Driver supports bob without using a video port by handling the
+ * DDFLIP_ODD and DDFLIP_EVEN flags specified in Flip.
+ */
+#define DDCAPS2_CANFLIPODDEVEN          0x00002000l
+
+/*
+ * Driver supports bob using hardware
+ */
+#define DDCAPS2_CANBOBHARDWARE          0x00004000l
+
+/*
+ * Driver supports bltting any FOURCC surface to another surface of the same FOURCC
+ */
+#define DDCAPS2_COPYFOURCC              0x00008000l
+
 /****************************************************************************
  *
  * DIRECTDRAWSURFACE CAPABILITY FLAGS

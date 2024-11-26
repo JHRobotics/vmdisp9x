@@ -90,6 +90,8 @@ typedef struct VMDAHAL
   DWORD d3dhal_global;
   DWORD d3dhal_callbacks;
   VMDAHAL_D3DCAPS_t d3dhal_flags;
+  
+	BOOL invalid;
 } VMDAHAL_t;
 #pragma pack(pop)
 

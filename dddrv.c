@@ -48,6 +48,8 @@ const static DD32BITDRIVERDATA_t drv_vmhal9x = {
  */
 DWORD __loadds __far __fastcall HALDestroyDriver(LPDDHAL_DESTROYDRIVERDATA);
 
+#define FB_MEM_POOL 16777216UL
+
 /*
  * video memory pool usage
  */
@@ -265,11 +267,26 @@ static void buildDDHALInfo(VMDAHAL_t __far *hal, int modeidx)
 
 	vidMem[0].dwFlags = VIDMEM_ISLINEAR;
 	vidMem[0].ddsCaps.dwCaps = DDSCAPS_OFFSCREENPLAIN;
-	vidMem[0].fpStart = hda->vram_pm32 + hda->system_surface + hda->stride;	
-	vidMem[0].fpEnd   = hda->vram_pm32 + hda->vram_size - hda->overlays_size - 1;
 	
-	hal->ddHALInfo.vmiData.dwNumHeaps = 1;
-    
+	if(hda->system_surface + hda->stride < FB_MEM_POOL && hda->vram_size > FB_MEM_POOL)
+	{
+		vidMem[0].fpStart = hda->vram_pm32 + FB_MEM_POOL;
+		vidMem[0].fpEnd   = hda->vram_pm32 + hda->vram_size - hda->overlays_size - 1;
+
+		vidMem[1].fpStart = hda->vram_pm32 + hda->system_surface + hda->stride;
+		vidMem[1].fpEnd   = hda->vram_pm32 + FB_MEM_POOL - 1;
+		vidMem[1].dwFlags = VIDMEM_ISLINEAR;
+		vidMem[1].ddsCaps.dwCaps = DDSCAPS_OFFSCREENPLAIN;
+
+		hal->ddHALInfo.vmiData.dwNumHeaps = 2;
+	}
+	else
+	{
+		vidMem[0].fpStart = hda->vram_pm32 + hda->system_surface + hda->stride;	
+		vidMem[0].fpEnd   = hda->vram_pm32 + hda->vram_size - hda->overlays_size - 1;
+		hal->ddHALInfo.vmiData.dwNumHeaps = 1;
+	}
+	    
 	/*
 	 * capabilities supported
 	 */
@@ -305,6 +322,9 @@ static void buildDDHALInfo(VMDAHAL_t __far *hal, int modeidx)
 		hal->ddHALInfo.ddCaps.dwCaps         |= DDCAPS_3D;
   	hal->ddHALInfo.ddCaps.ddsCaps.dwCaps |= hal->d3dhal_flags.ddscaps;
   	hal->ddHALInfo.ddCaps.dwZBufferBitDepths |= hal->d3dhal_flags.zcaps;
+#if 0
+  	hal->ddHALInfo.ddCaps.dwCaps2 = DDCAPS2_NO2DDURING3DSCENE;
+#endif
   }
 
 	if(can_flip)

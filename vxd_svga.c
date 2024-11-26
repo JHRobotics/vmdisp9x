@@ -1113,8 +1113,8 @@ BOOL FBHDA_swap(DWORD offset)
 	 	FBHDA_access_begin(0);
 	 	if(hda->bpp > 8)
 	 	{
-	 		SVGA_DefineGMRFB();
 	  	hda->surface = offset;
+	 		SVGA_DefineGMRFB();
 	  	rc = TRUE;
 		}
 	  FBHDA_access_end(0);
