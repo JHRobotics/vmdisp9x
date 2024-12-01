@@ -36,17 +36,19 @@ OpenGL is supported by OpenGL ICD driver loading (you can use software only driv
 ## DirectDraw support
 DirectDraw is supported, Ring-3 driver is in separated project [VMHal9x](https://github.com/JHRobotics/vmhal9x).
 
-
 ## Direct3D support
-DirectDraw is now in development, most of D3D code is in VMHal9x, rasterization is done by Mesa9x. **D3D is not part of releases yet!**
+Microsoft DirectX is complex and relatively complicated API handled by DDI driver. For Windows 9x there are 4 versions of this API DirectX: DirectX 2.0 - 6.1 through DDRAW.dll, DirectX 7 still through DDRAW.dll, DirectX 8 through D3D8.dll and DirectX 9 through D3D9.dll. DDI driver has feature level (basically equals API version request with some forward compatibility) and every later API after DX7 required minimum level, for example DirectX 8 required DDI version 6 as minimum, DirectX 9 required 7. Behaviour changes with DirectX 10 which required DDI version 10. If you wish to implement DDI 9 you must also implement all older. This change with DirectX 11 where it is needed only actual feature set and all older DDI can be emulated - but this is out of reach by Windows 9x and we're still stuck at DirectX 9.
 
+Direct3D is now in development, most of D3D code is in VMHal9x, rasterization is done by Mesa9x. **D3D is not part of releases yet!**
 
 ## Glide support
 Glide support has nothing to do with display driver. But when OpenGL is supported is possible to use [OpenGlide9X](ttps://github.com/JHRobotics/openglide9x) wrapper to translate Glide (2 and 3) calls to OpenGL.
 
 
 ## VirtualBox
+
 VirtualBox is supported from version 6.1 (but 5.0 and 6.0 with some limitation works). More on [SoftGPU readme](https://github.com/JHRobotics/softgpu/#virtualbox-vm-setup-with-hw-acceleration).
+
 
 ## VMware Workstation and Player
 VMware workstation is supported in current version (17.5.x). In theory, this driver can work from version 9.x, but I don't have enough resources to do complete testing of old closed non-free software. More information also on [SoftGPU readme](https://github.com/JHRobotics/softgpu/?tab=readme-ov-file#vmware-workstation-setup-with-hw-acceleration).
@@ -130,6 +132,7 @@ Due limitation of virtual display card is usually required have enough memory fo
 
 ## Security
 In 2D mode any application could read and write guest frame buffer and rest of video ram. If 3D is enabled and works (on hypervisor side) is possible by any application to write virtual GPU FIFO which could leads to read memory of different process (in same guest) or crash the guest. These risks are noted but needs to be mentioned that these old systems haven’t any or has only minimal security management. For example, Microsoft Windows 9x systems haven't file system rights, all process has mapped system memory (in last 1 GB of 32-bit memory space) and any user could run 16-bit application where have access to everything including I/O because of compatibility.
+
 
 ## Compilation from source
 Install [Open Watcom 1.9](http://openwatcom.org/ftp/install/), then type
