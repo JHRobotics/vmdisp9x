@@ -665,7 +665,7 @@ BOOL SVGA3D_Init(void)
 DWORD SVGA_pitch(DWORD width, DWORD bpp)
 {
 	DWORD bp = (bpp + 7) / 8;
-	return (bp * width + 15) & 0xFFFFFFF0UL;
+	return (bp * width + (FBHDA_ROW_ALIGN-1)) & (~((DWORD)FBHDA_ROW_ALIGN-1));
 }
 
 static DWORD SVGA_DT_stride(DWORD w, DWORD h)
@@ -841,6 +841,20 @@ static void SVGA_setmode_phy(DWORD w, DWORD h, DWORD bpp)
 	SVGA_Flush_CB();
 }
 
+/* clear both physical screen and system surface */
+void SVGA_clear()
+{
+	if(hda->system_surface)
+	{
+		memset((BYTE*)hda->vram_pm32 + hda->system_surface, 0, hda->height*hda->pitch);
+		memset(hda->vram_pm32, 0, SVGA_pitch(hda->width, 32)*hda->height);
+	}
+	else
+	{
+		memset(hda->vram_pm32, 0, hda->height*hda->pitch);
+	}
+}
+
 /**
  * Set display mode
  *
@@ -932,6 +946,8 @@ BOOL SVGA_setmode(DWORD w, DWORD h, DWORD bpp)
 		hda->flags |= FB_SUPPORT_FLIPING;
 		SVGA_DefineGMRFB();
 	}
+	
+	SVGA_clear();
 	
 	mouse_invalidate();
 	FBHDA_access_end(0);
@@ -1113,8 +1129,8 @@ BOOL FBHDA_swap(DWORD offset)
 	 	FBHDA_access_begin(0);
 	 	if(hda->bpp > 8)
 	 	{
-	 		SVGA_DefineGMRFB();
 	  	hda->surface = offset;
+	 		SVGA_DefineGMRFB();
 	  	rc = TRUE;
 		}
 	  FBHDA_access_end(0);
@@ -1448,7 +1464,7 @@ DWORD FBHDA_overlay_setup(DWORD overlay, DWORD width, DWORD height, DWORD bpp)
 {
 	dbg_printf("FBHDA_overlay_setup: %ld\n", overlay);
 
-	if(overlay >= FBHA_OVERLAYS_MAX)
+	if(overlay >= FBHDA_OVERLAYS_MAX)
 		return 0;
 
 	if(overlay == 0)
