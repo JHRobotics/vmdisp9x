@@ -841,6 +841,20 @@ static void SVGA_setmode_phy(DWORD w, DWORD h, DWORD bpp)
 	SVGA_Flush_CB();
 }
 
+/* clear both physical screen and system surface */
+void SVGA_clear()
+{
+	if(hda->system_surface)
+	{
+		memset((BYTE*)hda->vram_pm32 + hda->system_surface, 0, hda->height*hda->pitch);
+		memset(hda->vram_pm32, 0, SVGA_pitch(hda->width, 32)*hda->height);
+	}
+	else
+	{
+		memset(hda->vram_pm32, 0, hda->height*hda->pitch);
+	}
+}
+
 /**
  * Set display mode
  *
@@ -932,6 +946,8 @@ BOOL SVGA_setmode(DWORD w, DWORD h, DWORD bpp)
 		hda->flags |= FB_SUPPORT_FLIPING;
 		SVGA_DefineGMRFB();
 	}
+	
+	SVGA_clear();
 	
 	mouse_invalidate();
 	FBHDA_access_end(0);

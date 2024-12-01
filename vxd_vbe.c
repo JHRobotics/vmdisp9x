@@ -204,6 +204,11 @@ BOOL VBE_validmode(DWORD w, DWORD h, DWORD bpp)
 	return FALSE;
 }
 
+void VBE_clear()
+{
+	memset(hda->vram_pm32, 0, hda->pitch*hda->height);
+}
+
 BOOL VBE_setmode(DWORD w, DWORD h, DWORD bpp)
 {
 	if(!VBE_validmode(w, h, bpp)) return FALSE;
@@ -262,6 +267,8 @@ BOOL VBE_setmode(DWORD w, DWORD h, DWORD bpp)
 	hda->pitch  = VBE_pitch(w, bpp);
 	hda->stride = h * hda->pitch;
 	hda->surface = 0;
+	
+	VBE_clear();
 
 	mouse_invalidate();
 
