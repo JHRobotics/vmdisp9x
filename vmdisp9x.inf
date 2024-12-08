@@ -57,6 +57,7 @@ qxlmini.vxd=1
 ;syscopy:msd3d8.dll=1,sys
 ;syscopy:msd3d9.dll=1,sys
 ;vmhal:vmhal9x.dll=1
+;vmhal:vmdisp9x.dll=1
 
 [Manufacturer]
 %Mfg%=Mfg.VM
@@ -99,18 +100,21 @@ boxvmini.drv,,,0x00000004
 boxvmini.vxd,,,0x00000004
 ;mesa:mesa3d.dll,,,0x00000004
 ;vmhal:vmhal9x.dll,,,0x00000004
+;vmhal:vmdisp9x.dll,,,0x00000004
 
 [Qemu.Copy]
 qemumini.drv,,,0x00000004
 qemumini.vxd,,,0x00000004
 ;mesa:mesa3d.dll,,,0x00000004
 ;vmhal:vmhal9x.dll,,,0x00000004
+;vmhal:vmdisp9x.dll,,,0x00000004
 
 [QXL.Copy]
 qxlmini.drv,,,0x00000004
 qxlmini.vxd,,,0x00000004
 ;mesa:mesa3d.dll,,,0x00000004
 ;vmhal:vmhal9x.dll,,,0x00000004
+;vmhal:vmdisp9x.dll,,,0x00000004
 
 [VMSvga.Copy]
 vmwsmini.drv,,,0x00000004
@@ -118,6 +122,7 @@ vmwsmini.vxd,,,0x00000004
 ;mesa:vmwsgl32.dll,,,0x00000004
 ;mesa:mesa3d.dll,,,0x00000004
 ;vmhal:vmhal9x.dll,,,0x00000004
+;vmhal:vmdisp9x.dll,,,0x00000004
 
 [Voodoo.Copy]
 ;3dfx:3dfxspl2.dll,,,0x00000010

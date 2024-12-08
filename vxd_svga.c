@@ -952,6 +952,8 @@ BOOL SVGA_setmode(DWORD w, DWORD h, DWORD bpp)
 	mouse_invalidate();
 	FBHDA_access_end(0);
 
+	fb_lock_cnt = 0; // reset lock counters
+
   return TRUE;
 }
 
@@ -1311,6 +1313,8 @@ void FBHDA_access_begin(DWORD flags)
 
 void FBHDA_access_end(DWORD flags)
 {
+	//dbg_printf("+++ FBHDA_access_end: %ld\n", fb_lock_cnt);
+	
 	if(hda->overlay > 0)
 	{
 		return;
@@ -1333,13 +1337,12 @@ void FBHDA_access_end(DWORD flags)
 		}
 	}
 
-	fb_lock_cnt--;
-	if(fb_lock_cnt < 0) fb_lock_cnt = 0;
-	
-	if(fb_lock_cnt == 0)
+	if(--fb_lock_cnt <= 0)
 	{
 		DWORD w, h;
 		BOOL need_refresh = ((hda->bpp == 32) && (hda->system_surface == 0));
+		
+		fb_lock_cnt = 0;
 		
 		w = rect_right - rect_left;
 		h = rect_bottom - rect_top;
