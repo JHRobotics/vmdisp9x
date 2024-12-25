@@ -478,6 +478,15 @@ BOOL DDCreateDriverObject(int bReset)
 	cbDDCallbacks.FlipToGDISurface = hal->cb32.FlipToGDISurface;
 	if(cbDDCallbacks.FlipToGDISurface) cbDDCallbacks.dwFlags |= DDHAL_CB32_FLIPTOGDISURFACE;
 	
+	cbDDSurfaceCallbacks.SetColorKey = hal->cb32.SetColorKey;
+	if(cbDDSurfaceCallbacks.SetColorKey) cbDDSurfaceCallbacks.dwFlags |= DDHAL_SURFCB32_SETCOLORKEY;
+
+	cbDDSurfaceCallbacks.AddAttachedSurface = hal->cb32.AddAttachedSurface;
+	if(cbDDSurfaceCallbacks.AddAttachedSurface) cbDDSurfaceCallbacks.dwFlags |= DDHAL_SURFCB32_ADDATTACHEDSURFACE;
+
+	cbDDSurfaceCallbacks.SetOverlayPosition = hal->cb32.SetOverlayPosition;
+	if(cbDDSurfaceCallbacks.SetOverlayPosition) cbDDSurfaceCallbacks.dwFlags |= DDHAL_SURFCB32_SETOVERLAYPOSITION;
+
 	if(hal->cb32.DestroyDriver)
 	{
 		cbDDCallbacks.DestroyDriver = hal->cb32.DestroyDriver;
