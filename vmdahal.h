@@ -48,6 +48,10 @@ typedef struct VMDAHAL_D3DCAPS
 {
 	DWORD ddscaps;
 	DWORD zcaps;
+	DWORD caps2;
+	DWORD alpha_const;
+	DWORD alpha_pixel;
+	DWORD alpha_surface;
 } VMDAHAL_D3DCAPS_t;
 
 typedef struct VMDAHAL

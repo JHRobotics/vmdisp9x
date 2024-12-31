@@ -322,9 +322,11 @@ static void buildDDHALInfo(VMDAHAL_t __far *hal, int modeidx)
 		hal->ddHALInfo.ddCaps.dwCaps         |= DDCAPS_3D;
   	hal->ddHALInfo.ddCaps.ddsCaps.dwCaps |= hal->d3dhal_flags.ddscaps;
   	hal->ddHALInfo.ddCaps.dwZBufferBitDepths |= hal->d3dhal_flags.zcaps;
-#if 0
-  	hal->ddHALInfo.ddCaps.dwCaps2 = DDCAPS2_NO2DDURING3DSCENE;
-#endif
+
+		hal->ddHALInfo.ddCaps.dwCaps2 = hal->d3dhal_flags.caps2;
+		hal->ddHALInfo.ddCaps.dwAlphaBltConstBitDepths = hal->d3dhal_flags.alpha_const;
+		hal->ddHALInfo.ddCaps.dwAlphaBltPixelBitDepths = hal->d3dhal_flags.alpha_pixel;
+		hal->ddHALInfo.ddCaps.dwAlphaBltSurfaceBitDepths  = hal->d3dhal_flags.alpha_surface;
   }
 
 	if(can_flip)
