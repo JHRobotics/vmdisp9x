@@ -126,6 +126,17 @@ static DDHAL_DDPALETTECALLBACKS_t cbDDPaletteCallbacks =
 	NULL                        // SetEntries
 };
 
+static DDHAL_DDEXEBUFCALLBACKS_t cbDDExeBufCallbacks = 
+{
+	sizeof(DDHAL_DDEXEBUFCALLBACKS_t),
+	0,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL
+};
+
 static VMDAHAL_t __far *pm16VMDAHAL = NULL;
 static DWORD linVMDAHAL = 0;
 
@@ -267,7 +278,8 @@ static void buildDDHALInfo(VMDAHAL_t __far *hal, int modeidx)
 
 	vidMem[0].dwFlags = VIDMEM_ISLINEAR;
 	vidMem[0].ddsCaps.dwCaps = DDSCAPS_OFFSCREENPLAIN;
-	
+
+#if 0
 	if(hda->system_surface + hda->stride < FB_MEM_POOL && hda->vram_size > FB_MEM_POOL)
 	{
 		vidMem[0].fpStart = hda->vram_pm32 + FB_MEM_POOL;
@@ -282,11 +294,14 @@ static void buildDDHALInfo(VMDAHAL_t __far *hal, int modeidx)
 	}
 	else
 	{
+#endif
 		vidMem[0].fpStart = hda->vram_pm32 + hda->system_surface + hda->stride;	
 		vidMem[0].fpEnd   = hda->vram_pm32 + hda->vram_size - hda->overlays_size - 1;
 		hal->ddHALInfo.vmiData.dwNumHeaps = 1;
+#if 0
 	}
-	    
+#endif
+
 	/*
 	 * capabilities supported
 	 */
@@ -294,7 +309,9 @@ static void buildDDHALInfo(VMDAHAL_t __far *hal, int modeidx)
 	                               DDCAPS_BLT | /* BLT is supported */
 	                               DDCAPS_BLTDEPTHFILL | /* depth fill */
                                  DDCAPS_BLTCOLORFILL | /* color fill */
-                                 DDCAPS_COLORKEY; /* transparentBlt */
+                                 DDCAPS_BLTSTRETCH   | /* stretching blt */
+                                 DDCAPS_COLORKEY     | /* transparentBlt */
+                                 DDCAPS_CANBLTSYSMEM; /* from to sysmem blt */
 
 	hal->ddHALInfo.ddCaps.dwCKeyCaps     = DDCKEYCAPS_SRCBLT;
 	hal->ddHALInfo.ddCaps.dwFXCaps       = DDFXCAPS_BLTARITHSTRETCHY |
@@ -384,8 +401,16 @@ static void buildDDHALInfo(VMDAHAL_t __far *hal, int modeidx)
 	 */
 	hal->ddHALInfo.lpD3DGlobalDriverData = (ULONG_PTR)hal->d3dhal_global;
 	hal->ddHALInfo.lpD3DHALCallbacks     = (ULONG_PTR)hal->d3dhal_callbacks;
-	hal->ddHALInfo.lpDDExeBufCallbacks   = NULL;
-
+	
+	/*
+	 * Exec Buffers (active when fill)
+	 */
+	_fmemset(&cbDDExeBufCallbacks, 0, sizeof(DDHAL_DDEXEBUFCALLBACKS_t));
+	cbDDExeBufCallbacks.dwSize = sizeof(DDHAL_DDEXEBUFCALLBACKS_t);
+	if(hal->ddHALInfo.lpDDExeBufCallbacks == NULL)
+	{
+		hal->ddHALInfo.lpDDExeBufCallbacks = &cbDDExeBufCallbacks;
+	}
 } /* buildDDHALInfo */
 
 BOOL DDCreateDriverObject(int bReset)
@@ -495,6 +520,39 @@ BOOL DDCreateDriverObject(int bReset)
 		cbDDCallbacks.dwFlags |= DDHAL_CB32_DESTROYDRIVER;
 	}
 	
+	if(hal->ddHALInfo.lpDDExeBufCallbacks)
+	{
+		if(hal->d3dhal_exebuffcallbacks.CanCreateExecuteBuffer)
+		{
+			hal->ddHALInfo.lpDDExeBufCallbacks->CanCreateExecuteBuffer = hal->d3dhal_exebuffcallbacks.CanCreateExecuteBuffer;
+			hal->ddHALInfo.lpDDExeBufCallbacks->dwFlags |= DDHAL_EXEBUFCB32_CANCREATEEXEBUF;
+		}
+
+		if(hal->d3dhal_exebuffcallbacks.CreateExecuteBuffer)
+		{
+			hal->ddHALInfo.lpDDExeBufCallbacks->CreateExecuteBuffer = hal->d3dhal_exebuffcallbacks.CreateExecuteBuffer;
+			hal->ddHALInfo.lpDDExeBufCallbacks->dwFlags |= DDHAL_EXEBUFCB32_CREATEEXEBUF;
+		}
+
+		if(hal->d3dhal_exebuffcallbacks.DestroyExecuteBuffer)
+		{
+			hal->ddHALInfo.lpDDExeBufCallbacks->DestroyExecuteBuffer = hal->d3dhal_exebuffcallbacks.DestroyExecuteBuffer;
+			hal->ddHALInfo.lpDDExeBufCallbacks->dwFlags |= DDHAL_EXEBUFCB32_DESTROYEXEBUF;
+		}
+
+		if(hal->d3dhal_exebuffcallbacks.LockExecuteBuffer)
+		{
+			hal->ddHALInfo.lpDDExeBufCallbacks->LockExecuteBuffer = hal->d3dhal_exebuffcallbacks.LockExecuteBuffer;
+			hal->ddHALInfo.lpDDExeBufCallbacks->dwFlags |= DDHAL_EXEBUFCB32_LOCKEXEBUF;
+		}
+
+		if(hal->d3dhal_exebuffcallbacks.UnlockExecuteBuffer)
+		{
+			hal->ddHALInfo.lpDDExeBufCallbacks->UnlockExecuteBuffer = hal->d3dhal_exebuffcallbacks.UnlockExecuteBuffer;
+			hal->ddHALInfo.lpDDExeBufCallbacks->dwFlags |= DDHAL_EXEBUFCB32_UNLOCKEXEBUF;
+		}
+	}
+
 	dbg_printf("Dump DD32 calls\n");
 	dbg_printf("  CanCreateSurface = %lX\n", cbDDCallbacks.CanCreateSurface);
 	dbg_printf("  CreateSurface = %lX\n", cbDDCallbacks.CreateSurface);

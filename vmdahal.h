@@ -85,6 +85,7 @@ typedef struct VMDAHAL
   DWORD d3dhal_global;
   DWORD d3dhal_callbacks;
   VMDAHAL_D3DCAPS_t d3dhal_flags;
+  DDHAL_DDEXEBUFCALLBACKS_t d3dhal_exebuffcallbacks;
   
 	BOOL invalid;
 } VMDAHAL_t;
