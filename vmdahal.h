@@ -40,6 +40,7 @@ typedef struct VMDAHALCB32
 	LPDDHAL_SETMODE		                SetMode;
 	LPDDHAL_SETEXCLUSIVEMODE          SetExclusiveMode;
 	LPDDHAL_FLIPTOGDISURFACE          FlipToGDISurface;
+	DWORD                             flags;
 } VMDAHALCB32_t;
 
 #define DISP_MODES_MAX 512

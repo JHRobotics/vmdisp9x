@@ -492,6 +492,8 @@ BOOL DDCreateDriverObject(int bReset)
 	
 	hal->ddHALInfo.GetDriverInfo = hal->cb32.GetDriverInfo;
 	if(hal->ddHALInfo.GetDriverInfo) hal->ddHALInfo.dwFlags |= DDHALINFO_GETDRIVERINFOSET;
+	
+	hal->ddHALInfo.dwFlags |= hal->cb32.flags;
 		
 	cbDDCallbacks.WaitForVerticalBlank = hal->cb32.WaitForVerticalBlank;
 	if(cbDDCallbacks.WaitForVerticalBlank) cbDDCallbacks.dwFlags |= DDHAL_CB32_WAITFORVERTICALBLANK;

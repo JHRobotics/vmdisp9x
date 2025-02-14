@@ -2172,6 +2172,8 @@ typedef DDHALINFO_t __far *LPDDHALINFO;
 #define DDHALINFO_ISPRIMARYDISPLAY	0x00000001l	// indicates driver is primary display driver
 #define DDHALINFO_MODEXILLEGAL		0x00000002l	// indicates this hardware does not support modex modes
 #define DDHALINFO_GETDRIVERINFOSET      0x00000004l     // indicates that GetDriverInfo is set
+#define DDHALINFO_GETDRIVERINFO2        0x00000008l     // indicates driver support GetDriverInfo2 variant
+                                                        // of GetDriverInfo. New for DX 8.0
 
 typedef struct DDHAL_DESTROYDRIVERDATA
 {
