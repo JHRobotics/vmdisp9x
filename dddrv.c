@@ -277,7 +277,7 @@ static void buildDDHALInfo(VMDAHAL_t __far *hal, int modeidx)
 	can_flip = hda->flags & FB_SUPPORT_FLIPING;
 
 	vidMem[0].dwFlags = VIDMEM_ISLINEAR;
-	vidMem[0].ddsCaps.dwCaps = DDSCAPS_OFFSCREENPLAIN;
+	vidMem[0].ddsCaps.dwCaps = 0;//DDSCAPS_OFFSCREENPLAIN; - what this memory CANNOT be used for
 
 #if 0
 	if(hda->system_surface + hda->stride < FB_MEM_POOL && hda->vram_size > FB_MEM_POOL)
@@ -336,11 +336,12 @@ static void buildDDHALInfo(VMDAHAL_t __far *hal, int modeidx)
 	/* 3D support */
 	if(hal->d3dhal_global != NULL)
 	{
-		hal->ddHALInfo.ddCaps.dwCaps         |= DDCAPS_3D;
+		hal->ddHALInfo.ddCaps.dwCaps         |= DDCAPS_3D | DDCAPS_ALPHA;
+		hal->ddHALInfo.ddCaps.dwCaps2         = hal->d3dhal_flags.caps2;
+		
   	hal->ddHALInfo.ddCaps.ddsCaps.dwCaps |= hal->d3dhal_flags.ddscaps;
   	hal->ddHALInfo.ddCaps.dwZBufferBitDepths |= hal->d3dhal_flags.zcaps;
 
-		hal->ddHALInfo.ddCaps.dwCaps2 = hal->d3dhal_flags.caps2;
 		hal->ddHALInfo.ddCaps.dwAlphaBltConstBitDepths = hal->d3dhal_flags.alpha_const;
 		hal->ddHALInfo.ddCaps.dwAlphaBltPixelBitDepths = hal->d3dhal_flags.alpha_pixel;
 		hal->ddHALInfo.ddCaps.dwAlphaBltSurfaceBitDepths  = hal->d3dhal_flags.alpha_surface;
