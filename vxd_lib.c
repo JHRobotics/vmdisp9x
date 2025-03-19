@@ -484,6 +484,11 @@ DWORD __declspec(naked) __cdecl _RegQueryValueEx(DWORD hKey, char *lpszValueName
 	VMMJmp(_RegQueryValueEx);
 }
 
+DWORD __declspec(naked) __cdecl _PageModifyPermissions(ULONG page, ULONG npages, ULONG permand, ULONG permor)
+{
+	VMMJmp(_PageModifyPermissions);
+}
+
 void Enable_Global_Trapping(DWORD port)
 {
 	_asm push edx

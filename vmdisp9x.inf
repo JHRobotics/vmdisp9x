@@ -19,7 +19,6 @@ VBox.Copy=11
 VMSvga.Copy=11
 DX.Copy=11
 Voodoo.Copy=11
-DX.CopyBackup=10,SYSBCKUP
 
 [SourceDisksNames]
 ; BOXV9X is the driver disk volume label
@@ -42,20 +41,12 @@ qxlmini.vxd=1
 ;wined3d:winedd.dll=1
 ;wined3d:wined8.dll=1
 ;wined3d:wined9.dll=1
-;wined3d:ddraw.dll=1
-;wined3d:ddrawme.dll=1
-;wined3d:d3d8.dll=1
-;wined3d:d3d9.dll=1
-;wined3d:ddr95.dll=1,dx
-;wined3d:ddr98.dll=1,dx
+;wined3d:winetray.exe=1
 ;3dfx:3dfxSpl2.dll=1,3dfx
 ;3dfx:3dfxSpl3.dll=1,3dfx
 ;3dfx:3dfxVGL.dll=1,3dfx
 ;nine:mesa89.dll=1
 ;nine:mesa99.dll=1
-;syscopy:ddsys.dll=1,sys
-;syscopy:msd3d8.dll=1,sys
-;syscopy:msd3d9.dll=1,sys
 ;vmhal:vmhal9x.dll=1
 ;vmhal:vmdisp9x.dll=1
 
@@ -71,27 +62,27 @@ qxlmini.vxd=1
 ;qxl;%QemuQXL.DeviceDesc%=QXL, PCI\VEN_1B36&DEV_0100
 
 [VBox]
-CopyFiles=VBox.Copy,Dx.Copy,DX.CopyBackup,Voodoo.Copy
+CopyFiles=VBox.Copy,Dx.Copy,Voodoo.Copy
 DelReg=VM.DelReg
 AddReg=VBox.AddReg,VM.AddReg,DX.addReg,VM.regextra
 
 [Qemu]
-CopyFiles=Qemu.Copy,Dx.Copy,DX.CopyBackup,Voodoo.Copy
+CopyFiles=Qemu.Copy,Dx.Copy,Voodoo.Copy
 DelReg=VM.DelReg
 AddReg=Qemu.AddReg,VM.AddReg,DX.addReg,VM.regextra
 
 [QXL]
-CopyFiles=QXL.Copy,Dx.Copy,DX.CopyBackup,Voodoo.Copy
+CopyFiles=QXL.Copy,Dx.Copy,Voodoo.Copy
 DelReg=VM.DelReg
 AddReg=QXL.AddReg,VM.AddReg,DX.addReg,VM.regextra
 
 [VBoxSvga]
-CopyFiles=VMSvga.Copy,Dx.Copy,DX.CopyBackup,Voodoo.Copy
+CopyFiles=VMSvga.Copy,Dx.Copy,Voodoo.Copy
 DelReg=VM.DelReg
 AddReg=VMSvga.AddReg,VM.AddReg,DX.addReg,VM.regextra
 
 [VMSvga]
-CopyFiles=VMSvga.Copy,Dx.Copy,DX.CopyBackup,Voodoo.Copy
+CopyFiles=VMSvga.Copy,Dx.Copy,Voodoo.Copy
 DelReg=VM.DelReg
 AddReg=VMSvga.AddReg,VM.AddReg,DX.addReg,VM.regextra
 
@@ -136,22 +127,9 @@ vmwsmini.vxd,,,0x00000004
 ;wined3d:winedd.dll,,,0x00000004
 ;wined3d:wined8.dll,,,0x00000004
 ;wined3d:wined9.dll,,,0x00000004
-;wined3d:ddraw.dll,,,0x00000004
-;wined3d:ddrawme.dll,,,0x00000004
-;wined3d:d3d8.dll,,,0x00000004
-;wined3d:d3d9.dll,,,0x00000004
-;wined3d:ddr95.dll,,,0x00000004
-;wined3d:ddr98.dll,,,0x00000004
+;wined3d:winetray.exe,,,0x00000004
 ;nine:mesa89.dll,,,0x00000004
 ;nine:mesa99.dll,,,0x00000004
-;syscopy:ddsys.dll,,,0x00000004
-;syscopy:msd3d8.dll,,,0x00000004
-;syscopy:msd3d9.dll,,,0x00000004
-
-[DX.CopyBackup]
-;wined3d:ddraw.dll,,,0x00000004
-;wined3d:d3d8.dll,,,0x00000004
-;wined3d:d3d9.dll,,,0x00000004
 
 [Qemu.AddReg]
 HKR,DEFAULT,drv,,qemumini.drv

@@ -44,6 +44,7 @@ ULONG __cdecl _PhysIntoV86(ULONG PhysPage, ULONG VM, ULONG VMLinPgNum, ULONG nPa
 DWORD __cdecl _RegOpenKey(DWORD hKey, char *lpszSubKey, DWORD *lphKey);
 DWORD __cdecl _RegCloseKey(DWORD hKey);
 DWORD __cdecl _RegQueryValueEx(DWORD hKey, char *lpszValueName, DWORD *lpdwReserved, DWORD *lpdwType, BYTE *lpbData, DWORD *lpcbData);
+DWORD __cdecl _PageModifyPermissions(ULONG page, ULONG npages, ULONG permand, ULONG permor);
 volatile void __cdecl Begin_Critical_Section(ULONG Flags);
 volatile void __cdecl End_Critical_Section();
 ULONG __cdecl Create_Semaphore(ULONG TokenCount);

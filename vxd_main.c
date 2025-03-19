@@ -580,6 +580,22 @@ void Device_Init_proc(DWORD VM)
 
 static DWORD io_open_cnt = 0;
 
+BOOL FBHDA_page_modify(DWORD flat_address, DWORD size, BYTE *new_data)
+{
+	DWORD page = _PAGE(flat_address);
+	DWORD pages = 1;
+	if(_PAGE(flat_address+size) != page)
+	{
+		pages++;
+	}
+	
+	_PageModifyPermissions(page, pages, PC_USER | PC_WRITEABLE, PC_WRITEABLE);
+	
+	memcpy((void*)flat_address, new_data, size);
+	
+	return TRUE;
+}
+
 /* process user space (PM32, RING-3) call */
 DWORD __stdcall Device_IO_Control_proc(DWORD vmhandle, struct DIOCParams *params)
 {
@@ -753,6 +769,10 @@ DWORD __stdcall Device_IO_Control_proc(DWORD vmhandle, struct DIOCParams *params
 			break;
 #endif /*DBGPRINT */
 #endif /* SVGA */
+		case OP_FBHDA_PAGE_MOD:
+			FBHDA_page_modify(inBuf[0], inBuf[1], (BYTE *)&inBuf[2]);
+			rc = 0;
+			break;
 		default:
 			dbg_printf("DeviceIOControl: Unknown: %d\n", params->dwIoControlCode);
 			break;
