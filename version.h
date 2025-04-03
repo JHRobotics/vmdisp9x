@@ -4,11 +4,11 @@
 #define DRV_STR_(x) #x
 #define DRV_STR(x) DRV_STR_(x)
 
-/* on binaries equals 1 and for INF is 1 = separate driver, 2 = softgpu pack */
+/* 4 = Windows 95, 95, Me */
 #define DRV_VER_MAJOR 4
 
 /* the YEAR */
-#define DRV_VER_MINOR 2024
+#define DRV_VER_MINOR 2025
 
 /* build version is deducted fom GIT */
 #define DRV_VER_BUILD_FAILBACK 1

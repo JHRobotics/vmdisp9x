@@ -5,10 +5,10 @@
 ;              QEMU STD        Win9x display driver
 ;              QEMU QXL        Win9x display driver
 ; Copyright 2012-2022, The OS/2 Museum
-;           2023-2024, Jaroslav Hensl
+;           2023-2025, Jaroslav Hensl
 
 [version]
-DriverVer=01/01/2024, 1.2024.0.0
+DriverVer=01/01/2025, 4.2025.0.0
 Class=DISPLAY
 signature="$CHICAGO$"
 Provider=%Mfg%
@@ -41,7 +41,7 @@ qxlmini.vxd=1
 ;wined3d:winedd.dll=1
 ;wined3d:wined8.dll=1
 ;wined3d:wined9.dll=1
-;wined3d:winetray.exe=1
+;switcher:winetray.exe=1
 ;3dfx:3dfxSpl2.dll=1,3dfx
 ;3dfx:3dfxSpl3.dll=1,3dfx
 ;3dfx:3dfxVGL.dll=1,3dfx
@@ -127,7 +127,7 @@ vmwsmini.vxd,,,0x00000004
 ;wined3d:winedd.dll,,,0x00000004
 ;wined3d:wined8.dll,,,0x00000004
 ;wined3d:wined9.dll,,,0x00000004
-;wined3d:winetray.exe,,,0x00000004
+;switcher:winetray.exe,,,0x00000004
 ;nine:mesa89.dll,,,0x00000004
 ;nine:mesa99.dll,,,0x00000004
 
@@ -159,6 +159,9 @@ HKR,MODES
 HKR,CURRENT
 HKLM,Software\Microsoft\Windows\CurrentVersion\OpenGLdrivers,SOFTWARE
 HKLM,Software\Microsoft\Windows\CurrentVersion\OpenGLdrivers,VMWSVGA
+HKLM,Software\Microsoft\Windows\CurrentVersion\OpenGLdrivers,QEMUFX
+HKLM,Software\Microsoft\Windows\CurrentVersion\Run,WineTray
+HKLM,Software\vmdisp9x\svga
 
 [VM.AddReg]
 HKR,,Ver,,4.0
@@ -228,22 +231,22 @@ HKR,"MODES\32\1600,1200"
 HKR,"MODES\32\1680,1050"
 HKR,"MODES\32\1920,1080"
 HKR,"MODES\32\1920,1200"
-HKLM,Software\vmdisp9x,FORCE_QEMU3DFX,,0
-HKLM,Software\vmdisp9x,FORCE_SOFTWARE,,0
-HKLM,Software\vmdisp9x,GAMMA_QUIRK,,2
-HKLM,Software\VMWSVGA,RGB565bug,,0
-HKLM,Software\VMWSVGA,CommandBuffers,,1
-HKLM,Software\VMWSVGA,VRAMLimit,,128
-HKLM,Software\VMWSVGA,PreferFIFO,,1
+HKLM,Software\vmdisp9x\driver,FORCE_QEMU3DFX,,0
+HKLM,Software\vmdisp9x\driver,FORCE_SOFTWARE,,0
+HKLM,Software\vmdisp9x\driver,GAMMA_QUIRK,,2
+HKLM,Software\vmdisp9x\svga,RGB565bug,,0
+HKLM,Software\vmdisp9x\svga,CommandBuffers,,1
+HKLM,Software\vmdisp9x\svga,VRAMLimit,,128
+HKLM,Software\vmdisp9x\svga,PreferFIFO,,1
 HKLM,Software\Microsoft\Windows\CurrentVersion\OpenGLdrivers,QEMUFX,2,"qmfxgl32.dll"
 ;mesa:HKLM,Software\Microsoft\Windows\CurrentVersion\OpenGLdrivers,SOFTWARE,2,"mesa3d.dll"
 ;mesa:HKLM,Software\Microsoft\Windows\CurrentVersion\OpenGLdrivers,VMWSVGA,2,"vmwsgl32.dll"
-;mesa:HKLM,Software\Mesa3D\global,LP_NATIVE_VECTOR_WIDTH,,128
-;mesa:HKLM,Software\Mesa3D\global,SVGA_CLEAR_DX_FLAGS,,0
-
+;mesa:HKLM,Software\vmdisp9x\apps\global\mesa,LP_NATIVE_VECTOR_WIDTH,,128
+;mesa:HKLM,Software\vmdisp9x\apps\global\mesa,SVGA_CLEAR_DX_FLAGS,,0
 
 [DX.addReg]
 ;mefix:HKLM,System\CurrentControlSet\Control\SessionManager\KnownDLLs,DDRAW,2,"ddrawme.dll"
+;switcher:HKLM,Software\Microsoft\Windows\CurrentVersion\Run,WineTray,2,"winetray.exe"
 
 [VM.QXGA]
 HKR,"MODES\8\2048,1080"
@@ -383,6 +386,6 @@ QemuStd.DeviceDesc="QEMU STD VGA PCI Adapter"
 QemuQXL.DeviceDesc="QEMU QXL VGA PCI Adapter"
 
 [VM.regextra]
-;swvoodoo:HKLM,Software\vmdisp9x,OVERLAY_1_SIZE,,8
+;swvoodoo:HKLM,Software\vmdisp9x\driver,OVERLAY_1_SIZE,,8
 ; extra registry section for installers (eg. SoftGPU)
 ; please do not add any other section below these lines!

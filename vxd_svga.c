@@ -97,7 +97,7 @@ BOOL mouse_get_rect(DWORD *ptr_left, DWORD *ptr_top,
 /*
  * strings
  */
-static char SVGA_conf_path[] = "Software\\VMWSVGA";
+static char SVGA_conf_path[] = "Software\\vmdisp9x\\svga";
 static char SVGA_conf_hw_cursor[]  = "HWCursor";
 /*	^ recovered */
 static char SVGA_conf_vram_limit[] = "VRAMLimit";
@@ -105,11 +105,11 @@ static char SVGA_conf_rgb565bug[]  = "RGB565bug";
 static char SVGA_conf_cb[]         = "CommandBuffers";
 static char SVGA_conf_pref_fifo[]  = "PreferFIFO";
 static char SVGA_conf_hw_version[] = "HWVersion";
-static char SVGA_vxd_name[]        = "vmwsmini.vxd";
-
 static char SVGA_conf_disable_multisample[] = "NoMultisample";
 static char SVGA_conf_reg_multisample[] = "RegMultisample";
 static char SVGA_conf_async_mobs[] = "AsyncMOBs";
+
+static char SVGA_vxd_name[]        = "vmwsmini.vxd";
 
 svga_saved_state_t svga_saved_state = {FALSE};
 

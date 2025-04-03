@@ -451,7 +451,7 @@ void __declspec(naked) VXD_API_entry()
 	}
 }
 
-const char reg_path[] = "Software\\vmdisp9x";
+const char reg_path[] = "Software\\vmdisp9x\\driver";
 extern DWORD gamma_quirk;
 
 static void configure_FBHDA()
@@ -580,7 +580,7 @@ void Device_Init_proc(DWORD VM)
 
 static DWORD io_open_cnt = 0;
 
-BOOL FBHDA_page_modify(DWORD flat_address, DWORD size, BYTE *new_data)
+BOOL FBHDA_page_modify(DWORD flat_address, DWORD size, const BYTE *new_data)
 {
 	DWORD page = _PAGE(flat_address);
 	DWORD pages = 1;
