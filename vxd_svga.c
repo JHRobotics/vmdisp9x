@@ -1118,7 +1118,7 @@ BOOL FBHDA_swap(DWORD offset)
 	if(hda->overlay > 0)
 	{
 		/* on overlay emulate behaviour */
-		if(offset >= hda->system_surface && hda->bpp > 8)
+		if(offset >= hda->system_surface && hda->bpp >= 8)
 		{
 			hda->surface = offset;
 			return TRUE;
@@ -1129,7 +1129,7 @@ BOOL FBHDA_swap(DWORD offset)
 	if(offset >= hda->system_surface) /* DON'T touch surface 0 */
 	{
 	 	FBHDA_access_begin(0);
-	 	if(hda->bpp > 8)
+		if(hda->bpp >= 8)
 	 	{
 	  	hda->surface = offset;
 	 		SVGA_DefineGMRFB();
