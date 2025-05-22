@@ -33,7 +33,7 @@ THE SOFTWARE.
 #endif
 #endif
 
-#define API_3DACCEL_VER 20250316
+#define API_3DACCEL_VER 20250522
 
 #define ESCAPE_DRV_NT         0x1103 /* (4355) */
 
@@ -108,7 +108,8 @@ THE SOFTWARE.
 #endif
 
 #define FBHDA_OVERLAYS_MAX 16
-#define FBHDA_ROW_ALIGN 8
+//#define FBHDA_ROW_ALIGN 8
+#define FBHDA_ROW_ALIGN 4
 
 typedef struct FBHDA_overlay
 {
