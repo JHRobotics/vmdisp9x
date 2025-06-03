@@ -41,7 +41,7 @@ qxlmini.vxd=1
 ;wined3d:winedd.dll=1
 ;wined3d:wined8.dll=1
 ;wined3d:wined9.dll=1
-;switcher:winetray.exe=1
+;switcher:tray3d.exe=1
 ;3dfx:3dfxSpl2.dll=1,3dfx
 ;3dfx:3dfxSpl3.dll=1,3dfx
 ;3dfx:3dfxVGL.dll=1,3dfx
@@ -127,7 +127,7 @@ vmwsmini.vxd,,,0x00000004
 ;wined3d:winedd.dll,,,0x00000004
 ;wined3d:wined8.dll,,,0x00000004
 ;wined3d:wined9.dll,,,0x00000004
-;switcher:winetray.exe,,,0x00000004
+;switcher:tray3d.exe,,,0x00000004
 ;nine:mesa89.dll,,,0x00000004
 ;nine:mesa99.dll,,,0x00000004
 
@@ -160,7 +160,7 @@ HKR,CURRENT
 HKLM,Software\Microsoft\Windows\CurrentVersion\OpenGLdrivers,SOFTWARE
 HKLM,Software\Microsoft\Windows\CurrentVersion\OpenGLdrivers,VMWSVGA
 HKLM,Software\Microsoft\Windows\CurrentVersion\OpenGLdrivers,QEMUFX
-HKLM,Software\Microsoft\Windows\CurrentVersion\Run,WineTray
+HKLM,Software\Microsoft\Windows\CurrentVersion\Run,Tray3D
 HKLM,Software\vmdisp9x\svga
 
 [VM.AddReg]
@@ -246,7 +246,7 @@ HKLM,Software\Microsoft\Windows\CurrentVersion\OpenGLdrivers,QEMUFX,2,"qmfxgl32.
 
 [DX.addReg]
 ;mefix:HKLM,System\CurrentControlSet\Control\SessionManager\KnownDLLs,DDRAW,2,"ddrawme.dll"
-;switcher:HKLM,Software\Microsoft\Windows\CurrentVersion\Run,WineTray,2,"winetray.exe"
+;switcher:HKLM,Software\Microsoft\Windows\CurrentVersion\Run,Tray3D,2,"tray3d.exe"
 
 [VM.QXGA]
 HKR,"MODES\8\2048,1080"

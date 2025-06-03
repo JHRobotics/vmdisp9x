@@ -313,7 +313,7 @@ static void buildDDHALInfo(VMDAHAL_t __far *hal, int modeidx)
                                  DDCAPS_COLORKEY     | /* transparentBlt */
                                  DDCAPS_CANBLTSYSMEM; /* from to sysmem blt */
 
-	hal->ddHALInfo.ddCaps.dwCKeyCaps     = DDCKEYCAPS_SRCBLT;
+	hal->ddHALInfo.ddCaps.dwCKeyCaps     = DDCKEYCAPS_SRCBLT | DDCKEYCAPS_DESTBLT;
 	hal->ddHALInfo.ddCaps.dwFXCaps       = DDFXCAPS_BLTARITHSTRETCHY |
 	                                       DDFXCAPS_BLTARITHSTRETCHYN |
 	                                       DDFXCAPS_BLTMIRRORLEFTRIGHT |
