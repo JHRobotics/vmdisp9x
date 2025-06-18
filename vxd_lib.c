@@ -419,6 +419,11 @@ ULONG __cdecl _PageAllocate(ULONG nPages, ULONG pType, ULONG VM, ULONG AlignMask
 {
 	ULONG r = _PageAllocate_call(nPages, pType, VM, AlignMask, minPhys, maxPhys, PhysAddr, flags);
 	
+	if(r == 0)
+	{
+		dbg_printf("_PageAllocate FAIL - pages: %ld\n", nPages);
+	}
+	
 #if 0
 	/* do examplicit TLB flush, help much for stability.
 	 * There is probably another TLB bug in VMM...
@@ -487,6 +492,26 @@ DWORD __declspec(naked) __cdecl _RegQueryValueEx(DWORD hKey, char *lpszValueName
 DWORD __declspec(naked) __cdecl _PageModifyPermissions(ULONG page, ULONG npages, ULONG permand, ULONG permor)
 {
 	VMMJmp(_PageModifyPermissions);
+}
+
+DWORD __declspec(naked) __cdecl _PageReserve(ULONG page, ULONG npages, ULONG flags)
+{
+	VMMJmp(_PageReserve);
+}
+
+DWORD __declspec(naked) __cdecl _PageCommit(ULONG page, ULONG npages, ULONG hpd, ULONG pagerdata, ULONG flags)
+{
+	VMMJmp(_PageCommit);
+}
+
+DWORD __declspec(naked) __cdecl _PageReAllocate(ULONG hMem, ULONG nPages, ULONG flags)
+{
+	VMMJmp(_PageReAllocate);
+}
+
+DWORD __declspec(naked) __cdecl _PageCommitPhys(ULONG page, ULONG npages, ULONG physpg, ULONG flags)
+{
+	VMMJmp(_PageCommitPhys);
 }
 
 void Enable_Global_Trapping(DWORD port)

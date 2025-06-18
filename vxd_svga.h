@@ -13,6 +13,8 @@
 extern ULONG cb_sem;
 extern ULONG mem_sem;
 
+extern BOOL gpu_allocated;
+
 /* VM handle */
 extern DWORD ThisVM;
 

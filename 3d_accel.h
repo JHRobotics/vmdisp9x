@@ -148,8 +148,8 @@ typedef struct FBHDA
 	         DWORD system_surface;
 	         DWORD palette_update; /* INC by one everytime when the palette is updated */
 	         DWORD gamma_update; /* INC by one everytime when the pallete is updated */
-	         DWORD res4;
-	         DWORD res5;
+	         DWORD gpu_mem_total;
+	         DWORD gpu_mem_used;
 } FBHDA_t;
 
 #define FB_SUPPORT_FLIPING     1
@@ -163,6 +163,7 @@ typedef struct FBHDA
 #define FB_FORCE_SOFTWARE     256
 #define FB_ACCEL_VMSVGA10_ST  512 /* not used */
 #define FB_BUG_VMWARE_UPDATE 1024
+#define FB_ACCEL_GPUMEM      2048
 
 /* for internal use in RING-0 by VXD only */
 BOOL FBHDA_init_hw(); 

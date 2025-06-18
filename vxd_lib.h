@@ -55,6 +55,11 @@ void __cdecl *Map_Flat(BYTE SegOffset, BYTE OffOfset);
 void __cdecl Install_IO_Handler(DWORD port, DWORD callback);
 DWORD __cdecl _GetFreePageCount(DWORD *pLockablePages);
 
+DWORD __cdecl _PageReserve(ULONG page, ULONG npages, ULONG flags);
+DWORD __cdecl _PageCommit(ULONG page, ULONG npages, ULONG hpd, ULONG pagerdata, ULONG flags);
+DWORD __cdecl _PageCommitPhys(ULONG page, ULONG npages, ULONG physpg, ULONG flags);
+DWORD __cdecl _PageReAllocate(ULONG hMem, ULONG nPages, ULONG flags);
+
 void __cdecl Resume_VM(ULONG VM);
 void Release_Time_Slice();
 

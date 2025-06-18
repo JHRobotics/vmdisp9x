@@ -48,6 +48,7 @@ THE SOFTWARE.
 
 #ifdef SVGA
 # include "svga_all.h"
+# include "vxd_halloc.h"
 # include "vxd_svga.h"
 #endif
 
@@ -549,8 +550,9 @@ void Device_Init_proc(DWORD VM)
 
 	VMMCall(_Allocate_Device_CB_Area);
  	ThisVM = VM;
- 	
+
 #ifdef SVGA
+	gpu_allocated = vxd_hinit();
 	SVGA_init_hw();
 #endif
 
@@ -716,8 +718,9 @@ DWORD __stdcall Device_IO_Control_proc(DWORD vmhandle, struct DIOCParams *params
 			outio->address = NULL;
 			if(!SVGA_region_create(outio))
 			{
-				SVGA_flushcache();
-				SVGA_region_create(outio);
+				//SVGA_flushcache();
+				//SVGA_region_create(outio);
+				// FIXME: return 1?
 			}
 			rc = 0;
 			break;
@@ -746,7 +749,7 @@ DWORD __stdcall Device_IO_Control_proc(DWORD vmhandle, struct DIOCParams *params
 			rc = 0;
 			break;
 		case OP_SVGA_FLUSHCACHE:
-			SVGA_flushcache();
+			//SVGA_flushcache();
 			rc = 0;
 			break;
 		case OP_SVGA_VXDCMD:

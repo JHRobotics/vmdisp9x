@@ -88,6 +88,8 @@ DWORD hw_cursor  = 0;
 ULONG cb_sem = 0;
 ULONG mem_sem = 0;
 
+BOOL gpu_allocated = FALSE;
+
 /* vxd_mouse.vxd */
 BOOL mouse_get_rect(DWORD *ptr_left, DWORD *ptr_top,
 	DWORD *ptr_right, DWORD *ptr_bottom);
@@ -539,9 +541,7 @@ BOOL SVGA_init_hw()
 				dbg_printf(dbg_cb_on);
 			}
 		}
-		
-		set_fragmantation_limit();
-		
+
 		SVGA_DB_alloc();
 		
 		/* allocate buffer for enable and disable CB */
@@ -580,19 +580,9 @@ BOOL SVGA_init_hw()
 		{
 			hda->flags |= FB_ACCEL_VMSVGA10;
 		}
-			
-		cache_init();
-				
+
 		SVGA_is_valid = TRUE;
-		
-		if(_GetFreePageCount(NULL) >= 0x38000UL) /* 896MB / 4096 */
-		{
-			if(!gb_support) /* mob cache is done by RING-3 DLL */
-			{
-				cache_enable(TRUE);
-			}
-		}
-		
+
 		/* switch back to VGA mode, SVGA mode will be request by 16 bit driver later */
 		SVGA_HW_disable();
 		
@@ -737,7 +727,7 @@ static void SVGA_DefineGMRFB()
 	SVGA_FillGMRFB(gmrfb, hda->surface, hda->pitch, hda->bpp);
 	submit_cmdbuf(cmd_offset, 0, 0);
 	
-	dbg_printf("SVGA_DefineGMRFB: %ld\n", hda->surface);
+	//dbg_printf("SVGA_DefineGMRFB: %ld\n", hda->surface);
 }
 
 /**
@@ -861,7 +851,7 @@ void SVGA_clear()
  **/
 BOOL SVGA_setmode(DWORD w, DWORD h, DWORD bpp)
 {
-	BOOL has3D;
+	BOOL has3D = FALSE;
 	if(!SVGA_validmode(w, h, bpp))
 	{
 		return FALSE;
@@ -890,11 +880,14 @@ BOOL SVGA_setmode(DWORD w, DWORD h, DWORD bpp)
 	FBHDA_access_begin(0);
 	
 	SVGA_setmode_phy(w, h, bpp);
-		
-	has3D = SVGA3D_Init();
-	
+
+	if(gpu_allocated)
+	{
+		has3D = SVGA3D_Init();
+	}
+
 	hda->flags &= ~((DWORD)FB_SUPPORT_FLIPING);
-	
+
 	hda->flags &= ~((DWORD)FB_ACCEL_VMSVGA10_ST);
 
 	hda->vram_pm32 = (void*)gSVGA.fbLinear;
@@ -903,7 +896,7 @@ BOOL SVGA_setmode(DWORD w, DWORD h, DWORD bpp)
 
 	hda->width   = w;//SVGA_ReadReg(SVGA_REG_WIDTH);
 	hda->height  = h;//SVGA_ReadReg(SVGA_REG_HEIGHT);
-	
+
 	if(SVGA_hasAccelScreen())
 	{
 		if(bpp >= 8)
