@@ -928,6 +928,7 @@ BOOL SVGA_setmode(DWORD w, DWORD h, DWORD bpp)
 	if(has3D && SVGA_GetDevCap(SVGA3D_DEVCAP_3D) > 0)
 	{
 		hda->flags |= FB_ACCEL_VMSVGA3D;
+		hda->flags |= FB_ACCEL_GPUMEM;
 	}
 	else
 	{
