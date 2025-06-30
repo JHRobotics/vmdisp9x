@@ -310,35 +310,35 @@ BOOL vxd_hinit()
 
 	if(free_pages >= RAM_MB1024)
 	{
-		hblocks[0] = vxd_hinit_block(2048, FALSE, FALSE); // 8 MB
-		hblocks[1] = vxd_hinit_block(8192, FALSE, FALSE); // 32 MB
+		hblocks[0] = vxd_hinit_block(2048, FALSE,  TRUE); // 8 MB
+		hblocks[1] = vxd_hinit_block(8192, FALSE,  TRUE); // 32 MB
 		hblocks[2] = vxd_hinit_block(32768, FALSE, TRUE); // 128 MB
 		hblocks[3] = vxd_hinit_block(65536,  TRUE, TRUE); // 256 MB
 	}
 	else if(free_pages >= RAM_MB768)
 	{
-		hblocks[0] = vxd_hinit_block(2048, FALSE, FALSE); // 8 MB
-		hblocks[1] = vxd_hinit_block(8192, FALSE, FALSE); // 32 MB
+		hblocks[0] = vxd_hinit_block(2048, FALSE,  TRUE); // 8 MB
+		hblocks[1] = vxd_hinit_block(8192, FALSE,  TRUE); // 32 MB
 		hblocks[2] = vxd_hinit_block(32768, FALSE, TRUE); // 128 MB
 		hblocks[3] = vxd_hinit_block(32768,  TRUE, TRUE); // 128 MB
 	}
 	else if(free_pages >= RAM_MB512)
 	{
-		hblocks[0] = vxd_hinit_block(2048, FALSE, FALSE); // 8 MB
-		hblocks[1] = vxd_hinit_block(8192, FALSE, FALSE); // 32 MB
+		hblocks[0] = vxd_hinit_block(2048, FALSE,  TRUE); // 8 MB
+		hblocks[1] = vxd_hinit_block(8192, FALSE,  TRUE); // 32 MB
 		hblocks[2] = vxd_hinit_block(32768, FALSE, TRUE); // 128 MB
 	}
 	else if(free_pages >= RAM_MB256)
 	{
-		hblocks[0] = vxd_hinit_block(2048, FALSE, FALSE); // 8 MB
-		hblocks[1] = vxd_hinit_block(8192, FALSE, FALSE); // 32 MB
+		hblocks[0] = vxd_hinit_block(2048, FALSE,  TRUE); // 8 MB
+		hblocks[1] = vxd_hinit_block(8192, FALSE,  TRUE); // 32 MB
 		hblocks[2] = vxd_hinit_block(16384, FALSE, TRUE); // 64 MB
 	}
 	else if(free_pages >= RAM_MB128)
 	{
-		hblocks[0] = vxd_hinit_block(1024, FALSE, FALSE); // 4 MB
-		hblocks[1] = vxd_hinit_block(4096, FALSE, FALSE); // 16 MB
-		hblocks[2] = vxd_hinit_block(8192, FALSE, TRUE);  // 32 MB
+		hblocks[0] = vxd_hinit_block(1024, FALSE, TRUE); // 4 MB
+		hblocks[1] = vxd_hinit_block(4096, FALSE, TRUE); // 16 MB
+		hblocks[2] = vxd_hinit_block(8192, FALSE, TRUE); // 32 MB
 	}
 
 	dbg_printf("vxd_hinit status: %lX %lX %lX %lX\n", hblocks[0], hblocks[1], hblocks[2], hblocks[3]);

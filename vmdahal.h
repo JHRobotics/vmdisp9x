@@ -68,7 +68,8 @@ typedef struct VMDAHAL
 	
   DDPIXELFORMAT_t ddpf;
   DDHALINFO_t     ddHALInfo;
-  
+  VIDMEM_t        vidMem[4];
+
   VMDAHALCB32_t cb32;
   
   DWORD hInstance;

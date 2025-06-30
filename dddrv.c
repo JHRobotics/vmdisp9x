@@ -51,32 +51,6 @@ DWORD __loadds __far __fastcall HALDestroyDriver(LPDDHAL_DESTROYDRIVERDATA);
 #define FB_MEM_POOL 16777216UL
 
 /*
- * video memory pool usage
- */
-static VIDMEM_t vidMem[] = {
-  {
-  	VIDMEM_ISLINEAR, 0x00000000, 0x00000000,
-		{0},
-		{0}
-	},
-  {
-  	VIDMEM_ISLINEAR, 0x00000000, 0x00000000,
-		{0},
-		{0}
-	},
-  {
-  	VIDMEM_ISLINEAR, 0x00000000, 0x00000000,
-		{0},
-		{0}
-	},
-  {
-  	VIDMEM_ISLINEAR, 0x00000000, 0x00000000,
-		{0},
-		{0}
-	}
-};
-
-/*
  * callbacks from the DIRECTDRAW object
  */
 static DDHAL_DDCALLBACKS_t cbDDCallbacks = {
@@ -266,7 +240,8 @@ static void buildDDHALInfo(VMDAHAL_t __far *hal, int modeidx)
 	/*
 	 * video memory pool information
 	 */
-	hal->ddHALInfo.vmiData.pvmList = vidMem;
+	_fmemset(hal->vidMem, 0, sizeof(VIDMEM_t[4]));
+	hal->ddHALInfo.vmiData.pvmList = hal->vidMem;
 
 	/*
 	 * set up the pointer to the first available video memory after
@@ -276,27 +251,27 @@ static void buildDDHALInfo(VMDAHAL_t __far *hal, int modeidx)
 	heap = 0;
 	can_flip = hda->flags & FB_SUPPORT_FLIPING;
 
-	vidMem[0].dwFlags = VIDMEM_ISLINEAR;
-	vidMem[0].ddsCaps.dwCaps = 0;//DDSCAPS_OFFSCREENPLAIN; - what this memory CANNOT be used for
+	hal->vidMem[0].dwFlags = VIDMEM_ISLINEAR;
+	hal->vidMem[0].ddsCaps.dwCaps = 0;//DDSCAPS_OFFSCREENPLAIN; - what this memory CANNOT be used for
 
 #if 0
 	if(hda->system_surface + hda->stride < FB_MEM_POOL && hda->vram_size > FB_MEM_POOL)
 	{
-		vidMem[0].fpStart = hda->vram_pm32 + FB_MEM_POOL;
-		vidMem[0].fpEnd   = hda->vram_pm32 + hda->vram_size - hda->overlays_size - 1;
+		hal->vidMem[0].fpStart = hda->vram_pm32 + FB_MEM_POOL;
+		hal->vidMem[0].fpEnd   = hda->vram_pm32 + hda->vram_size - hda->overlays_size - 1;
 
-		vidMem[1].fpStart = hda->vram_pm32 + hda->system_surface + hda->stride;
-		vidMem[1].fpEnd   = hda->vram_pm32 + FB_MEM_POOL - 1;
-		vidMem[1].dwFlags = VIDMEM_ISLINEAR;
-		vidMem[1].ddsCaps.dwCaps = DDSCAPS_OFFSCREENPLAIN;
+		hal->vidMem[1].fpStart = hda->vram_pm32 + hda->system_surface + hda->stride;
+		hal->vidMem[1].fpEnd   = hda->vram_pm32 + FB_MEM_POOL - 1;
+		hal->vidMem[1].dwFlags = VIDMEM_ISLINEAR;
+		hal->vidMem[1].ddsCaps.dwCaps = DDSCAPS_OFFSCREENPLAIN;
 
 		hal->ddHALInfo.vmiData.dwNumHeaps = 2;
 	}
 	else
 	{
 #endif
-		vidMem[0].fpStart = hda->vram_pm32 + hda->system_surface + hda->stride;	
-		vidMem[0].fpEnd   = hda->vram_pm32 + hda->vram_size - hda->overlays_size - 1;
+		hal->vidMem[0].fpStart = hda->vram_pm32 + hda->system_surface + hda->stride;
+		hal->vidMem[0].fpEnd   = hda->vram_pm32 + hda->vram_size - hda->overlays_size - 1;
 		hal->ddHALInfo.vmiData.dwNumHeaps = 1;
 #if 0
 	}
