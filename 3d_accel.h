@@ -33,7 +33,7 @@ THE SOFTWARE.
 #endif
 #endif
 
-#define API_3DACCEL_VER 20250522
+#define API_3DACCEL_VER 20250702
 
 #define ESCAPE_DRV_NT         0x1103 /* (4355) */
 
@@ -150,7 +150,25 @@ typedef struct FBHDA
 	         DWORD gamma_update; /* INC by one everytime when the pallete is updated */
 	         DWORD gpu_mem_total;
 	         DWORD gpu_mem_used;
+	         /* heap allocator */
+#ifndef FBHDA_SIXTEEN
+	         DWORD *heap_info; /* info block (id of first block, or ~0 on free) */
+	         BYTE  *heap_start; /* minimal address (but allocation from end to beginning) */
+	         BYTE  *heap_end;   /* maximal address + 1 */
+#else
+	         DWORD heap_info;
+	         DWORD heap_start;
+	         DWORD heap_end;
+#endif
+	         DWORD heap_count; /* number of blocks = heap_size_in_bytes / FB_VRAM_HEAP_GRANULARITY */
+	         DWORD heap_length; /* maximum usable block with current framebuffer */
+	         DWORD res1;
+	         DWORD res2;
+	         DWORD res3;
 } FBHDA_t;
+
+#define FB_VRAM_HEAP_GRANULARITY (4*32)
+/* minimum of vram allocation (32px at 32bpp, or 64px at 16bpp) */
 
 #define FB_SUPPORT_FLIPING     1
 #define FB_ACCEL_VIRGE         2

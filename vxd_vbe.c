@@ -271,6 +271,7 @@ BOOL VBE_setmode(DWORD w, DWORD h, DWORD bpp)
 	VBE_clear();
 
 	mouse_invalidate();
+	FBHDA_update_heap_size(FALSE);
 
 	return TRUE;
 }

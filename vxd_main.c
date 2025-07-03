@@ -515,6 +515,8 @@ static void configure_FBHDA()
 		{
 			fbhda->flags |= FB_ACCEL_QEMU3DFX;
 		}
+		
+		FBHDA_update_heap_size(TRUE);
 	}
 }
 

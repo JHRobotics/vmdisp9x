@@ -944,6 +944,8 @@ BOOL SVGA_setmode(DWORD w, DWORD h, DWORD bpp)
 	SVGA_clear();
 	
 	mouse_invalidate();
+	FBHDA_update_heap_size(FALSE);
+
 	FBHDA_access_end(0);
 
 	fb_lock_cnt = 0; // reset lock counters

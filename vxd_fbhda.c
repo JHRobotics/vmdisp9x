@@ -65,6 +65,41 @@ BOOL FBHDA_init_hw()
 	return FALSE;	
 }
 
+void FBHDA_update_heap_size(BOOL init)
+{
+	if(hda)
+	{
+		DWORD bottom = hda->vram_size - hda->overlays_size;
+		DWORD blocks = bottom/FB_VRAM_HEAP_GRANULARITY;
+		DWORD blocks_size = blocks*sizeof(DWORD);
+		DWORD top;
+		DWORD start;
+
+		blocks_size += ((FB_VRAM_HEAP_GRANULARITY - (blocks_size) % FB_VRAM_HEAP_GRANULARITY)) % FB_VRAM_HEAP_GRANULARITY;
+
+		hda->heap_end = ((BYTE*)hda->vram_pm32) + (blocks*FB_VRAM_HEAP_GRANULARITY - blocks_size);
+		hda->heap_info = (DWORD*)hda->heap_end;
+
+		top = hda->system_surface + hda->stride;
+		start = hda->heap_end - ((BYTE*)hda->vram_pm32 + top);
+		
+		hda->heap_count  = blocks;
+		hda->heap_length = start / FB_VRAM_HEAP_GRANULARITY;
+		hda->heap_start = hda->heap_end - FB_VRAM_HEAP_GRANULARITY*hda->heap_length;
+		
+		dbg_printf("FBHDA_update_heap_size(start=%lu bottom=%lu, hda->heap_length=%lu)\n", start, bottom, hda->heap_length);
+
+		if(init)
+		{
+			DWORD i;
+			for(i = 0; i < blocks; i++)
+			{
+				hda->heap_info[i] = (~0UL);
+			}
+		}
+	}
+}
+
 void FBHDA_release_hw()
 {
 	if(hda)
