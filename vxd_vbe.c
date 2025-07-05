@@ -148,7 +148,10 @@ BOOL VBE_init_hw()
  	
  	dbg_printf(dbg_vbe_init, vram_phy, vram_size);
  	
- 	hda->vram_size = vram_size;
+	hda->vram_size = vram_size;
+	hda->vram_bar_size = vram_size;
+	FBHDA_memtest();
+
 	hda->vram_pm32 = (void*)_MapPhysToLinear(vram_phy, vram_size, 0);
 	hda->flags    |= FB_SUPPORT_FLIPING;
 	

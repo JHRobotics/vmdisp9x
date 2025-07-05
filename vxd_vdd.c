@@ -51,6 +51,8 @@ THE SOFTWARE.
 extern FBHDA_t *hda;
 extern DWORD ThisVM;
 
+extern DWORD is_qemu;
+
 static DWORD hda_pm16 = 0;
 static DWORD mouse_pm16 = 0;
 
@@ -451,19 +453,21 @@ VDDPROC(VESA_SUPPORT, vesa_support)
 VDDPROC(PRE_HIRES_TO_VGA, pre_hires_to_vga)
 {
 	mode_changing = TRUE;
-#ifdef QEMU
-	Disable_Global_Trapping(0x1CE);
-	Disable_Global_Trapping(0x1CF);
-#endif
+	if(is_qemu)
+	{
+		Disable_Global_Trapping(0x1CE);
+		Disable_Global_Trapping(0x1CF);
+	}
 }
 
 VDDPROC(POST_HIRES_TO_VGA, post_hires_to_vga)
 {
 	mode_changing = FALSE;
-#ifdef QEMU
-	Enable_Global_Trapping(0x1CE);
-	Enable_Global_Trapping(0x1CF);
-#endif
+	if(is_qemu)
+	{
+		Enable_Global_Trapping(0x1CE);
+		Enable_Global_Trapping(0x1CF);
+	}
 }
 
 VDDPROC(PRE_VGA_TO_HIRES, pre_vga_to_hires)
@@ -478,18 +482,20 @@ VDDPROC(POST_VGA_TO_HIRES, post_vga_to_hires)
 
 VDDPROC(ENABLE_TRAPS, enable_traps)
 {
-#ifdef QEMU
-	Enable_Global_Trapping(0x1CE);
-	Enable_Global_Trapping(0x1CF);
-#endif
+	if(is_qemu)
+	{
+		Enable_Global_Trapping(0x1CE);
+		Enable_Global_Trapping(0x1CF);
+	}
 }
 
 VDDPROC(DISPLAY_DRIVER_DISABLING, display_driver_disabling)
 {
-#ifdef QEMU
-	Disable_Global_Trapping(0x1CE);
-	Disable_Global_Trapping(0x1CF);
-#endif
+	if(is_qemu)
+	{
+		Disable_Global_Trapping(0x1CE);
+		Disable_Global_Trapping(0x1CF);
+	}
 }
 
 VDDPROC(SAVE_REGISTERS, save_registers)

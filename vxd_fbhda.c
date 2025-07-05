@@ -259,3 +259,38 @@ BOOL FBHDA_gamma_set(VOID FBPTR ramp, DWORD buffer_size)
 	return FALSE;
 }
 
+#define TEST_PATTERN 0xAAAAAAAAUL
+
+void FBHDA_memtest()
+{
+	if(hda)
+	{
+		DWORD i;
+		DWORD *ptr = hda->vram_pm32;
+		DWORD size4 = hda->vram_size/4;
+		
+		for(i = 0; i < size4; i++)
+		{
+			ptr[i] = TEST_PATTERN;
+		}
+		
+		for(i = 0; i < size4; i++)
+		{
+			if(ptr[i] != TEST_PATTERN)
+			{
+				dbg_printf("VRAM memory error at %ld, fixing size\n", i*4);
+				hda->vram_size = i*4;
+				break;
+			}
+		}
+		
+		size4 = i;
+		/* write black, parent may confuse some users... */
+		for(i = 0; i < size4; i++)
+		{
+			ptr[i] = 0;
+		}
+
+		dbg_printf("VRAM real size=%ld\n", size4);
+	}
+}

@@ -110,6 +110,7 @@ static char SVGA_conf_hw_version[] = "HWVersion";
 static char SVGA_conf_disable_multisample[] = "NoMultisample";
 static char SVGA_conf_reg_multisample[] = "RegMultisample";
 static char SVGA_conf_async_mobs[] = "AsyncMOBs";
+static char SVGA_conf_no_scr_accel[] = "NoScreenAccel";
 
 static char SVGA_vxd_name[]        = "vmwsmini.vxd";
 
@@ -217,7 +218,12 @@ DWORD SVGA_fence_passed()
 		return SVGA_ReadReg(SVGA_REG_FENCE);
 	}
 	
-	return gSVGA.fifoMem[SVGA_FIFO_FENCE];
+	if(SVGA_HasFIFOCap(SVGA_FIFO_CAP_FENCE))
+	{
+		return gSVGA.fifoMem[SVGA_FIFO_FENCE];
+	}
+	
+	return 0;
 }
 
 DWORD SVGA_fence_get()
@@ -256,6 +262,12 @@ BOOL SVGA_fence_is_passed(DWORD fence_id)
 {
 	DWORD last_pased;
 	DWORD last_fence;
+
+	if(!SVGA_HasFIFOCap(SVGA_FIFO_CAP_FENCE))
+	{
+		SVGA_Flush();
+		return TRUE;
+	}
 	
 	SVGA_fence_query(&last_pased, &last_fence);
 	if(fence_id > last_fence)
@@ -359,6 +371,7 @@ static DWORD fb_pm16 = 0;
 static DWORD st_surface_mb = 0;
 static DWORD disable_multisample = 0;
 static DWORD reg_multisample = 0;
+static DWORD disable_screen_accel = 0;
 
 static void SVGA_write_driver_id()
 {
@@ -410,34 +423,35 @@ BOOL SVGA_init_hw()
 	cb_sem = Create_Semaphore(1);
 
 	/* configs in registry */
- 	RegReadConf(HKEY_LOCAL_MACHINE, SVGA_conf_path, SVGA_conf_vram_limit, &conf_vram_limit);
- 	RegReadConf(HKEY_LOCAL_MACHINE, SVGA_conf_path, SVGA_conf_rgb565bug,  &conf_rgb565bug);
- 	RegReadConf(HKEY_LOCAL_MACHINE, SVGA_conf_path, SVGA_conf_cb,         &conf_cb); 
- 	RegReadConf(HKEY_LOCAL_MACHINE, SVGA_conf_path, SVGA_conf_hw_version, &conf_hw_version);
- 	RegReadConf(HKEY_LOCAL_MACHINE, SVGA_conf_path, SVGA_conf_pref_fifo,  &prefer_fifo);
+	RegReadConf(HKEY_LOCAL_MACHINE, SVGA_conf_path, SVGA_conf_vram_limit, &conf_vram_limit);
+	RegReadConf(HKEY_LOCAL_MACHINE, SVGA_conf_path, SVGA_conf_rgb565bug,  &conf_rgb565bug);
+	RegReadConf(HKEY_LOCAL_MACHINE, SVGA_conf_path, SVGA_conf_cb,         &conf_cb); 
+	RegReadConf(HKEY_LOCAL_MACHINE, SVGA_conf_path, SVGA_conf_hw_version, &conf_hw_version);
+	RegReadConf(HKEY_LOCAL_MACHINE, SVGA_conf_path, SVGA_conf_pref_fifo,  &prefer_fifo);
 
- 	RegReadConf(HKEY_LOCAL_MACHINE, SVGA_conf_path, SVGA_conf_disable_multisample, &disable_multisample);
- 	RegReadConf(HKEY_LOCAL_MACHINE, SVGA_conf_path, SVGA_conf_reg_multisample, &reg_multisample);
+	RegReadConf(HKEY_LOCAL_MACHINE, SVGA_conf_path, SVGA_conf_disable_multisample, &disable_multisample);
+	RegReadConf(HKEY_LOCAL_MACHINE, SVGA_conf_path, SVGA_conf_reg_multisample, &reg_multisample);
 
- 	RegReadConf(HKEY_LOCAL_MACHINE, SVGA_conf_path, SVGA_conf_async_mobs, &async_mobs);
- 	RegReadConf(HKEY_LOCAL_MACHINE, SVGA_conf_path, SVGA_conf_hw_cursor,  &hw_cursor);
- 	
+	RegReadConf(HKEY_LOCAL_MACHINE, SVGA_conf_path, SVGA_conf_async_mobs,  &async_mobs);
+	RegReadConf(HKEY_LOCAL_MACHINE, SVGA_conf_path, SVGA_conf_hw_cursor,   &hw_cursor);
+	RegReadConf(HKEY_LOCAL_MACHINE, SVGA_conf_path, SVGA_conf_no_scr_accel, &disable_screen_accel);
+
  	if(async_mobs < 1)
  		async_mobs = 1;
- 	
+
  	if(async_mobs >= SVGA_CB_MAX_QUEUED_PER_CONTEXT)
  		async_mobs = SVGA_CB_MAX_QUEUED_PER_CONTEXT-1;
- 	
+
  	if(!FBHDA_init_hw())
  	{
  		return FALSE;
  	}
- 	
+
  	dbg_printf(dbg_test, 0);
- 	
+
  	rc = SVGA_Init(FALSE, conf_hw_version);
  	dbg_printf(dbg_SVGA_Init, rc);
- 	
+
 	if(rc == 0)
 	{
 		/* default flags */
@@ -570,6 +584,7 @@ BOOL SVGA_init_hw()
 		/* fill address in FBHDA */
 		hda->vram_pm32 = (void*)gSVGA.fbLinear;
 		hda->vram_size = gSVGA.vramSize;
+		hda->vram_bar_size = gSVGA.vramSize;
 		hda->vram_pm16 = fb_pm16;
 		
  		memcpy(hda->vxdname, SVGA_vxd_name, sizeof(SVGA_vxd_name));
@@ -585,7 +600,9 @@ BOOL SVGA_init_hw()
 
 		/* switch back to VGA mode, SVGA mode will be request by 16 bit driver later */
 		SVGA_HW_disable();
-		
+
+		FBHDA_memtest();
+
 		return TRUE;
 	}
 	
@@ -595,9 +612,12 @@ BOOL SVGA_init_hw()
 /* Check if screen acceleration is available */
 static BOOL SVGA_hasAccelScreen()
 {
-	if(SVGA_HasFIFOCap(SVGA_FIFO_CAP_SCREEN_OBJECT | SVGA_FIFO_CAP_SCREEN_OBJECT_2))
+	if(disable_screen_accel == 0)
 	{
-		return TRUE;
+		if(SVGA_HasFIFOCap(SVGA_FIFO_CAP_SCREEN_OBJECT | SVGA_FIFO_CAP_SCREEN_OBJECT_2))
+		{
+			return TRUE;
+		}
 	}
 	
 	return FALSE;
@@ -749,16 +769,13 @@ BOOL SVGA_validmode(DWORD w, DWORD h, DWORD bpp)
 	{
 		if(h <= SVGA_ReadReg(SVGA_REG_MAX_HEIGHT))
 		{
-			DWORD size = SVGA_pitch(w, bpp) * h;
-			if(size < hda->vram_size)
+			DWORD size = SVGA_pitch(w, 32) * h;
+			size += SVGA_pitch(w, bpp) * h;
+			if(size > hda->vram_size)
 			{
-				if(bpp != 32 && size > SVGA_FB_MAX_TRACEABLE_SIZE)
-				{
-					return FALSE;
-				}
-				
-				return TRUE;
+				return FALSE;
 			}
+			return TRUE;
 		}
 	}
 	
@@ -795,15 +812,8 @@ static void SVGA_setmode_phy(DWORD w, DWORD h, DWORD bpp)
 	/* stop command buffer context 0 */
 	SVGA_CB_stop();
   
-   /* setup by legacy registry */
-  if(SVGA_hasAccelScreen())
-  {
-		SVGA_SetModeLegacy(w, h, 32);
-	}
-	else
-	{
-		SVGA_SetModeLegacy(w, h, bpp);
-	}
+	/* setup by legacy registry */
+	SVGA_SetModeLegacy(w, h, 32);
 	
 	/* VMware, vGPU10: OK, when screen has change, whoale GPU is reset including FIFO */
 	SVGA_Enable();
@@ -890,31 +900,23 @@ BOOL SVGA_setmode(DWORD w, DWORD h, DWORD bpp)
 
 	hda->flags &= ~((DWORD)FB_ACCEL_VMSVGA10_ST);
 
+/*
 	hda->vram_pm32 = (void*)gSVGA.fbLinear;
 	hda->vram_size = gSVGA.vramSize;
 	hda->vram_pm16 = fb_pm16;
-
+	JH: this doesn't change at runtime!
+*/
 	hda->width   = w;//SVGA_ReadReg(SVGA_REG_WIDTH);
 	hda->height  = h;//SVGA_ReadReg(SVGA_REG_HEIGHT);
 
-	if(SVGA_hasAccelScreen())
+	if(bpp >= 8)
 	{
-		if(bpp >= 8)
-		{
-			DWORD offset = SVGA_DT_stride(hda->width, hda->height);
-			
-			hda->bpp     = bpp;
-			hda->pitch   = SVGA_pitch(hda->width, bpp);
-			hda->system_surface = offset;
-			hda->surface = offset;
-		}
-		else
-		{
-			hda->bpp     = SVGA_ReadReg(SVGA_REG_BITS_PER_PIXEL);
-			hda->pitch   = SVGA_ReadReg(SVGA_REG_BYTES_PER_LINE);
-			hda->surface = 0;
-			hda->system_surface = 0;
-		}
+		DWORD offset = SVGA_DT_stride(hda->width, hda->height);
+
+		hda->bpp     = bpp;
+		hda->pitch   = SVGA_pitch(hda->width, bpp);
+		hda->system_surface = offset;
+		hda->surface = offset;
 	}
 	else
 	{
@@ -923,8 +925,9 @@ BOOL SVGA_setmode(DWORD w, DWORD h, DWORD bpp)
 		hda->surface = 0;
 		hda->system_surface = 0;
 	}
+
 	hda->stride  = hda->height * hda->pitch;
-	
+
 	if(has3D && SVGA_GetDevCap(SVGA3D_DEVCAP_3D) > 0)
 	{
 		hda->flags |= FB_ACCEL_VMSVGA3D;
@@ -934,15 +937,18 @@ BOOL SVGA_setmode(DWORD w, DWORD h, DWORD bpp)
 	{
 		hda->flags &= ~((DWORD)FB_ACCEL_VMSVGA3D);
 	}
-	
+
 	if(hda->system_surface > 0)
 	{
 		hda->flags |= FB_SUPPORT_FLIPING;
-		SVGA_DefineGMRFB();
+		if(SVGA_hasAccelScreen())
+		{
+			SVGA_DefineGMRFB();
+		}
 	}
-	
+
 	SVGA_clear();
-	
+
 	mouse_invalidate();
 	FBHDA_update_heap_size(FALSE);
 
@@ -1126,12 +1132,15 @@ BOOL FBHDA_swap(DWORD offset)
 	{
 	 	FBHDA_access_begin(0);
 		if(hda->bpp >= 8)
-	 	{
-	  	hda->surface = offset;
-	 		SVGA_DefineGMRFB();
-	  	rc = TRUE;
+		{
+			hda->surface = offset;
+			if(SVGA_hasAccelScreen())
+			{
+				SVGA_DefineGMRFB();
+			}
+			rc = TRUE;
 		}
-	  FBHDA_access_end(0);
+		FBHDA_access_end(0);
 	}
 
 	return rc;
@@ -1177,22 +1186,29 @@ static inline void check_dirty()
 		{
 			case 32:
 			{
-			 	SVGAFifoCmdBlitScreenToGMRFB *gmrblit;
-			 	DWORD cmd_offset = 0;
-		
-				wait_for_cmdbuf();
-						
-				gmrblit = SVGA_cmd_ptr(cmdbuf, &cmd_offset, SVGA_CMD_BLIT_SCREEN_TO_GMRFB, sizeof(SVGAFifoCmdBlitScreenToGMRFB));
-	
-				gmrblit->destOrigin.x    = 0;
-				gmrblit->destOrigin.y    = 0;
-				gmrblit->srcRect.left    = 0;
-				gmrblit->srcRect.top     = 0;
-				gmrblit->srcRect.right   = hda->width;
-				gmrblit->srcRect.bottom  = hda->height;
-				gmrblit->srcScreenId = 0;
-				  	
-				submit_cmdbuf(cmd_offset, SVGA_CB_UPDATE, 0);
+				if(SVGA_hasAccelScreen())
+				{
+					SVGAFifoCmdBlitScreenToGMRFB *gmrblit;
+					DWORD cmd_offset = 0;
+
+					wait_for_cmdbuf();
+
+					gmrblit = SVGA_cmd_ptr(cmdbuf, &cmd_offset, SVGA_CMD_BLIT_SCREEN_TO_GMRFB, sizeof(SVGAFifoCmdBlitScreenToGMRFB));
+
+					gmrblit->destOrigin.x    = 0;
+					gmrblit->destOrigin.y    = 0;
+					gmrblit->srcRect.left    = 0;
+					gmrblit->srcRect.top     = 0;
+					gmrblit->srcRect.right   = hda->width;
+					gmrblit->srcRect.bottom  = hda->height;
+					gmrblit->srcScreenId = 0;
+
+					submit_cmdbuf(cmd_offset, SVGA_CB_UPDATE, 0);
+				}
+				else
+				{
+					memcpy(hda->vram_pm32, ((BYTE*)hda->vram_pm32)+hda->surface, hda->stride);
+				}
 				break;
 			}
 			case 16:
@@ -1205,7 +1221,7 @@ static inline void check_dirty()
 				break;
 			}
 		} // switch
-		
+
 		surface_dirty = FALSE;
 	}
 }
@@ -1356,23 +1372,36 @@ void FBHDA_access_end(DWORD flags)
 				{
 					case 32:
 					{
-				  	SVGAFifoCmdBlitGMRFBToScreen *gmrblit;
-				  	DWORD cmd_offset = 0;
-		
-						wait_for_cmdbuf();
-						
-				  	gmrblit = SVGA_cmd_ptr(cmdbuf, &cmd_offset, SVGA_CMD_BLIT_GMRFB_TO_SCREEN, sizeof(SVGAFifoCmdBlitGMRFBToScreen));
-	
-				  	gmrblit->srcOrigin.x      = rect_left;
-				  	gmrblit->srcOrigin.y      = rect_top;
-				  	gmrblit->destRect.left    = rect_left;
-				  	gmrblit->destRect.top     = rect_top;
-				  	gmrblit->destRect.right   = rect_right;
-				  	gmrblit->destRect.bottom  = rect_bottom;
-	
-				  	gmrblit->destScreenId = 0;
-	
-						submit_cmdbuf(cmd_offset, SVGA_CB_UPDATE, 0);
+						if(SVGA_hasAccelScreen())
+						{
+							SVGAFifoCmdBlitGMRFBToScreen *gmrblit;
+							DWORD cmd_offset = 0;
+
+							wait_for_cmdbuf();
+
+							gmrblit = SVGA_cmd_ptr(cmdbuf, &cmd_offset, SVGA_CMD_BLIT_GMRFB_TO_SCREEN, sizeof(SVGAFifoCmdBlitGMRFBToScreen));
+
+							gmrblit->srcOrigin.x      = rect_left;
+							gmrblit->srcOrigin.y      = rect_top;
+							gmrblit->destRect.left    = rect_left;
+							gmrblit->destRect.top     = rect_top;
+							gmrblit->destRect.right   = rect_right;
+							gmrblit->destRect.bottom  = rect_bottom;
+
+							gmrblit->destScreenId = 0;
+
+							submit_cmdbuf(cmd_offset, SVGA_CB_UPDATE, 0);
+						}
+						else
+						{
+							blit32(
+								((BYTE*)hda->vram_pm32)+hda->surface, hda->pitch,
+								hda->vram_pm32, hda->pitch,
+								rect_left, rect_top,
+								rect_right - rect_left, rect_bottom - rect_top
+							);
+							need_refresh = TRUE;
+						}
 						break;
 					}
 					case 16:

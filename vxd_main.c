@@ -101,8 +101,9 @@ DDB VXD_DDB = {
 DWORD *DispatchTable = 0;
 DWORD DispatchTableLength = 0;
 DWORD ThisVM = 0;
+DWORD is_qemu = FALSE;
 
-#ifdef QEMU
+#if defined(QEMU) || defined(SVGA)
 /**
  * This is fix of broken screen when open DOS window
  *
@@ -126,7 +127,7 @@ void __declspec(naked) virtual_0x1ce()
 	}
 	VxDJmp(VDD, Do_Physical_IO);
 }
-#endif /* QEMU */
+#endif /* QEMU/SVGA */
 
 /**
  * VDD calls wrapers
@@ -562,13 +563,25 @@ void Device_Init_proc(DWORD VM)
 	VBE_init_hw();
 #endif
 
-#ifdef QEMU
+#if defined(QEMU)
 	Install_IO_Handler(0x1ce, (DWORD)virtual_0x1ce);
 	Disable_Global_Trapping(0x1ce);
 	Install_IO_Handler(0x1cf, (DWORD)virtual_0x1ce);
 	Disable_Global_Trapping(0x1cf);
+	
+	is_qemu = TRUE;
+#elif defined(SVGA)
+	if(!SVGA_HasFIFOCap(SVGA_FIFO_CAP_FENCE)) /* no SVGA_FIFO_CAP_FENCE => QEMU */
+	{
+		Install_IO_Handler(0x1ce, (DWORD)virtual_0x1ce);
+		Disable_Global_Trapping(0x1ce);
+		Install_IO_Handler(0x1cf, (DWORD)virtual_0x1ce);
+		Disable_Global_Trapping(0x1cf);
+		
+		is_qemu = TRUE;
+	}
 #endif
- 	
+
 	/* register miniVDD functions */
 	VDD_Get_Mini_Dispatch_Table();
 	if(DispatchTableLength >= 0x31)
@@ -577,6 +590,9 @@ void Device_Init_proc(DWORD VM)
 	}
 	
 	configure_FBHDA();
+#ifdef SVGA
+	vxd_hstats_update();
+#endif
 	End_Critical_Section();
 }
 #undef VDDFUNC
@@ -791,7 +807,7 @@ DWORD __stdcall Device_IO_Control_proc(DWORD vmhandle, struct DIOCParams *params
 
 void Device_Init_Complete(DWORD VM)
 {
-#ifdef QEMU
+#if defined(QEMU) || defined(SVGA)
 /*
  * At Windows shutdown time, the display driver calls VDD_DRIVER_UNREGISTER,
  * which calls our DisplayDriverDisabling callback, and soon thereafter
@@ -810,8 +826,11 @@ void Device_Init_Complete(DWORD VM)
  * At entry, EBX contains a Windows VM handle.
  *
  */
-	_PhysIntoV86(0xA0, VM, 0xA0, 16, 0);
-	_PhysIntoV86(0xB8, VM, 0xB8, 8, 0);
+	if(is_qemu)
+	{
+		_PhysIntoV86(0xA0, VM, 0xA0, 16, 0);
+		_PhysIntoV86(0xB8, VM, 0xB8, 8, 0);
+	}
 #endif
 }
 

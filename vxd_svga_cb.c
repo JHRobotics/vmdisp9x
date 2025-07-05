@@ -619,9 +619,12 @@ void SVGA_CMB_submit(DWORD FBPTR cmb, DWORD cmb_size, SVGA_CMB_status_t FBPTR st
 		/* insert fence CMD */
 		if(flags_fifo_fence_need(flags))
 		{
-			fence = SVGA_fence_get();
-			ptr[dwords++] = SVGA_CMD_FENCE;
-			ptr[dwords++] = fence;
+			if(SVGA_HasFIFOCap(SVGA_FIFO_CAP_FENCE))
+			{
+				fence = SVGA_fence_get();
+				ptr[dwords++] = SVGA_CMD_FENCE;
+				ptr[dwords++] = fence;
+			}
 		}
 		
 		flags_fence_check(flags);

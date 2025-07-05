@@ -131,14 +131,14 @@ static void block_clr(DWORD *bitmap, DWORD pos, DWORD cnt)
 	}
 }
 
-static void update_stats()
+void vxd_hstats_update()
 {
 	if(hda)
 	{
 		hda->gpu_mem_total = mem_total;
 		hda->gpu_mem_used = mem_used;
 	}
-	dbg_printf("TOTAL: %ld, USED: %ld\n", mem_total, mem_used);
+	dbg_printf("GMR total: %ld, used: %ld\n", mem_total, mem_used);
 }
 
 static BOOL vxd_block(hblock_t *blk, DWORD pages_cnt, void **flat)
@@ -167,7 +167,7 @@ static BOOL vxd_block(hblock_t *blk, DWORD pages_cnt, void **flat)
 	if(blk->stats)
 	{
 		mem_used += pages_cnt * P_SIZE;
-		update_stats();
+		vxd_hstats_update();
 	}
 
 	return TRUE;
@@ -194,7 +194,7 @@ static void vxd_block_free(hblock_t *blk, DWORD start_n)
 		if(blk->stats)
 		{
 			mem_used -= cnt * P_SIZE;
-			update_stats();
+			vxd_hstats_update();
 		}
 		
 		for(i = 0; i < cnt; i++)
@@ -218,12 +218,20 @@ static hblock_t *vxd_hinit_block(DWORD pages_cnt, BOOL shared, BOOL stats)
 	flat = _PageReserve(shared ? PR_SHARED : PR_SYSTEM, service_pages+pages_cnt, PR_FIXED);
 	if(flat)
 	{
-		if(_PageCommit(flat >> 12, service_pages+pages_cnt, PD_FIXED, 0, PC_FIXED | PC_WRITEABLE | PC_USER) == 0)
+#if 0
+		if(_PageCommitContig(flat >> 12, service_pages+pages_cnt, PC_FIXED | PC_WRITEABLE | PC_USER, 0x00, 0, -1) == 0)
 		{
-			dbg_printf("_PageCommit failed\n");
-			_PageFree((PVOID)flat, 0);
-			return NULL;
+			dbg_printf("_PageCommitContig failed, using mode more fragmented metod.\n");
+#endif
+			if(_PageCommit(flat >> 12, service_pages+pages_cnt, PD_FIXED, 0, PC_FIXED | PC_WRITEABLE | PC_USER) == 0)
+			{
+				dbg_printf("_PageCommit failed\n");
+				_PageFree((PVOID)flat, 0);
+				return NULL;
+			}
+#if 0
 		}
+#endif
 
 		/*
 		DWORD flat2 = _PageReAllocate(flat, service_pages+pages_cnt, 0);
@@ -249,6 +257,7 @@ static hblock_t *vxd_hinit_block(DWORD pages_cnt, BOOL shared, BOOL stats)
 		{
 			out->stats = TRUE;
 			mem_total += pages_cnt*P_SIZE;
+			vxd_hstats_update();
 		}
 
 		for(i = 0; i < pages_cnt; i++)
@@ -354,6 +363,7 @@ BOOL vxd_hinit()
 		{
 			hblocks[2]->id = 4;
 		}
+		
 		return TRUE;
 	}
 	return FALSE;

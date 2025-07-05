@@ -59,6 +59,7 @@ DWORD __cdecl _PageReserve(ULONG page, ULONG npages, ULONG flags);
 DWORD __cdecl _PageCommit(ULONG page, ULONG npages, ULONG hpd, ULONG pagerdata, ULONG flags);
 DWORD __cdecl _PageCommitPhys(ULONG page, ULONG npages, ULONG physpg, ULONG flags);
 DWORD __cdecl _PageReAllocate(ULONG hMem, ULONG nPages, ULONG flags);
+DWORD __cdecl _PageCommitContig(ULONG page, ULONG npages, ULONG flags, ULONG alignmask, ULONG minphys, ULONG maxphys);
 
 void __cdecl Resume_VM(ULONG VM);
 void Release_Time_Slice();
@@ -105,3 +106,4 @@ BOOL VPICD_Virtualize_IRQ(struct _VPICD_IRQ_Descriptor *vid);
 
 /* extra FBHA */
 void FBHDA_update_heap_size(BOOL init);
+void FBHDA_memtest();

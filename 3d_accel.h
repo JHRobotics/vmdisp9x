@@ -139,7 +139,7 @@ typedef struct FBHDA
            DWORD       vram_pm32;
            void __far *vram_pm16;
 #endif
-	         DWORD vram_size;
+	         DWORD vram_size; /* real r/w memory size */
 	         char vxdname[16]; /* file name or "NT" */
 	         DWORD overlay;
 	         FBHDA_overlay_t overlays[FBHDA_OVERLAYS_MAX];
@@ -162,7 +162,7 @@ typedef struct FBHDA
 #endif
 	         DWORD heap_count; /* number of blocks = heap_size_in_bytes / FB_VRAM_HEAP_GRANULARITY */
 	         DWORD heap_length; /* maximum usable block with current framebuffer */
-	         DWORD res1;
+	         DWORD vram_bar_size; /* PCI region size, may be larger then vram_size */
 	         DWORD res2;
 	         DWORD res3;
 } FBHDA_t;

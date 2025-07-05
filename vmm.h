@@ -1138,6 +1138,25 @@ typedef struct tagVxD_Desc_Block
 
 #endif
 
+#define VMM___CallRing3 339
+#define VMM__Exec_PM_Int 340
+#define VMM___RegFlushKey 341
+#define VMM___PageCommitContig 342
+#define VMM___GetCurrentContext 343
+
+#define VMM___LocalizeSprintf 344
+#define VMM___LocalizeStackSprintf 345
+
+#define VMM__Call_Restricted_Event 346
+#define VMM__Cancel_Restricted_Event 347
+
+#define VMM__Register_PEF_Provider 348
+
+#define VMM___GetPhysPageInfo 349
+
+#define VMM___RegQueryInfoKey 350
+#define VMM__MemArb_Reserve_Pages 351
+
 #pragma pack(push)
 #pragma pack(1)
 typedef struct tagCRS_32

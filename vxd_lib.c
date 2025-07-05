@@ -514,6 +514,11 @@ DWORD __declspec(naked) __cdecl _PageCommitPhys(ULONG page, ULONG npages, ULONG 
 	VMMJmp(_PageCommitPhys);
 }
 
+DWORD __declspec(naked) __cdecl _PageCommitContig(ULONG page, ULONG npages, ULONG flags, ULONG alignmask, ULONG minphys, ULONG maxphys)
+{
+	VMMJmp(_PageCommitContig);
+}
+
 void Enable_Global_Trapping(DWORD port)
 {
 	_asm push edx

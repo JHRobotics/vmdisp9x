@@ -253,29 +253,19 @@ static void buildDDHALInfo(VMDAHAL_t __far *hal, int modeidx)
 
 	hal->vidMem[0].dwFlags = VIDMEM_ISLINEAR;
 	hal->vidMem[0].ddsCaps.dwCaps = 0;//DDSCAPS_OFFSCREENPLAIN; - what this memory CANNOT be used for
+	hal->vidMem[0].fpStart = hda->vram_pm32 + hda->system_surface + hda->stride;
+	hal->vidMem[0].fpEnd   = hda->vram_pm32 + hda->vram_size - hda->overlays_size - 1;
+	hal->ddHALInfo.vmiData.dwNumHeaps = 1;
 
-#if 0
-	if(hda->system_surface + hda->stride < FB_MEM_POOL && hda->vram_size > FB_MEM_POOL)
+	if(hda->vram_size < hda->vram_bar_size)
 	{
-		hal->vidMem[0].fpStart = hda->vram_pm32 + FB_MEM_POOL;
-		hal->vidMem[0].fpEnd   = hda->vram_pm32 + hda->vram_size - hda->overlays_size - 1;
-
-		hal->vidMem[1].fpStart = hda->vram_pm32 + hda->system_surface + hda->stride;
-		hal->vidMem[1].fpEnd   = hda->vram_pm32 + FB_MEM_POOL - 1;
+		/* on vmware is only first 16 MB regular memory, we map the "blackhole" to another heap, but driver will alocate surface in system memory */
+		hal->vidMem[1].fpStart = hda->vram_pm32 + hda->vram_size;
+		hal->vidMem[1].fpEnd   = hda->vram_pm32 + hda->vram_bar_size - 1;
 		hal->vidMem[1].dwFlags = VIDMEM_ISLINEAR;
-		hal->vidMem[1].ddsCaps.dwCaps = DDSCAPS_OFFSCREENPLAIN;
-
+		hal->vidMem[1].ddsCaps.dwCaps = DDSCAPS_PRIMARYSURFACE | DDSCAPS_OFFSCREENPLAIN;
 		hal->ddHALInfo.vmiData.dwNumHeaps = 2;
 	}
-	else
-	{
-#endif
-		hal->vidMem[0].fpStart = hda->vram_pm32 + hda->system_surface + hda->stride;
-		hal->vidMem[0].fpEnd   = hda->vram_pm32 + hda->vram_size - hda->overlays_size - 1;
-		hal->ddHALInfo.vmiData.dwNumHeaps = 1;
-#if 0
-	}
-#endif
 
 	/*
 	 * capabilities supported
