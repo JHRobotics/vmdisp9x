@@ -610,16 +610,16 @@ BOOL SVGA_init_hw()
 }
 
 /* Check if screen acceleration is available */
-static BOOL SVGA_hasAccelScreen()
+static BOOL SVGA_hasAccelScreen(BOOL allow_disable)
 {
-	if(disable_screen_accel == 0)
+	if(!allow_disable || disable_screen_accel == 0)
 	{
 		if(SVGA_HasFIFOCap(SVGA_FIFO_CAP_SCREEN_OBJECT | SVGA_FIFO_CAP_SCREEN_OBJECT_2))
 		{
 			return TRUE;
 		}
 	}
-	
+
 	return FALSE;
 }
 
@@ -821,15 +821,14 @@ static void SVGA_setmode_phy(DWORD w, DWORD h, DWORD bpp)
 	SVGA_Flush(); /* make sure, that is really set */
 
 	/* setting screen by fifo, this method is required in VB 6.1 */
-	if(SVGA_hasAccelScreen())
+	if(SVGA_hasAccelScreen(FALSE))
 	{
 		SVGA_defineScreen(w, h, bpp, 0);
-			
+
 		/* reenable fifo */
 		SVGA_Enable();
-		
+
 		SVGA_Flush();
-		
 		/* TODO, not do this on vGPU10 */
 	}
 	SVGA_Sync();
@@ -897,7 +896,6 @@ BOOL SVGA_setmode(DWORD w, DWORD h, DWORD bpp)
 	}
 
 	hda->flags &= ~((DWORD)FB_SUPPORT_FLIPING);
-
 	hda->flags &= ~((DWORD)FB_ACCEL_VMSVGA10_ST);
 
 /*
@@ -941,7 +939,7 @@ BOOL SVGA_setmode(DWORD w, DWORD h, DWORD bpp)
 	if(hda->system_surface > 0)
 	{
 		hda->flags |= FB_SUPPORT_FLIPING;
-		if(SVGA_hasAccelScreen())
+		if(SVGA_hasAccelScreen(TRUE))
 		{
 			SVGA_DefineGMRFB();
 		}
@@ -1134,7 +1132,7 @@ BOOL FBHDA_swap(DWORD offset)
 		if(hda->bpp >= 8)
 		{
 			hda->surface = offset;
-			if(SVGA_hasAccelScreen())
+			if(SVGA_hasAccelScreen(TRUE))
 			{
 				SVGA_DefineGMRFB();
 			}
@@ -1186,7 +1184,7 @@ static inline void check_dirty()
 		{
 			case 32:
 			{
-				if(SVGA_hasAccelScreen())
+				if(SVGA_hasAccelScreen(TRUE))
 				{
 					SVGAFifoCmdBlitScreenToGMRFB *gmrblit;
 					DWORD cmd_offset = 0;
@@ -1372,7 +1370,7 @@ void FBHDA_access_end(DWORD flags)
 				{
 					case 32:
 					{
-						if(SVGA_hasAccelScreen())
+						if(SVGA_hasAccelScreen(TRUE))
 						{
 							SVGAFifoCmdBlitGMRFBToScreen *gmrblit;
 							DWORD cmd_offset = 0;

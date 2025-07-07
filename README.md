@@ -25,7 +25,7 @@ Driver is based on [Michal Necasek's VirtualBox driver](http://www.os2museum.com
 - added access VMWare/VBox SVGA API to support real 3D acceleration from user space driver
 - added API to access VRAM/FB directly
 - added DirectDraw support
-- added DirectX support (in development)
+- added DirectX support
 
 QEMU support (`-vga std`) is from [Philip Kelley driver modification](https://github.com/phkelley/boxv9x)
 
@@ -38,7 +38,7 @@ DirectDraw is supported, Ring-3 driver is in separated project [VMHal9x](https:/
 
 
 ## Direct3D support
-DirectDraw is now in development, most of D3D code is in VMHal9x, rasterization is done by Mesa9x. **D3D is not part of releases yet!**
+DirectDraw is now in development, most of D3D code is in VMHal9x, rasterization is done by Mesa9x. Current DDI is 8, this mean support up to DX9 programs and games.
 
 
 ## Glide support
@@ -46,10 +46,10 @@ Glide support has nothing to do with display driver. But when OpenGL is supporte
 
 
 ## VirtualBox
-VirtualBox is supported from version 6.1 (but 5.0 and 6.0 with some limitation works). More on [SoftGPU readme](https://github.com/JHRobotics/softgpu/#virtualbox-vm-setup-with-hw-acceleration).
+VirtualBox is supported from version 6.1 (but 5.0 and 6.0 with some limitation works). More on [SoftGPU readme](https://github.com/JHRobotics/softgpu/blob/main/vbox.md#virtualbox-vm-setup-with-hw-acceleration).
 
 ## VMware Workstation and Player
-VMware workstation is supported in current version (17.5.x). In theory, this driver can work from version 9.x, but I don't have enough resources to do complete testing of old closed non-free software. More information also on [SoftGPU readme](https://github.com/JHRobotics/softgpu/?tab=readme-ov-file#vmware-workstation-setup-with-hw-acceleration).
+VMware workstation is supported in current version (17.5.x). In theory, this driver can work from version 9.x, but I don't have enough resources to do complete testing of old closed non-free software. More information also on [SoftGPU readme](https://github.com/JHRobotics/softgpu/blob/main/vmware.md#vmware-workstation-setup-with-hw-acceleration).
 
 
 ## QEMU
@@ -142,7 +142,7 @@ Edit `makefile` to enable addition logging and you can read original [readdev.tx
 - Complete recomended mini-VDD function in [minivdd.c](minivdd.c), stubs here and cites from original MSDN are in comments.
 - ~Complete GPU10 functions (with synchronization with Mesa)~
 - VirGL
-- DDI
+- ~DDI~
 - VESA support
 
 ## External links
