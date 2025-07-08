@@ -750,11 +750,30 @@ static void SVGA_DefineGMRFB()
 	//dbg_printf("SVGA_DefineGMRFB: %ld\n", hda->surface);
 }
 
+DWORD SVGA_fix_width(DWORD w, DWORD bpp)
+{
+	switch(bpp)
+	{
+		case 8:
+			return (w) & 0xFFFFFFF0UL;
+		case 16:
+		case 15:
+		case 24:
+		case 32: // round down to a multiple of 8
+			return (w) & 0xFFFFFFF8UL;
+			break;
+	}
+
+	return w;
+}
+
 /**
  * Test if display mode is supported
  **/
 BOOL SVGA_validmode(DWORD w, DWORD h, DWORD bpp)
 {
+	DWORD w_fix = SVGA_fix_width(w, bpp);
+
 	switch(bpp)
 	{
 		case 8:
@@ -764,13 +783,13 @@ BOOL SVGA_validmode(DWORD w, DWORD h, DWORD bpp)
 		default:
 			return FALSE;
 	}
-	
-	if(w <= SVGA_ReadReg(SVGA_REG_MAX_WIDTH))
+
+	if(w_fix <= SVGA_ReadReg(SVGA_REG_MAX_WIDTH))
 	{
 		if(h <= SVGA_ReadReg(SVGA_REG_MAX_HEIGHT))
 		{
-			DWORD size = SVGA_pitch(w, 32) * h;
-			size += SVGA_pitch(w, bpp) * h;
+			DWORD size = SVGA_pitch(w_fix, 32) * h;
+			size += SVGA_pitch(w_fix, bpp) * h;
 			if(size > hda->vram_size)
 			{
 				return FALSE;
@@ -861,12 +880,14 @@ void SVGA_clear()
 BOOL SVGA_setmode(DWORD w, DWORD h, DWORD bpp)
 {
 	BOOL has3D = FALSE;
-	if(!SVGA_validmode(w, h, bpp))
+	DWORD w_fix = SVGA_fix_width(w, bpp);
+
+	if(!SVGA_validmode(w_fix, h, bpp))
 	{
 		return FALSE;
 	}
 	
-	svga_saved_state.width = w;
+	svga_saved_state.width = w_fix;
 	svga_saved_state.height = h;
 	svga_saved_state.bpp = bpp;
 	svga_saved_state.enabled = TRUE;
@@ -888,7 +909,7 @@ BOOL SVGA_setmode(DWORD w, DWORD h, DWORD bpp)
 	mouse_invalidate();
 	FBHDA_access_begin(0);
 	
-	SVGA_setmode_phy(w, h, bpp);
+	SVGA_setmode_phy(w_fix, h, bpp);
 
 	if(gpu_allocated)
 	{
@@ -904,7 +925,7 @@ BOOL SVGA_setmode(DWORD w, DWORD h, DWORD bpp)
 	hda->vram_pm16 = fb_pm16;
 	JH: this doesn't change at runtime!
 */
-	hda->width   = w;//SVGA_ReadReg(SVGA_REG_WIDTH);
+	hda->width   = w_fix;//SVGA_ReadReg(SVGA_REG_WIDTH);
 	hda->height  = h;//SVGA_ReadReg(SVGA_REG_HEIGHT);
 
 	if(bpp >= 8)
@@ -1488,6 +1509,8 @@ static DWORD ov_bpp = 0;
 
 DWORD FBHDA_overlay_setup(DWORD overlay, DWORD width, DWORD height, DWORD bpp)
 {
+	DWORD width_fix = SVGA_fix_width(width, bpp);
+
 	dbg_printf("FBHDA_overlay_setup: %ld\n", overlay);
 
 	if(overlay >= FBHDA_OVERLAYS_MAX)
@@ -1521,27 +1544,27 @@ DWORD FBHDA_overlay_setup(DWORD overlay, DWORD width, DWORD height, DWORD bpp)
 			SVGAFifoCmdDefineGMRFB *gmrfb;
 			DWORD cmd_offset = 0;
 
-			DWORD pitch  = SVGA_pitch(width, bpp);
+			DWORD pitch  = SVGA_pitch(width_fix, bpp);
 			DWORD offset = ((BYTE*)hda->overlays[overlay].ptr) - ((BYTE*)hda->vram_pm32);
 			DWORD stride = pitch*height;
 
 			if(hda->overlays[overlay].size > stride)
 			{
 				hda->overlay = overlay;
-				SVGA_setmode_phy(width, height, bpp);
+				SVGA_setmode_phy(width_fix, height, bpp);
 
 				wait_for_cmdbuf();
 				gmrfb = SVGA_cmd_ptr(cmdbuf, &cmd_offset, SVGA_CMD_DEFINE_GMRFB, sizeof(SVGAFifoCmdDefineGMRFB));
 				SVGA_FillGMRFB(gmrfb, offset, pitch, bpp);
 				submit_cmdbuf(cmd_offset, SVGA_CB_SYNC, 0);
 
-				ov_width  = width;
+				ov_width  = width_fix;
 				ov_height = height;
 				ov_pitch  = pitch;
 				ov_bpp    = bpp;
 
 				/* clear screen */
-				FBHDA_overlay_lock(0, 0, width, height);
+				FBHDA_overlay_lock(0, 0, width_fix, height);
 				memset(hda->overlays[overlay].ptr, 0, stride);
 				FBHDA_overlay_unlock(0);
 
