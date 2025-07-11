@@ -165,7 +165,7 @@ void __declspec(naked) Device_IO_Control_entry()
 
 void __stdcall print_ctrl(DWORD type)
 {
-	dbg_printf("VXD_control: %d\n", type);
+	dbg_printf("VXD_control: %lX\n", type);
 }
 
 /*
@@ -179,6 +179,16 @@ void __declspec(naked) VXD_control()
 	// eax = 0x1B - dynamic init
 	// eax = 0x1C - dynamic exit
 	// eax = 0x23 - device IO control
+
+#if 0 
+	_asm
+	{
+		pushad
+		push eax
+		call print_ctrl
+		popad
+	}
+#endif
 	
 	_asm {
 		cmp eax,Sys_Critical_Init
@@ -416,6 +426,35 @@ WORD __stdcall VXD_API_Proc(PCRS_32 state)
 		}
 #endif
 
+#ifdef VESA
+		case OP_VESA_VALID:
+		{
+			BOOL rs;
+			rs = VESA_valid();
+			state->Client_ECX = (DWORD)rs;
+			rc = 1;
+			break;
+		}
+		case OP_VESA_SETMODE:
+		{
+			BOOL rs;
+			Begin_Critical_Section(0);
+			rs = VESA_setmode(state->Client_ESI, state->Client_EDI, state->Client_ECX);
+			End_Critical_Section();
+			state->Client_ECX = (DWORD)rs;
+			rc = 1;
+			break;
+		}
+		case OP_VESA_VALIDMODE:
+		{
+			BOOL rs;
+			rs = VESA_validmode(state->Client_ESI, state->Client_EDI, state->Client_ECX);
+			state->Client_ECX = (DWORD)rs;
+			rc = 1;
+			break;
+		}
+#endif
+
 	}
 	
 	if(rc == 0xFFFF)
@@ -563,6 +602,10 @@ void Device_Init_proc(DWORD VM)
 	VBE_init_hw();
 #endif
 
+#ifdef VESA
+	VESA_init_hw();
+#endif
+
 #if defined(QEMU)
 	Install_IO_Handler(0x1ce, (DWORD)virtual_0x1ce);
 	Disable_Global_Trapping(0x1ce);
@@ -594,6 +637,7 @@ void Device_Init_proc(DWORD VM)
 	vxd_hstats_update();
 #endif
 	End_Critical_Section();
+	dbg_printf("Device_Init_proc DONE\n");
 }
 #undef VDDFUNC
 #undef VDDNAKED

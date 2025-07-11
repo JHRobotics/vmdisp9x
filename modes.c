@@ -166,6 +166,13 @@ static int IsModeOK( WORD wXRes, WORD wYRes, WORD wBpp )
 		}
 #endif
 
+#ifdef VESA
+		if(!VESA_validmode(wXRes, wYRes, wBpp))
+		{
+			return 0;
+		}
+#endif
+
     return( 1 );
 }
 
@@ -200,6 +207,13 @@ static int SetDisplayMode( WORD wXRes, WORD wYRes, int bFullSet )
 
 #ifdef VBE
 		if(!VBE_setmode(wXRes, wYRes, wBpp))
+		{
+			return 0;
+		}
+#endif
+
+#ifdef VESA
+		if(!VESA_setmode(wXRes, wYRes, wBpp))
 		{
 			return 0;
 		}
@@ -263,6 +277,10 @@ int PhysicalEnable( void )
     VBE_setmode(wScrX, wScrY, wBpp);
 #endif
 
+#ifdef VESA
+    VESA_setmode(wScrX, wScrY, wBpp);
+#endif
+
     /* Let the VDD know that the mode changed. */
     CallVDD( VDD_POST_MODE_CHANGE );
     CallVDD( VDD_SAVE_DRIVER_STATE );
@@ -297,6 +315,15 @@ UINT WINAPI __loadds ValidateMode( DISPVALMODE FAR *lpValMode )
 #ifdef VBE
             /* Check if we have Boschs VBE card */
             if(!VBE_valid())
+            {
+              rc = VALMODE_NO_WRONGDRV;
+              break;
+            }
+#endif
+
+#ifdef VESA
+            /* Check if we have PCI VESA card */
+            if(!VESA_valid())
             {
               rc = VALMODE_NO_WRONGDRV;
               break;

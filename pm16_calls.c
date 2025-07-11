@@ -693,3 +693,103 @@ BOOL VBE_validmode(DWORD w, DWORD h, DWORD bpp)
 }
 
 #endif /* VBE */
+
+
+#ifdef VESA
+BOOL VESA_valid()
+{
+	static BOOL status;
+	status = FALSE;
+	
+	_asm
+	{
+		.386
+		push eax
+		push edx
+		push ecx
+	  
+	  mov edx, OP_VESA_VALID
+	  call dword ptr [VXD_VM]
+	  mov  [status], cx
+	  
+	  pop ecx
+		pop edx
+		pop eax
+	}
+	
+	return status == 0 ? FALSE : TRUE;
+}
+
+BOOL VESA_setmode(DWORD w, DWORD h, DWORD bpp)
+{
+	static BOOL status;
+	static DWORD sw, sh, sbpp;
+	
+	status = FALSE;
+	sw = w;
+	sh = h;
+	sbpp = bpp;
+	
+	_asm
+	{
+		.386
+		push eax
+		push edx
+		push ecx
+		push esi
+		push edi
+	  
+	  mov edx, OP_VESA_SETMODE
+	  mov ecx, [bpp]
+	  mov esi, [w]
+	  mov edi, [h]
+	  call dword ptr [VXD_VM]
+	  mov  [status], cx
+	  
+	  pop edi
+	  pop esi
+	  pop ecx
+		pop edx
+		pop eax
+	}
+	
+	return status == 0 ? FALSE : TRUE;
+}
+
+BOOL VESA_validmode(DWORD w, DWORD h, DWORD bpp)
+{
+	static BOOL status;
+	static DWORD sw, sh, sbpp;
+	
+	status = FALSE;
+	sw = w;
+	sh = h;
+	sbpp = bpp;
+	
+	_asm
+	{
+		.386
+		push eax
+		push edx
+		push ecx
+		push esi
+		push edi
+	  
+	  mov edx, OP_VESA_VALIDMODE
+	  mov ecx, [bpp]
+	  mov esi, [w]
+	  mov edi, [h]
+	  call dword ptr [VXD_VM]
+	  mov  [status], cx
+	  
+	  pop edi
+	  pop esi
+	  pop ecx
+		pop edx
+		pop eax
+	}
+	
+	return status == 0 ? FALSE : TRUE;
+}
+
+#endif /* VESA */

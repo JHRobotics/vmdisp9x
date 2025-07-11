@@ -3,17 +3,18 @@ OBJS = &
   dibthunk.obj dddrv.obj drvlib.obj enable.obj init.obj &
   control.obj pm16_calls.obj pm16_calls_svga.obj pm16_calls_qemu.obj &
   palette.obj sswhook.obj modes.obj modes_svga.obj scrsw.obj scrsw_svga.obj &
+  pm16_calls_vesa.obj modes_vesa.obj
 
 OBJS += &
   dbgprint32.obj svga.obj pci.obj vxd_fbhda.obj vxd_lib.obj vxd_main.obj &
   vxd_main_qemu.obj vxd_main_svga.obj vxd_svga.obj vxd_vdd.obj vxd_vdd_qemu.obj &
   vxd_vdd_svga.obj vxd_vbe.obj vxd_vbe_qemu.obj vxd_mouse.obj &
   vxd_mouse_svga.obj vxd_svga_mouse.obj vxd_svga_mem.obj vxd_svga_cb.obj &
-  vxd_halloc.obj
+  vxd_halloc.obj vxd_main_vesa.obj vxd_vesa.obj vxd_vdd_vesa.obj
 
 INCS = -I$(%WATCOM)\h\win -Iddk -Ivmware
 
-VER_BUILD = 109
+VER_BUILD = 110
 
 FLAGS = -DDRV_VER_BUILD=$(VER_BUILD)
 
@@ -69,13 +70,15 @@ RC16_FLAGS = -40 -i $(DDK98_PATH)\inc\win98\inc16 -i res -d DRV_VER_BUILD=$(VER_
 BOXVMINI_DRV_RC = $(RC16) $(RC16_FLAGS) res\boxvmini.rc $@
 VMWSMINI_DRV_RC = $(RC16) $(RC16_FLAGS) res\vmwsmini.rc $@
 QEMUMINI_DRV_RC = $(RC16) $(RC16_FLAGS) res\qemumini.rc $@
+VESAMINI_DRV_RC = $(RC16) $(RC16_FLAGS) res\vesamini.rc $@
 !else
 BOXVMINI_DRV_RC = wrc -q boxvmini.res $@ && $(FIXLINK_EXE) -40 $@
 VMWSMINI_DRV_RC = wrc -q vmwsmini.res $@ && $(FIXLINK_EXE) -40 $@
 QEMUMINI_DRV_RC = wrc -q qemumini.res $@ && $(FIXLINK_EXE) -40 $@
+VESAMINI_DRV_RC = wrc -q vesamini.res $@ && $(FIXLINK_EXE) -40 $@
 !endif
 
-all : vmwsmini.drv vmwsmini.vxd qemumini.drv qemumini.vxd boxvmini.drv boxvmini.vxd
+all : vmwsmini.drv vmwsmini.vxd qemumini.drv qemumini.vxd boxvmini.drv boxvmini.vxd vesamini.drv vesamini.vxd
 
 # Object files: PM16 RING-3
 dbgprint.obj : dbgprint.c .autodepend
@@ -111,6 +114,9 @@ pm16_calls_svga.obj : pm16_calls_svga.c .autodepend
 pm16_calls_qemu.obj : pm16_calls_qemu.c .autodepend
 	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
 
+pm16_calls_vesa.obj : pm16_calls_vesa.c .autodepend
+	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
+
 palette.obj : palette.c .autodepend
 	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
 	
@@ -121,6 +127,9 @@ modes.obj : modes.c .autodepend
 	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
 	
 modes_svga.obj : modes_svga.c .autodepend
+	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
+
+modes_vesa.obj : modes_vesa.c .autodepend
 	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
 
 scrsw.obj : scrsw.c .autodepend
@@ -155,6 +164,9 @@ vxd_main_qemu.obj : vxd_main_qemu.c .autodepend
 vxd_main_svga.obj : vxd_main_svga.c .autodepend
 	$(CC32) $(CFLAGS32) $(INCS) $(FLAGS) $<
 
+vxd_main_vesa.obj : vxd_main_vesa.c .autodepend
+	$(CC32) $(CFLAGS32) $(INCS) $(FLAGS) $<
+
 vxd_mouse.obj : vxd_mouse.c .autodepend
 	$(CC32) $(CFLAGS32) $(INCS) $(FLAGS) $<
 
@@ -179,6 +191,9 @@ vxd_halloc.obj : vxd_halloc.c .autodepend
 vxd_vbe.obj : vxd_vbe.c .autodepend
 	$(CC32) $(CFLAGS32) $(INCS) $(FLAGS) $<
 
+vxd_vesa.obj : vxd_vesa.c .autodepend
+	$(CC32) $(CFLAGS32) $(INCS) $(FLAGS) $<
+
 vxd_vbe_qemu.obj : vxd_vbe_qemu.c .autodepend
 	$(CC32) $(CFLAGS32) $(INCS) $(FLAGS) $<
 
@@ -191,6 +206,9 @@ vxd_vdd_qemu.obj : vxd_vdd_qemu.c .autodepend
 vxd_vdd_svga.obj : vxd_vdd_svga.c .autodepend
 	$(CC32) $(CFLAGS32) $(INCS) $(FLAGS) $<
 
+vxd_vdd_vesa.obj : vxd_vdd_vesa.c .autodepend
+	$(CC32) $(CFLAGS32) $(INCS) $(FLAGS) $<
+
 # Resources
 boxvmini.res : res/boxvmini.rc res/colortab.bin res/config.bin res/fonts.bin res/fonts120.bin .autodepend
 	wrc -q -r -ad -bt=windows -fo=$@ -Ires -I$(%WATCOM)/h/win $(FLAGS) res/boxvmini.rc
@@ -200,6 +218,9 @@ vmwsmini.res : res/vmwsmini.rc res/colortab.bin res/config.bin res/fonts.bin res
 
 qemumini.res : res/qemumini.rc res/colortab.bin res/config.bin res/fonts.bin res/fonts120.bin .autodepend
 	wrc -q -r -ad -bt=windows -fo=$@ -Ires -I$(%WATCOM)/h/win $(FLAGS) res/qemumini.rc
+
+vesamini.res : res/vesamini.rc res/colortab.bin res/config.bin res/fonts.bin res/fonts120.bin .autodepend
+	wrc -q -r -ad -bt=windows -fo=$@ -Ires -I$(%WATCOM)/h/win $(FLAGS) res/vesamini.rc
 
 res/colortab.bin : res/colortab.c
 	wcc -q $(INCS) $<
@@ -429,6 +450,74 @@ import GlobalSmartPageLock  KERNEL.230
 <<
 	$(QEMUMINI_DRV_RC)
 
+vesamini.drv : $(OBJS) vesamini.res dibeng.lib $(FIXLINK_EXE)
+	wlink op quiet, start=DriverInit_ disable 2055 $(DBGFILE) @<<vesamini.lnk
+system windows dll initglobal
+file dibcall.obj
+file dibthunk.obj
+file dddrv.obj 
+file drvlib.obj
+file enable.obj 
+file init.obj
+file control.obj
+file palette.obj
+file sswhook.obj
+file scrsw.obj
+file pm16_calls_vesa.obj
+file modes_vesa.obj
+name vesamini.drv
+option map=vesamini.map
+library dibeng.lib
+library clibs.lib
+option modname=DISPLAY
+option description 'DISPLAY : 100, 96, 96 : DIB Engine based Mini display driver.'
+option oneautodata
+segment type data preload fixed
+segment '_TEXT'  preload shared
+segment '_INIT'  preload moveable
+export BitBlt.1
+export ColorInfo.2
+export Control.3
+export Disable.4
+export Enable.5
+export EnumDFonts.6
+export EnumObj.7
+export Output.8
+export Pixel.9
+export RealizeObject.10
+export StrBlt.11
+export ScanLR.12
+export DeviceMode.13
+export ExtTextOut.14
+export GetCharWidth.15
+export DeviceBitmap.16
+export FastBorder.17
+export SetAttribute.18
+export DibBlt.19
+export CreateDIBitmap.20
+export DibToDevice.21
+export SetPalette.22
+export GetPalette.23
+export SetPaletteTranslate.24
+export GetPaletteTranslate.25
+export UpdateColors.26
+export StretchBlt.27
+export StretchDIBits.28
+export SelectBitmap.29
+export BitmapBits.30
+export ReEnable.31
+export DDIGammaRamp.32
+export Inquire.101
+export SetCursor.102
+export MoveCursor.103
+export CheckCursor.104
+export GetDriverResourceID.450
+export UserRepaintDisable.500
+export ValidateMode.700
+import GlobalSmartPageLock  KERNEL.230
+<<
+	$(VESAMINI_DRV_RC)
+
 vmwsmini.vxd : $(OBJS) $(FIXLINK_EXE)
 	wlink op quiet $(DBGFILE32) @<<vmwsmini.lnk
 system win_vxd dynamic
@@ -493,6 +582,28 @@ file vxd_fbhda.obj
 file vxd_vbe.obj
 file vxd_lib.obj
 file vxd_vdd.obj
+file vxd_mouse.obj
+segment '_TEXT'  PRELOAD NONDISCARDABLE
+segment '_DATA'  PRELOAD NONDISCARDABLE
+segment 'CONST'  PRELOAD NONDISCARDABLE
+segment 'CONST2' PRELOAD NONDISCARDABLE
+segment '_BSS'   PRELOAD NONDISCARDABLE
+export VXD_DDB.1
+<<
+	$(FIXLINK_EXE) -vxd32 $@
+
+vesamini.vxd : $(OBJS) $(FIXLINK_EXE)
+	wlink op quiet $(DBGFILE32) @<<vesamini.lnk
+system win_vxd dynamic
+option map=vesamini.map
+option nodefaultlibs
+name vesamini.vxd
+file vxd_main_vesa.obj
+file pci.obj
+file vxd_fbhda.obj
+file vxd_lib.obj
+file vxd_vesa.obj
+file vxd_vdd_vesa.obj
 file vxd_mouse.obj
 segment '_TEXT'  PRELOAD NONDISCARDABLE
 segment '_DATA'  PRELOAD NONDISCARDABLE

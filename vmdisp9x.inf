@@ -19,6 +19,8 @@ VBox.Copy=11
 VMSvga.Copy=11
 DX.Copy=11
 Voodoo.Copy=11
+VESA.Copy=11
+Qemu.Copy=11
 
 [SourceDisksNames]
 ; BOXV9X is the driver disk volume label
@@ -33,6 +35,8 @@ qemumini.drv=1
 qemumini.vxd=1
 qxlmini.drv=1
 qxlmini.vxd=1
+vesamini.drv=1
+vesamini.vxd=1
 ;mesa:mesa3d.dll=1
 ;mesa:vmwsgl32.dll=1
 ;openglide:glide2x.dll=1
@@ -60,6 +64,7 @@ qxlmini.vxd=1
 ;svga3:%VBoxVideoVM3.DeviceDesc%=VMSvga, PCI\VEN_15AD&DEV_0406&SUBSYS_040615AD
 %QemuStd.DeviceDesc%=Qemu, PCI\VEN_1234&DEV_1111
 ;qxl;%QemuQXL.DeviceDesc%=QXL, PCI\VEN_1B36&DEV_0100
+%VESAVideo.DeviceDesc%=VESA, *PNP0900
 
 [VBox]
 CopyFiles=VBox.Copy,Dx.Copy,Voodoo.Copy
@@ -86,6 +91,11 @@ CopyFiles=VMSvga.Copy,Dx.Copy,Voodoo.Copy
 DelReg=VM.DelReg
 AddReg=VMSvga.AddReg,VM.AddReg,DX.addReg,VM.regextra
 
+[VESA]
+CopyFiles=VESA.Copy,Dx.Copy,Voodoo.Copy
+DelReg=VM.DelReg
+AddReg=VESA.AddReg,VM.AddReg,DX.addReg,VM.regextra
+
 [VBox.Copy]
 boxvmini.drv,,,0x00000004
 boxvmini.vxd,,,0x00000004
@@ -111,6 +121,13 @@ qxlmini.vxd,,,0x00000004
 vmwsmini.drv,,,0x00000004
 vmwsmini.vxd,,,0x00000004
 ;mesa:vmwsgl32.dll,,,0x00000004
+;mesa:mesa3d.dll,,,0x00000004
+;vmhal:vmhal9x.dll,,,0x00000004
+;vmhal:vmdisp9x.dll,,,0x00000004
+
+[VESA.Copy]
+vesamini.drv,,,0x00000004
+vesamini.vxd,,,0x00000004
 ;mesa:mesa3d.dll,,,0x00000004
 ;vmhal:vmhal9x.dll,,,0x00000004
 ;vmhal:vmdisp9x.dll,,,0x00000004
@@ -150,6 +167,11 @@ HKR,DEFAULT,Mode,,"8,640,480"
 HKR,DEFAULT,drv,,vmwsmini.drv
 HKR,DEFAULT,minivdd,,vmwsmini.vxd
 HKR,DEFAULT,Mode,,"32,640,480"
+
+[VESA.AddReg]
+HKR,DEFAULT,drv,,vesamini.drv
+HKR,DEFAULT,minivdd,,vesamini.vxd
+HKR,DEFAULT,Mode,,"16,640,480"
 
 [VM.DelReg]
 HKR,,Ver
@@ -384,6 +406,7 @@ VBoxVideoVM2.DeviceDesc="VMWare SVGA-II PCI Adapter"
 VBoxVideoVM3.DeviceDesc="VMWare SVGA-III PCI Adapter"
 QemuStd.DeviceDesc="QEMU STD VGA PCI Adapter"
 QemuQXL.DeviceDesc="QEMU QXL VGA PCI Adapter"
+VESAVideo.DeviceDesc="VESA PCI Adapter"
 
 [VM.regextra]
 ;swvoodoo:HKLM,Software\vmdisp9x\driver,OVERLAY_1_SIZE,,8

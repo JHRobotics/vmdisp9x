@@ -231,6 +231,20 @@ VDDPROC(GET_CHIP_ID, get_chip_id)
 	}
 #endif
 
+#ifdef VESA
+	if(VESA_valid())
+	{
+		state->Client_EAX = 0x1234;
+		VDD_CY;
+	}
+	else
+	{
+		state->Client_EAX = 0;
+		VDD_NC;
+	}
+#endif
+
+
 }
 
 /**

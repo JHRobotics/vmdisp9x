@@ -168,6 +168,8 @@ extern char __based( __segname( "_TEXT" ) ) *pText;
 
 UINT FAR DriverInit( UINT cbHeap, UINT hModule, LPSTR lpCmdLine )
 {
+    dbg_printf( "DriverInit: ENTER\n" );
+
     /* Lock the code segment. */
     GlobalSmartPageLock( (__segment)pText );
 

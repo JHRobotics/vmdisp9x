@@ -85,6 +85,23 @@ void *memcpy(void *dst, const void *src, unsigned int size)
 	return dst;
 }
 
+int memcmp(const void *ptr1, const void *ptr2, unsigned int num)
+{
+	const unsigned char *p1 = (const unsigned char *)ptr1;
+	const unsigned char *p2 = (const unsigned char *)ptr2;
+
+	if(num == 0) return 0;
+
+	while(num > 1 && *p1 == *p2)
+	{
+		p1++;
+		p2++;
+		num--;
+	}
+
+	return *p1 - *p2;
+}
+
 unsigned int strlen(const char *s)
 {
 	const char *ptr = s;
@@ -517,6 +534,36 @@ DWORD __declspec(naked) __cdecl _PageCommitPhys(ULONG page, ULONG npages, ULONG 
 DWORD __declspec(naked) __cdecl _PageCommitContig(ULONG page, ULONG npages, ULONG flags, ULONG alignmask, ULONG minphys, ULONG maxphys)
 {
 	VMMJmp(_PageCommitContig);
+}
+
+DWORD __declspec(naked) __cdecl _LinMapIntoV86(ULONG HLinPgNum, ULONG VM, ULONG VMLinPgNum, ULONG nPages, ULONG flags)
+{
+	VMMJmp(_LinMapIntoV86);
+}
+
+DWORD __declspec(naked) __cdecl _MapIntoV86(ULONG hMem, ULONG VM, ULONG VMLinPgNum, ULONG nPages, ULONG PageOff, ULONG flags)
+{
+	VMMJmp(_MapIntoV86);
+}
+
+DWORD __declspec(naked) __cdecl _GetFirstV86Page()
+{
+	VMMJmp(_GetFirstV86Page);
+}
+
+DWORD __declspec(naked) __cdecl _GetLastV86Page()
+{
+	VMMJmp(_GetLastV86Page);
+}
+
+DWORD __declspec(naked) __cdecl _SetLastV86Page(ULONG PgNum, ULONG flags)
+{
+	VMMJmp(_SetLastV86Page);
+}
+
+DWORD __declspec(naked) __cdecl _Allocate_Global_V86_Data_Area(ULONG nBytes, ULONG flags)
+{
+	VMMJmp(_Allocate_Global_V86_Data_Area);
 }
 
 void Enable_Global_Trapping(DWORD port)
