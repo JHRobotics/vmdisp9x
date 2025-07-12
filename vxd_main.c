@@ -103,7 +103,7 @@ DWORD DispatchTableLength = 0;
 DWORD ThisVM = 0;
 DWORD is_qemu = FALSE;
 
-#if defined(QEMU) || defined(SVGA)
+#if defined(QEMU) || defined(SVGA) || defined(VESA)
 /**
  * This is fix of broken screen when open DOS window
  *
@@ -127,7 +127,7 @@ void __declspec(naked) virtual_0x1ce()
 	}
 	VxDJmp(VDD, Do_Physical_IO);
 }
-#endif /* QEMU/SVGA */
+#endif /* QEMU/SVGA/VESA */
 
 /**
  * VDD calls wrapers
@@ -438,8 +438,14 @@ WORD __stdcall VXD_API_Proc(PCRS_32 state)
 		case OP_VESA_SETMODE:
 		{
 			BOOL rs;
+			DWORD w, h, rr_min, rr_max;
+			w = state->Client_ESI >> 16;
+			h = state->Client_ESI & 0xFFFF;
+			rr_min = state->Client_EDI >> 16;
+			rr_max = state->Client_EDI & 0xFFFF;
+
 			Begin_Critical_Section(0);
-			rs = VESA_setmode(state->Client_ESI, state->Client_EDI, state->Client_ECX);
+			rs = VESA_setmode(w, h, state->Client_ECX, rr_min, rr_max);
 			End_Critical_Section();
 			state->Client_ECX = (DWORD)rs;
 			rc = 1;
@@ -606,7 +612,7 @@ void Device_Init_proc(DWORD VM)
 	VESA_init_hw();
 #endif
 
-#if defined(QEMU)
+#if defined(QEMU) || defined(VESA)
 	Install_IO_Handler(0x1ce, (DWORD)virtual_0x1ce);
 	Disable_Global_Trapping(0x1ce);
 	Install_IO_Handler(0x1cf, (DWORD)virtual_0x1ce);

@@ -64,7 +64,8 @@ vesamini.vxd=1
 ;svga3:%VBoxVideoVM3.DeviceDesc%=VMSvga, PCI\VEN_15AD&DEV_0406&SUBSYS_040615AD
 %QemuStd.DeviceDesc%=Qemu, PCI\VEN_1234&DEV_1111
 ;qxl;%QemuQXL.DeviceDesc%=QXL, PCI\VEN_1B36&DEV_0100
-%VESAVideo.DeviceDesc%=VESA, *PNP0900
+%VESAPCI.DeviceDesc%=VESA, PCI\CC_0300
+%VESAISA.DeviceDesc%=VESA, *PNP0900
 
 [VBox]
 CopyFiles=VBox.Copy,Dx.Copy,Voodoo.Copy
@@ -189,7 +190,7 @@ HKLM,Software\vmdisp9x\svga
 HKR,,Ver,,4.0
 HKR,,DevLoader,,*vdd
 HKR,DEFAULT,vdd,,"*vdd"
-HKR,DEFAULT,carddvdd,,cardsamp.vxd
+;HKR,DEFAULT,carddvdd,,cardsamp.vxd
 HKR,DEFAULT,RefreshRate,,-1
 HKR,DEFAULT,DDC,,1
 HKR,DEFAULT,ExtModeSwitch,,0
@@ -406,7 +407,8 @@ VBoxVideoVM2.DeviceDesc="VMWare SVGA-II PCI Adapter"
 VBoxVideoVM3.DeviceDesc="VMWare SVGA-III PCI Adapter"
 QemuStd.DeviceDesc="QEMU STD VGA PCI Adapter"
 QemuQXL.DeviceDesc="QEMU QXL VGA PCI Adapter"
-VESAVideo.DeviceDesc="VESA PCI Adapter"
+VESAPCI.DeviceDesc="VESA PCI Adapter"
+VESAISA.DeviceDesc="VESA ISA Adapter"
 
 [VM.regextra]
 ;swvoodoo:HKLM,Software\vmdisp9x\driver,OVERLAY_1_SIZE,,8

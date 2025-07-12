@@ -17,7 +17,7 @@ VDDFUNC(RESTORE_REGISTERS, restore_registers)
 //VDDFUNC(MODIFY_REGISTER_STATE, modify_register_state)
 //VDDFUNC(ACCESS_VGA_MEMORY_MODE, access_vga_memory_mode)
 //VDDFUNC(ACCESS_LINEAR_MEMORY_MODE, access_linear_memory_mode)
-#ifdef QEMU
+#if defined(QEMU) || defined(VESA)
 VDDFUNC(ENABLE_TRAPS, enable_traps)
 #endif
 //VDDFUNC(DISABLE_TRAPS, disable_traps)
@@ -32,7 +32,7 @@ VDDFUNC(VIRTUALIZE_CRTC_OUT, virtualize_crtc_out)
 //VDDFUNC(RESET_LATCH_BANK, reset_latch_bank)
 //VDDFUNC(SAVE_LATCHES, save_latches)
 //VDDFUNC(RESTORE_LATCHES, restore_latches)
-#ifdef QEMU
+#if defined(QEMU) || defined(VESA)
 VDDFUNC(DISPLAY_DRIVER_DISABLING, display_driver_disabling)
 #endif
 //VDDFUNC(SELECT_PLANE, select_plane)

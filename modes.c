@@ -213,7 +213,7 @@ static int SetDisplayMode( WORD wXRes, WORD wYRes, int bFullSet )
 #endif
 
 #ifdef VESA
-		if(!VESA_setmode(wXRes, wYRes, wBpp))
+		if(!VESA_setmode(wXRes, wYRes, wBpp, 0, 0))
 		{
 			return 0;
 		}
@@ -278,7 +278,7 @@ int PhysicalEnable( void )
 #endif
 
 #ifdef VESA
-    VESA_setmode(wScrX, wScrY, wBpp);
+    VESA_setmode(wScrX, wScrY, wBpp, 0, 0);
 #endif
 
     /* Let the VDD know that the mode changed. */

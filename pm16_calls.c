@@ -720,15 +720,15 @@ BOOL VESA_valid()
 	return status == 0 ? FALSE : TRUE;
 }
 
-BOOL VESA_setmode(DWORD w, DWORD h, DWORD bpp)
+BOOL VESA_setmode(DWORD w, DWORD h, DWORD bpp, DWORD rr_min, DWORD rr_max)
 {
 	static BOOL status;
-	static DWORD sw, sh, sbpp;
+	static DWORD s_wh, s_rr, sbpp;
 	
 	status = FALSE;
-	sw = w;
-	sh = h;
+	s_wh = (w << 16) | h;
 	sbpp = bpp;
+	s_rr = (rr_min << 16) | rr_max;
 	
 	_asm
 	{
@@ -741,8 +741,8 @@ BOOL VESA_setmode(DWORD w, DWORD h, DWORD bpp)
 	  
 	  mov edx, OP_VESA_SETMODE
 	  mov ecx, [bpp]
-	  mov esi, [w]
-	  mov edi, [h]
+	  mov esi, [s_wh]
+	  mov edi, [s_rr]
 	  call dword ptr [VXD_VM]
 	  mov  [status], cx
 	  

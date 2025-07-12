@@ -30,10 +30,15 @@ THE SOFTWARE.
 #include "vxd_lib.h"
 #include "3d_accel.h"
 
-#include "boxvint.h"
+#include "boxvint.h" /* VGA regitry */
 
 #include "pci.h" /* re-use PCI functions from SVGA */
+
 #include "vesa.h"
+
+#define IO_IN8
+#define IO_OUT8
+#include "io32.h"
 
 #include "code32.h"
 
@@ -53,10 +58,14 @@ typedef struct vesa_mode
 	DWORD pitch;
 	DWORD phy;
 	WORD  mode_id;
+	WORD  flags;
 } vesa_mode_t;
 
-vesa_mode_t *vesa_modes = NULL;
-DWORD vesa_modes_cnt = 0;
+static vesa_mode_t *vesa_modes = NULL;
+static DWORD vesa_modes_cnt = 0;
+WORD vesa_version = 0;
+static DWORD vesa_caps = 0;
+static int act_mode = -1;
 
 #include "vxd_strings.h"
 
@@ -92,19 +101,38 @@ void load_client_state(CRS_32 *V86regs)
 	VMMCall(Save_Client_State);
 }
 
-DWORD vesa_buf_flat = 0;
-DWORD vesa_buf_v86;
-void *vesa_buf;
+static DWORD vesa_buf_v86;
+static void *vesa_buf;
+static DWORD vesa_buf_phy;
+static vesa_palette_entry_t *vesa_pal;
+static int vesa_pal_bits = 6;
+
+static BOOL vesa_valid = FALSE;
+
+#define SCREEN_EMULATED_CENTER 0
+#define SCREEN_EMULATED_COPY   1
+#define SCREEN_FLIP            2
+#define SCREEN_FLIP_VSYNC      3
+
+static DWORD screen_mode = SCREEN_EMULATED_COPY;
 
 #define MODE_OFFSET 1024
 #define CRTC_OFFSET 2048
+#define PAL_OFFSET  3072 // pal size = 4*256
 
 #define V86_SEG(_lin) ((_lin) >> 4)
 #define V86_OFF(_lin) ((_lin) & 0xF)
 
 #define LIN_FROM_V86(_flatptr) ((((_flatptr) >> 12) & 0xFFFF0UL) + ((_flatptr) & 0xFFFFUL))
 
-static BOOL vesa_valid = FALSE;
+#define VESA_SUCC(_r) (((_r).Client_EAX & 0xFFFF)==0x004F)
+
+static void offset_calc(DWORD offset, DWORD *ox, DWORD *oy)
+{
+	DWORD ps = ((hda->bpp+7)/8);
+	*oy = offset/hda->pitch;
+	*ox = (offset % hda->pitch)/ps;
+}
 
 static void alloc_modes_info(DWORD cnt)
 {
@@ -116,37 +144,36 @@ static void alloc_modes_info(DWORD cnt)
 
 BOOL VESA_init_hw()
 {
-	DWORD phy;
 	DWORD flat;
 	dbg_printf("VESA init begin...\n");
 
-	flat = _PageAllocate(1, PG_SYS, 0, 0x0, 0, 0x100000, &phy, PAGEUSEALIGN | PAGECONTIG | PAGEFIXED);
+	flat = _PageAllocate(1, PG_SYS, 0, 0x0, 0, 0x100000, &vesa_buf_phy, PAGEUSEALIGN | PAGECONTIG | PAGEFIXED);
 	vesa_buf = (void*)flat;
 
 	if(vesa_buf)
 	{
 		DWORD modes_count = 0;
 #if 0
-		/* JH: bad idea, memory must upper 640k! */
+		/* JH: bad idea, memory must be above 640k! */
 		DWORD lp = _GetLastV86Page();
 		DWORD v86_page = lp+1;
 
 		_SetLastV86Page(v86_page, 0);
-		if(_PhysIntoV86(phy >> 12, ThisVM, v86_page, 1, 0))
+		if(_PhysIntoV86(vesa_buf_phy >> 12, ThisVM, v86_page, 1, 0))
 		{
 			vesa_buf_v86 = v86_page*4096;
 		}
 
 		dbg_printf("last page was=%lX\n", lp);
-		dbg_printf("VESA V86 addr=0x%lX, phy=0x%lX\n", vesa_buf_v86, phy);
+		dbg_printf("VESA V86 addr=0x%lX, phy=0x%lX\n", vesa_buf_v86, vesa_buf_phy);
 #else
-		/* FIXME: check if pages is free! */
+		/* FIXME: check if page is free! */
 		DWORD v86_page = 0xB0;
-		if(_PhysIntoV86(phy >> 12, ThisVM, v86_page, 1, 0))
+		if(_PhysIntoV86(vesa_buf_phy >> 12, ThisVM, v86_page, 1, 0))
 		{
 			vesa_buf_v86 = v86_page*4096;
 		}
-		dbg_printf("VESA V86 addr=0x%lX, phy=0x%lX\n", vesa_buf_v86, phy);
+		dbg_printf("VESA V86 addr=0x%lX, phy=0x%lX\n", vesa_buf_v86, vesa_buf_phy);
 #endif
 
 		if(vesa_buf_v86)
@@ -162,7 +189,7 @@ BOOL VESA_init_hw()
 			memcpy(&info->VESASignature[0], "VBE2", 4);
 
 			load_client_state(&regs);
-			regs.Client_EAX = 0x4f00;
+			regs.Client_EAX = VESA_CMD_ADAPTER_INFO;
 			regs.Client_ES  = V86_SEG(vesa_buf_v86);
 			regs.Client_EDI = V86_OFF(vesa_buf_v86);
 
@@ -173,8 +200,14 @@ BOOL VESA_init_hw()
 			{
 				WORD *modes = NULL;
 
-				dbg_printf("VESA bios result=%X, vesa_version=%X, modes_ptr=%lX\n",
-					regs.Client_EAX & 0xFFFF, info->VESAVersion, info->VideoModePtr);
+				dbg_printf("VESA bios result=%X, vesa_version=%X, modes_ptr=%lX vesa_caps=%lX\n",
+					regs.Client_EAX & 0xFFFF, info->VESAVersion, info->VideoModePtr, info->Capabilities);
+
+				if(info->VESAVersion < VESA_VBE_2_0)
+				{
+					dbg_printf("We need VBE 2.0 as minimum, abort\n");
+					return FALSE;
+				}
 
 				modes = (WORD*)LIN_FROM_V86(info->VideoModePtr);
 				if(modes != NULL)
@@ -189,10 +222,10 @@ BOOL VESA_init_hw()
 
 				alloc_modes_info(modes_count);
 				modes = (WORD*)LIN_FROM_V86(info->VideoModePtr);
-			
+
 				for(i = 0; i < modes_count; i++)
 				{
-					regs.Client_EAX = 0x4F01;
+					regs.Client_EAX = VESA_CMD_MODE_INFO;
 					regs.Client_ECX = modes[i];
 					regs.Client_ES  = V86_SEG(vesa_buf_v86+MODE_OFFSET);
 					regs.Client_EDI = V86_OFF(vesa_buf_v86+MODE_OFFSET);
@@ -200,10 +233,10 @@ BOOL VESA_init_hw()
 					vesa_bios(&regs);
 
 					//dbg_printf("mode=%X atrs=0x%lX eax=0x%lX\n", modes[i], modeinfo->ModeAttributes, regs.Client_EAX);
-					if((regs.Client_EAX & 0xFFFF) == 0x004F)
+					if(VESA_SUCC(regs))
 					{
 						if(modeinfo->ModeAttributes &
-							(VESA_MODE_HW_SUPPORTED | VESA_MODE_COLOR | VESA_MODE_GRAPHICS | VESA_MODE_LINEAR_FRAMEBUFFER))
+							(VESA_MODE_HW_SUPPORTED | VESA_MODE_COLOR | VESA_MODE_GRAPHICS | VESA_MODE_LFB))
 						{
 							vesa_mode_t *m = &vesa_modes[vesa_modes_cnt];
 							m->width   = modeinfo->XResolution;
@@ -212,8 +245,9 @@ BOOL VESA_init_hw()
 							m->pitch   = modeinfo->BytesPerScanLine;
 							m->phy     = modeinfo->PhysBasePtr;
 							m->mode_id = modes[i];
+							m->flags   = modeinfo->ModeAttributes;
 							vesa_modes_cnt++;
-							
+
 							if(m->phy)
 							{
 								if(m->phy < fb_phy)
@@ -238,18 +272,31 @@ BOOL VESA_init_hw()
 			 		return FALSE;
 			 	}
 
+				vesa_version = info->VESAVersion;
+				vesa_caps = info->Capabilities;
+
 		 		memcpy(hda->vxdname, vesa_vxd_name, sizeof(vesa_vxd_name));
 				hda->vram_size = info->TotalMemory * 0x10000UL;
-				//hda->vram_size = 16*1024*1024;
+
 				hda->vram_bar_size = hda->vram_size;
 
-				hda->vram_pm32 = (void*)_MapPhysToLinear(fb_phy, hda->vram_size, 0);
-				//hda->vram_pm32 = (void*)_MapPhysToLinear(ISA_LFB, hda->vram_size, 0);
+				if(fb_phy == 0xFFFFFFFF)
+				{
+					fb_phy = ISA_LFB;
+				}
 
-				hda->flags    |= FB_SUPPORT_FLIPING;
-				
-				vesa_valid = TRUE;
-				
+				hda->vram_pm32 = (void*)_MapPhysToLinear(fb_phy, hda->vram_size, 0);
+
+				hda->flags |= FB_SUPPORT_FLIPING | FB_VESA_MODES;
+
+				vesa_pal = (vesa_palette_entry_t*)(((BYTE*)vesa_buf)+PAL_OFFSET);
+
+				vesa_valid  = TRUE;
+
+				//VESA_load_vbios_pm();
+
+				FBHDA_memtest();
+
 				dbg_printf("VESA_init_hw(vram_size=%ld) = TRUE\n", hda->vram_size);
 				return TRUE;
 			}
@@ -260,15 +307,13 @@ BOOL VESA_init_hw()
 
 BOOL VESA_valid()
 {
-	dbg_printf("VESA_valid()\n");
 	return vesa_valid;
 }
 
 BOOL VESA_validmode(DWORD w, DWORD h, DWORD bpp)
 {
 	DWORD i;
-	dbg_printf("VESA_validmode()\n");
-	
+
 	for(i = 0; i < vesa_modes_cnt; i++)
 	{
 		if(vesa_modes[i].width == w && vesa_modes[i].height == h && vesa_modes[i].bpp == bpp)
@@ -276,17 +321,16 @@ BOOL VESA_validmode(DWORD w, DWORD h, DWORD bpp)
 			return TRUE;
 		}
 	}
-	
-	dbg_printf("fail to valid mode: %ld %ld %ld\n", w, h, bpp);
+	//dbg_printf("fail to valid mode: %ld %ld %ld\n", w, h, bpp);
 	return FALSE;
 }
 
 void VESA_clear()
 {
-	memset(hda->vram_pm32, 0, hda->pitch*hda->height);
+	memset((BYTE*)hda->vram_pm32+hda->system_surface, 0, hda->pitch*hda->height);
 }
 
-BOOL VESA_setmode(DWORD w, DWORD h, DWORD bpp)
+BOOL VESA_setmode(DWORD w, DWORD h, DWORD bpp, DWORD rr_min, DWORD rr_max)
 {
 	DWORD i;
 	dbg_printf("VESA_validmode()\n");
@@ -298,15 +342,19 @@ BOOL VESA_setmode(DWORD w, DWORD h, DWORD bpp)
 		{
 			CRS_32 regs;
 			load_client_state(&regs);
+
 			// set mode
-			regs.Client_EAX = 0x4f02;
-			regs.Client_EBX = vesa_modes[i].mode_id | (1 << 14);
+			regs.Client_EAX = VESA_CMD_MODE_SET;
+			regs.Client_EBX = vesa_modes[i].mode_id | VESA_SETMODE_LFB;
 			regs.Client_ES = 0;
 			regs.Client_EDI = 0;
+
 			vesa_bios(&regs);
-			
-			if((regs.Client_EAX & 0xFFFF) == 0x004F)
+			if(VESA_SUCC(regs))
 			{
+				DWORD test_x;
+				DWORD test_y;
+
 				dbg_printf("SET success: %d %d %d\n", w, h, bpp);
 				hda->width  = w;
 				hda->height = h;
@@ -315,10 +363,92 @@ BOOL VESA_setmode(DWORD w, DWORD h, DWORD bpp)
 				hda->stride = h * hda->pitch;
 				hda->surface = 0;
 
+				/* set DAC to 8BIT if supported */
+				if(bpp <= 8)
+				{
+					if((vesa_caps & VESA_CAP_DAC8BIT) != 0)
+					{
+						/* set DAC to 8 bpp */
+						regs.Client_EAX = VESA_CMD_PALETTE_FORMAT;
+						regs.Client_EBX = VESA_DAC_SETFORMAT | VESA_DAC_SET_8BIT;
+						vesa_bios(&regs);
+						if(VESA_SUCC(regs))
+						{
+							vesa_pal_bits = (regs.Client_EBX >> 8) & 0xFF;
+						}
+						else
+						{
+							vesa_pal_bits = 6;
+						}
+					}
+					else
+					{
+						vesa_pal_bits = 6;
+					}
+				}
+
+				/* test if HW flip supported */
+				offset_calc(hda->stride, &test_x, &test_y);
+				regs.Client_EAX = VESA_CMD_DISPLAY_START;
+				regs.Client_EBX = VESA_DISPLAYSTART_VTRACE;
+				regs.Client_ECX = test_x;
+				regs.Client_EDX = test_y;
+				vesa_bios(&regs);
+				if(VESA_SUCC(regs))
+				{
+					screen_mode = SCREEN_FLIP_VSYNC;
+
+					regs.Client_EAX = VESA_CMD_DISPLAY_START;
+					regs.Client_EBX = VESA_DISPLAYSTART_SET;
+					regs.Client_ECX = 0;
+					regs.Client_EDX = 0;
+					vesa_bios(&regs);
+				}
+				else
+				{
+					offset_calc(hda->stride, &test_x, &test_y);
+					regs.Client_EAX = VESA_CMD_DISPLAY_START;
+					regs.Client_EBX = VESA_DISPLAYSTART_SET;
+					regs.Client_ECX = test_x;
+					regs.Client_EDX = test_y;
+					vesa_bios(&regs);
+
+					if(VESA_SUCC(regs))
+					{
+						screen_mode = SCREEN_FLIP;
+
+						regs.Client_EAX = VESA_CMD_DISPLAY_START;
+						regs.Client_EBX = VESA_DISPLAYSTART_SET;
+						regs.Client_ECX = test_x;
+						regs.Client_EDX = test_y;
+						vesa_bios(&regs);
+					}
+					else
+					{
+						screen_mode = SCREEN_EMULATED_COPY;
+					}
+				}
+
+				if(screen_mode <= SCREEN_EMULATED_COPY)
+				{
+					hda->system_surface = hda->stride;
+					hda->surface = hda->stride;
+					//hda->system_surface = 0;
+					//hda->flags &= ~FB_SUPPORT_VSYNC;
+				}
+				else
+				{
+					hda->system_surface = 0;
+					hda->flags |= FB_SUPPORT_VSYNC;
+				}
+
 				VESA_clear();
 				mouse_invalidate();
 				FBHDA_update_heap_size(FALSE);
-				
+
+				act_mode = i;
+
+				dbg_printf("mode set, mode_id=%d, screen_mode=%d\n", i, screen_mode);
 				return TRUE;
 			}
 			else
@@ -334,17 +464,137 @@ BOOL VESA_setmode(DWORD w, DWORD h, DWORD bpp)
 
 void FBHDA_palette_set(unsigned char index, DWORD rgb)
 {
+	dbg_printf("PAL: %d:0x%lX,bpp:%d\n", index, rgb, vesa_pal_bits);
 
+	if((vesa_caps & VESA_CAP_NONVGA) == 0)
+	{
+		/* if mode is VGA compatible, we can use VGA regitry */
+		outp(VGA_DAC_W_INDEX, index);    /* Set starting index. */
+		if(vesa_pal_bits == 8)
+		{
+			outp(VGA_DAC_DATA,   (rgb >> 16) & 0xFF);
+			outp(VGA_DAC_DATA,   (rgb >>  8) & 0xFF);
+			outp(VGA_DAC_DATA,    rgb        & 0xFF);
+		}
+		else
+		{
+			outp(VGA_DAC_DATA,   (rgb >> 18) & 0x3F);
+			outp(VGA_DAC_DATA,   (rgb >> 10) & 0x3F);
+			outp(VGA_DAC_DATA,   (rgb >>  2) & 0x3F);
+		}
+	}
+	else
+	{
+		CRS_32 regs;
+		DWORD v86_ptr = vesa_buf_v86+PAL_OFFSET+4*index;
+
+		if(vesa_pal_bits == 8)
+		{
+			vesa_pal[index].Red     = (rgb >> 16) & 0xFF;
+			vesa_pal[index].Green   = (rgb >>  8) & 0xFF;
+			vesa_pal[index].Blue    =  rgb        & 0xFF;
+		}
+		else
+		{
+			vesa_pal[index].Red     = (rgb >> 18) & 0x3F;
+			vesa_pal[index].Green   = (rgb >> 10) & 0x3F;
+			vesa_pal[index].Blue    = (rgb >>  2) & 0x3F;
+		}
+
+		load_client_state(&regs);
+		regs.Client_EAX = VESA_CMD_PALETTE_DATA;
+		regs.Client_EBX = VESA_RAMDAC_DATA_SET;
+		regs.Client_ECX = 1;
+		regs.Client_EDX = index;
+		regs.Client_ES  = V86_SEG(v86_ptr);
+		regs.Client_EDI = V86_OFF(v86_ptr);
+		vesa_bios(&regs);
+	}
 }
 
 DWORD FBHDA_palette_get(unsigned char index)
 {
+	if((vesa_caps & VESA_CAP_NONVGA) == 0)
+	{
+		DWORD r, g, b;
+		outp(VGA_DAC_W_INDEX, index);
+		r = inp(VGA_DAC_DATA);
+		g = inp(VGA_DAC_DATA);
+		b = inp(VGA_DAC_DATA);
+
+		if(vesa_pal_bits == 8)
+		{
+			return (r << 16) | (g << 8) | b;
+		}
+		else
+		{
+			return (r << 18) | (g << 10) | (b << 2);
+		}
+	}
+	else
+	{
+		if(vesa_pal_bits == 8)
+		{
+			return
+				((DWORD)(vesa_pal[index].Red)   << 16) |
+				((DWORD)(vesa_pal[index].Green) << 8) |
+				 (DWORD)(vesa_pal[index].Blue);
+		}
+		else
+		{
+			return
+				((DWORD)(vesa_pal[index].Red)   << 18) |
+				((DWORD)(vesa_pal[index].Green) << 10) |
+				((DWORD)(vesa_pal[index].Blue)  << 2);
+		}
+	}
+
 	return 0;
 }
 
 BOOL FBHDA_swap(DWORD offset)
 {
-	return TRUE;
+	if((offset + hda->stride) < hda->vram_size && offset >= hda->system_surface)
+	{
+		switch(screen_mode)
+		{
+			case SCREEN_EMULATED_CENTER:
+			case SCREEN_EMULATED_COPY:
+				FBHDA_access_begin(0);
+				hda->surface = offset;
+				FBHDA_access_end(0);
+				break;
+			case SCREEN_FLIP:
+			case SCREEN_FLIP_VSYNC:
+			{
+				CRS_32 regs;
+				DWORD off_x;
+				DWORD off_y;
+				if(fb_lock_cnt == 0)
+				{
+					mouse_erase();
+				}
+				offset_calc(offset, &off_x, &off_y);
+				load_client_state(&regs);
+
+				regs.Client_EAX = VESA_CMD_DISPLAY_START;
+				regs.Client_EBX =
+					(screen_mode == SCREEN_FLIP_VSYNC) ? VESA_DISPLAYSTART_VTRACE : VESA_DISPLAYSTART_SET;
+				regs.Client_ECX = off_x;
+				regs.Client_EDX = off_y;
+				hda->surface = offset;
+				vesa_bios(&regs);
+
+				if(fb_lock_cnt == 0)
+				{
+					mouse_blit();
+				}
+				break;
+			}
+		}
+		return TRUE;
+	}
+	return FALSE;
 }
 
 void FBHDA_access_begin(DWORD flags)
@@ -365,13 +615,20 @@ void FBHDA_access_end(DWORD flags)
 {
 	fb_lock_cnt--;
 	if(fb_lock_cnt < 0) fb_lock_cnt = 0;
-	
+
 	if(fb_lock_cnt == 0)
 	{
 		mouse_blit();
+		switch(screen_mode)
+		{
+			case SCREEN_EMULATED_CENTER:
+			case SCREEN_EMULATED_COPY:
+				memcpy(hda->vram_pm32, ((BYTE*)hda->vram_pm32)+hda->surface, hda->stride);
+				break;
+		}
 		// cursor
 	}
-	
+
 	//Signal_Semaphore(hda_sem);
 }
 
@@ -382,10 +639,10 @@ DWORD FBHDA_overlay_setup(DWORD overlay, DWORD width, DWORD height, DWORD bpp)
 
 void FBHDA_overlay_lock(DWORD left, DWORD top, DWORD right, DWORD bottom)
 {
-	
+
 }
 
 void  FBHDA_overlay_unlock(DWORD flags)
 {
-	
+
 }

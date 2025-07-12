@@ -32,6 +32,17 @@ THE SOFTWARE.
 #pragma pack(push)
 #pragma pack(1)
 
+#define VESA_CMD_ADAPTER_INFO   0x4F00
+#define VESA_CMD_MODE_INFO      0x4F01
+#define VESA_CMD_MODE_SET       0x4F02
+#define VESA_CMD_MODE_GET       0x4F03
+#define VESA_CMD_STATE          0x4F04
+#define VESA_CMD_WINDOWS_CTRL   0x4F05
+#define VESA_CMD_SCANLINE       0x4F06
+#define VESA_CMD_DISPLAY_START  0x4F07
+#define VESA_CMD_PALETTE_FORMAT 0x4F08
+#define VESA_CMD_PALETTE_DATA   0x4F09
+
 /* VBE 3.0 specification, p.25 */
 
 typedef struct vesa_info_block
@@ -39,7 +50,7 @@ typedef struct vesa_info_block
 	uint8  VESASignature[4];    /* "VESA" 4 byte signature */
 	uint16 VESAVersion;         /* VBE version number */
 	uint32 OEMStringPtr;        /* Pointer to OEM string */
-	uint8  Capabilities[4];     /* Capabilities of video card */
+	uint32 Capabilities;        /* Capabilities of video card */
 	uint32 VideoModePtr;        /* Pointer to supported modes */
 	uint16 TotalMemory;         /* Number of 64kb memory blocks */
 	uint16 OemSoftwareRev;      /* VBE implementation Software revision */
@@ -49,6 +60,16 @@ typedef struct vesa_info_block
 	uint8  Reserved[222];       /* Pad to 256 byte block size */
 	uint8  OemData[256];        /* Data Area for OEM Strings */
 } vesa_info_block_t;
+
+#define VESA_VBE_1_2  0x0102
+#define VESA_VBE_2_0  0x0200
+#define VESA_VBE_3_0  0x0300
+
+#define VESA_CAP_DAC8BIT     0x01
+#define VESA_CAP_NONVGA      0x02
+#define VESA_CAP_RAMDAC_SLOW 0x04
+#define VESA_CAP_STEREO      0x08
+#define VESA_CAP_STEREO_EVC  0x10
 
 /* p.30 */
 
@@ -111,7 +132,7 @@ typedef struct vesa_mode_info
 #define VESA_MODE_GRAPHICS           0x0010
 #define VESA_MODE_VGA_COMPACT        0x0020
 #define VESA_MODE_WINDOWED           0x0040
-#define VESA_MODE_LINEAR_FRAMEBUFFER 0x0080
+#define VESA_MODE_LFB                0x0080
 #define VESA_MODE_DOUBLE_SCAN        0x0100
 #define VESA_MODE_INTERLACED         0x0200
 #define VESA_MODE_TRIPLE_BUFFERING   0x0400
@@ -133,6 +154,49 @@ typedef struct vesa_crtc_info
 	uint16 RefreshRate;            /* Refresh rate in units of 0.01 Hz */
 	uint8  Reserved[40];           /* remainder of ModeInfoBlock */
 } vesa_crtc_info_t;
+
+#define VESA_SETMODE_CRTC  0x0800
+#define VESA_SETMODE_LFB   0x4000
+#define VESA_SETMODE_CLEAR 0x8000
+
+#define VESA_DISPLAYSTART_SET 0x00
+#define VESA_DISPLAYSTART_GET 0x01
+#define VESA_DISPLAYSTART_SCHEDULE_ALT 0x02
+#define VESA_DISPLAYSTART_SCHEDULE STEREO 0x03
+#define VESA_DISPLAYSTART_SCHEDULED_STATUS 0x04
+#define VESA_DISPLAYSTART_STEREO_ON 0x05
+#define VESA_DISPLAYSTART_STEREO_OFF 0x06
+#define VESA_DISPLAYSTART_VTRACE 0x80
+#define VESA_DISPLAYSTART_VTRACE_ALT 0x82
+#define VESA_DISPLAYSTART_VTRACE_STEREO 0x82
+
+#define VESA_DAC_SETFORMAT 0x00
+#define VESA_DAC_GETFORMAT 0x01
+
+#define VESA_DAC_SET_8BIT (8 << 8)
+#define VESA_DAC_SET_6BIT (6 << 8)
+
+#define VESA_RAMDAC_DATA_SET 0x00
+#define VESA_RAMDAC_DATA_GET 0x01
+#define VESA_RAMDAC_DATA_SET_SECONDARY 0x02
+#define VESA_RAMDAC_DATA_GET_SECONDARY 0x03
+#define VESA_RAMDAC_DATA_SET_VSYNC 0x80
+
+/* p.55 */
+
+typedef struct vesa_palette_entry
+{
+	BYTE Blue;
+	BYTE Green;
+	BYTE Red;
+	BYTE Alignment;
+} vesa_palette_entry_t;
+
+/* in WORDs */
+#define VESA_PMTABLE_OFF_WINDOWS_CTRL 0
+#define VESA_PMTABLE_OFF_DISPLAY_START 1
+#define VESA_PMTABLE_OFF_PALETTE_DATA 2
+#define VESA_PMTABLE_OFF_PORTS 3
 
 #pragma pack(pop)
 

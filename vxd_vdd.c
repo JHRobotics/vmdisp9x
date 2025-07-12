@@ -60,6 +60,10 @@ static DWORD mouse_pm16 = 0;
 extern WORD vbe_chip_id;
 #endif
 
+#ifdef VESA
+extern WORD vesa_version;
+#endif
+
 static BOOL mode_changing = FALSE;
 
 static void VDD_Register_Extra_Screen_Selector(DWORD selector)
@@ -234,7 +238,7 @@ VDDPROC(GET_CHIP_ID, get_chip_id)
 #ifdef VESA
 	if(VESA_valid())
 	{
-		state->Client_EAX = 0x1234;
+		state->Client_EAX = vesa_version;
 		VDD_CY;
 	}
 	else
