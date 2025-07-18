@@ -100,13 +100,14 @@ void dbg_printf( const char *s, ... );
 #define VDD__EnableDevice 23
 
 /* generate prototypes */
-#define VDDFUNC(_fnname, _procname) void __stdcall _procname ## _proc(PCRS_32 state);
-#define VDDNAKED VDDFUNC
+#define VDDFUNC(_fnname, _procname) void _procname ## _proc(DWORD vm, PCRS_32 state, DWORD extra_eax, DWORD extra_ecx, DWORD extra_edx);
+#define VDDFUNCRET(_fnname, _procname) DWORD _procname ## _proc(DWORD vm, PCRS_32 state, DWORD extra_eax, DWORD extra_ecx, DWORD extra_edx);
 #include "vxd_vdd_list.h"
 #undef VDDFUNC
-#undef VDDNAKED
+#undef VDDFUNCRET
 
-#define VDDPROC(_fnname, _procname) void __stdcall _procname ## _proc(PCRS_32 state)
+#define VDDPROC(_fnname, _procname) void _procname ## _proc(DWORD vm, PCRS_32 state, DWORD extra_eax, DWORD extra_ecx, DWORD extra_edx)
+#define VDDPROCRET(_fnname, _procname) DWORD _procname ## _proc(DWORD vm, PCRS_32 state, DWORD extra_eax, DWORD extra_ecx, DWORD extra_edx)
 
 #define VDD_CY state->Client_EFlags |= 0x1
 #define VDD_NC state->Client_EFlags &= 0xFFFFFFFEUL

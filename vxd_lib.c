@@ -202,6 +202,18 @@ DWORD Get_VMM_Version()
 	return ver;
 }
 
+void *Get_Cur_VM_Handle()
+{
+	void *handle = 0;
+
+	_asm push ebx
+	VMMCall(Get_Cur_VM_Handle);
+	_asm mov [handle],ebx
+	_asm pop ebx
+
+	return handle;
+}
+
 volatile void __cdecl Begin_Critical_Section(ULONG Flags)
 {
 	_asm push ecx
@@ -392,7 +404,6 @@ void __cdecl _Allocate_LDT_Selector(ULONG vm, ULONG DescHigh, ULONG DescLow, ULO
 		*outSelectorTable = selectorTable;
 	}
 }
-
 
 static void __declspec(naked) __cdecl _Allocate_GDT_Selector_(ULONG DescHigh, ULONG DescLow, ULONG flags)
 {
@@ -599,4 +610,11 @@ BOOL VPICD_Virtualize_IRQ(struct _VPICD_IRQ_Descriptor *vid)
 	};
 	
 	return r;
+}
+
+void Hook_V86_Int_Chain(DWORD int_num, DWORD HookProc)
+{
+	_asm mov eax, [int_num]
+	_asm mov esi, [HookProc]
+	VMMCall(Hook_V86_Int_Chain)
 }

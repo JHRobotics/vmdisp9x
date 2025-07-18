@@ -3,18 +3,18 @@ OBJS = &
   dibthunk.obj dddrv.obj drvlib.obj enable.obj init.obj &
   control.obj pm16_calls.obj pm16_calls_svga.obj pm16_calls_qemu.obj &
   palette.obj sswhook.obj modes.obj modes_svga.obj scrsw.obj scrsw_svga.obj &
-  pm16_calls_vesa.obj modes_vesa.obj
+  pm16_calls_vesa.obj modes_vesa.obj scrsw_vesa.obj
 
 OBJS += &
   dbgprint32.obj svga.obj pci.obj vxd_fbhda.obj vxd_lib.obj vxd_main.obj &
   vxd_main_qemu.obj vxd_main_svga.obj vxd_svga.obj vxd_vdd.obj vxd_vdd_qemu.obj &
   vxd_vdd_svga.obj vxd_vbe.obj vxd_vbe_qemu.obj vxd_mouse.obj &
   vxd_mouse_svga.obj vxd_svga_mouse.obj vxd_svga_mem.obj vxd_svga_cb.obj &
-  vxd_halloc.obj vxd_main_vesa.obj vxd_vesa.obj vxd_vdd_vesa.obj
+  vxd_halloc.obj vxd_main_vesa.obj vxd_vesa.obj vxd_vdd_vesa.obj vxd_mtrr.obj
 
 INCS = -I$(%WATCOM)\h\win -Iddk -Ivmware
 
-VER_BUILD = 111
+VER_BUILD = 112
 
 FLAGS = -DDRV_VER_BUILD=$(VER_BUILD)
 
@@ -55,8 +55,11 @@ CFLAGS32 = -q -wx -s -zls -6s -fp6 -mf -DVXD32 -fpi87 -ei -oeatxhn
 CC = wcc
 CC32 = wcc386
 
-# Log VXD to com2
 !ifdef DBGPRINT
+# This allows to change mapping debug COM port (for 32bit VXD and 16bit DRV)
+# -DCOM0 means mute in current module (for example: your HW has only one port
+# and you want debug only VXD)
+CFLAGS   += -DCOM1
 CFLAGS32 += -DCOM2
 !else
 CFLAGS32 += -d0
@@ -138,6 +141,9 @@ scrsw.obj : scrsw.c .autodepend
 scrsw_svga.obj : scrsw_svga.c .autodepend
 	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
 
+scrsw_vesa.obj : scrsw_vesa.c .autodepend
+	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
+
 # Object files: PM32 RING-0
 
 dbgprint32.obj : dbgprint32.c .autodepend
@@ -207,6 +213,9 @@ vxd_vdd_svga.obj : vxd_vdd_svga.c .autodepend
 	$(CC32) $(CFLAGS32) $(INCS) $(FLAGS) $<
 
 vxd_vdd_vesa.obj : vxd_vdd_vesa.c .autodepend
+	$(CC32) $(CFLAGS32) $(INCS) $(FLAGS) $<
+
+vxd_mtrr.obj : vxd_mtrr.c .autodepend
 	$(CC32) $(CFLAGS32) $(INCS) $(FLAGS) $<
 
 # Resources
@@ -462,7 +471,7 @@ file init.obj
 file control.obj
 file palette.obj
 file sswhook.obj
-file scrsw.obj
+file scrsw_vesa.obj
 file pm16_calls_vesa.obj
 file modes_vesa.obj
 name vesamini.drv
@@ -605,6 +614,7 @@ file vxd_lib.obj
 file vxd_vesa.obj
 file vxd_vdd_vesa.obj
 file vxd_mouse.obj
+file vxd_mtrr.obj
 segment '_TEXT'  PRELOAD NONDISCARDABLE
 segment '_DATA'  PRELOAD NONDISCARDABLE
 segment 'CONST'  PRELOAD NONDISCARDABLE

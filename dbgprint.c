@@ -43,12 +43,16 @@ THE SOFTWARE.
 
 
 /* Backdoor logging I/O ports. */
-#ifdef COM2
-/* COM2 I/O */
-#define INFO_PORT   0x2F8
+#if defined(COM2)
+# define INFO_PORT   0x2F8 /* COM2 I/O */
+#elif defined(COM3)
+# define INFO_PORT   0x3E8 /* COM3 I/O */
+#elif defined(COM4)
+# define INFO_PORT   0x2E8 /* COM3 I/O */
+#elif defined(COM0)
+/* no debug output */
 #else
-/* default COM1 I/O */
-#define INFO_PORT   0x3F8
+# define INFO_PORT   0x3F8 /* default COM1 I/O */
 #endif
 
 #define FULL_SERIAL
@@ -62,6 +66,7 @@ THE SOFTWARE.
 static int serial_inited = 0;
 
 static void init_serial() {
+#ifdef INFO_PORT
    outp(INFO_PORT + 1, 0x00);    // Disable all interrupts
    outp(INFO_PORT + 3, 0x80);    // Enable DLAB (set baud rate divisor)
    outp(INFO_PORT + 0, 0x01);    // Set divisor to 3 (lo byte) 38400 baud 0x0C = 9600, 0x01 = 115200
@@ -69,11 +74,16 @@ static void init_serial() {
    outp(INFO_PORT + 3, 0x03);    // 8 bits, no parity, one stop bit
    outp(INFO_PORT + 2, 0xC7);    // Enable FIFO, clear them, with 14-byte threshold
    //outp(INFO_PORT + 4, 0x0B);    // IRQs enabled, RTS/DSR set
+#endif
 }
 
 static int is_transmit_empty()
 {
+#ifdef INFO_PORT
 	return inp(INFO_PORT + 5) & 0x20;
+#else
+	return 1;
+#endif
 }
 #endif
 
@@ -88,8 +98,9 @@ static void prt_ch( char c )
 	
 	while (is_transmit_empty() == 0);
 #endif
-	
+#ifdef INFO_PORT
 	outp(INFO_PORT, c);
+#endif
 }
 
 #ifdef VXD32

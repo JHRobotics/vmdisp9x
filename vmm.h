@@ -112,6 +112,45 @@ typedef struct tagVxD_Desc_Block
 #define SCSIFD_DEVICE_ID       0x00024   // SCSI FASTDISK DEVICE
 #define VPEND_DEVICE_ID        0x00025   // PEN DEVICE
 #define APM_DEVICE_ID          0x00026   // POWER MANAGEMENT DEVICE
+#define VPOWERD_DEVICE_ID	APM_DEVICE_ID
+#define VXDLDR_DEVICE_ID       0x00027
+#define NDIS_DEVICE_ID         0x00028
+#define BIOS_EXT_DEVICE_ID     0x00029
+#define VWIN32_DEVICE_ID       0x0002A
+#define VCOMM_DEVICE_ID        0x0002B
+#define SPOOLER_DEVICE_ID      0x0002C
+#define WIN32S_DEVICE_ID       0x0002D
+#define DEBUGCMD_DEVICE_ID     0x0002E
+#define CONFIGMG_DEVICE_ID     0x00033
+#define DWCFGMG_DEVICE_ID      0x00034
+#define SCSIPORT_DEVICE_ID     0x00035
+#define VFBACKUP_DEVICE_ID     0x00036
+#define ENABLE_DEVICE_ID       0x00037
+#define VCOND_DEVICE_ID        0x00038
+#define ISAPNP_DEVICE_ID       0x0003C
+#define BIOS_DEVICE_ID         0x0003D
+#define IFSMgr_Device_ID       0x00040
+#define VCDFSD_DEVICE_ID       0x00041
+#define MRCI2_DEVICE_ID        0x00042
+#define PCI_DEVICE_ID          0x00043
+#define PELOADER_DEVICE_ID     0x00044
+#define EISA_DEVICE_ID         0x00045
+#define DRAGCLI_DEVICE_ID      0x00046
+#define DRAGSRV_DEVICE_ID      0x00047
+#define PERF_DEVICE_ID         0x00048
+#define AWREDIR_DEVICE_ID      0x00049
+#define DDS_DEVICE_ID          0x0004A
+#define NTKERN_DEVICE_ID       0x0004B
+#define VDOSKEYD_DEVICE_ID     0x0004B
+#define ACPI_DEVICE_ID         0x0004C
+#define UDF_DEVICE_ID          0x0004D
+#define SMCLIB_DEVICE_ID       0x0004E
+#define ETEN_Device_ID         0x00060
+#define CHBIOS_Device_ID       0x00061
+#define VMSGD_Device_ID        0x00062
+#define VPPID_Device_ID        0x00063
+#define VIME_Device_ID         0x00064
+#define VHBIOSD_Device_ID      0x00065
 
 #define VMM_Init_Order         0x000000000
 #define APM_Init_Order         0x001000000
@@ -201,6 +240,12 @@ typedef struct tagVxD_Desc_Block
 #define Sys_Dynamic_Device_Init 0x001B
 #define Sys_Dynamic_Device_Exit 0x001C
 
+#define Create_Thread	          0x001D
+#define Thread_Init	            0x001E
+#define Terminate_Thread        0x001F
+#define Thread_Not_Executeable  0x0020
+#define Destroy_Thread          0x0021
+#define PNP_New_Devnode         0x0022
 
 /* -------------------- CALLS FOR Win32  ------------------------- */
 
@@ -1203,6 +1248,19 @@ typedef struct tagCRS_32
    WORD   wReserved_13 ;          // (padding)
 
 } CRS_32, *PCRS_32;
+
+typedef struct VMCB
+{
+	DWORD CB_VM_Status; 	/* VM status flags */
+	DWORD CB_High_Linear;	/* Address of VM mapped high */
+	PCRS_32 CB_Client_Pointer;
+	ULONG CB_VMID;
+	ULONG CB_Signature;
+} VMCB_t;
+/* also as CB_S */
+
+#define VMCB_ID 0x62634D56	/* VMcb */
+
 #pragma pack(pop)
 
 /******************************************************************************

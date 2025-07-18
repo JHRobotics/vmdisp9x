@@ -54,6 +54,7 @@ THE SOFTWARE.
 #define OP_FBHDA_GAMMA_GET    0x1117 /* VXD, DRV, ESCAPE_DRV_NT */
 
 #define OP_FBHDA_PAGE_MOD     0x1118 /* VXD */
+#define OP_FBHDA_MODE_QUERY   0x1119 /* VXD */
 
 #define OP_SVGA_VALID         0x2000  /* VXD, DRV, ESCAPE_DRV_NT */
 #define OP_SVGA_SETMODE       0x2001  /* DRV */
@@ -82,6 +83,7 @@ THE SOFTWARE.
 #define OP_VESA_VALID         0x4000 /* VXD, DRV, ESCAPE_DRV_NT */
 #define OP_VESA_SETMODE       0x4001 /* DRV */
 #define OP_VESA_VALIDMODE     0x4002 /* DRV */
+#define OP_VESA_HIRES         0x4003 /* DRV */
 
 #define OP_MOUSE_BUFFER       0x1F00 /* DRV */
 #define OP_MOUSE_LOAD         0x1F01 /* DRV */         
@@ -257,7 +259,7 @@ void mouse_erase();
 /* helper for some hacks */
 BOOL FBHDA_page_modify(DWORD flat_address, DWORD size, const BYTE *new_data);
 
-/* query resulitions + refresh rate */
+/* query resulutions + refresh rate (need FB_VESA_MODES flag set) */
 BOOL FBHDA_mode_query(DWORD index, FBHDA_mode_t *mode);
 
 /*
@@ -441,8 +443,8 @@ BOOL VBE_setmode(DWORD w, DWORD h, DWORD bpp);
 
 BOOL VESA_init_hw(); /* internal for VXD only */
 
-void VESA_HW_enable();
-void VESA_HW_disable();
+void VESA_HIRES_enable();
+void VESA_HIRES_disable();
 BOOL VESA_valid();
 BOOL VESA_validmode(DWORD w, DWORD h, DWORD bpp);
 BOOL VESA_setmode(DWORD w, DWORD h, DWORD bpp, DWORD rr_min, DWORD rr_max);
@@ -461,6 +463,7 @@ typedef void (__cdecl *FBHDA_access_rect_t)(DWORD left, DWORD top, DWORD right, 
 typedef BOOL (__cdecl *FBHDA_swap_t)(DWORD offset);
 typedef BOOL (__cdecl *FBHDA_page_modify_t)(DWORD flat_address, DWORD size, const BYTE *new_data);
 typedef void (__cdecl *FBHDA_clean_t)(void);
+typedef BOOL (__cdecl *FBHDA_mode_query_t)(DWORD index, FBHDA_mode_t *mode);
 
 typedef struct _fbhda_lib_t
 {
@@ -473,6 +476,7 @@ typedef struct _fbhda_lib_t
 	FBHDA_swap_t pFBHDA_swap;
 	FBHDA_page_modify_t pFBHDA_page_modify;
 	FBHDA_clean_t pFBHDA_clean;
+	FBHDA_mode_query_t pFBHDA_mode_query;
 } fbhda_lib_t;
 
 #endif /* __3D_ACCEL_H__ */

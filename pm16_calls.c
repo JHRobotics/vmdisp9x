@@ -65,7 +65,7 @@ BOOL VXD_VM_connect()
 	{
 		return TRUE;
 	}
-	
+
 	/* read service vector */
 	_asm{
 		push es
@@ -88,7 +88,7 @@ BOOL VXD_VM_connect()
 		pop ax
 		pop es
 	};
-	
+
 	dbg_printf("VDD_REGISTER_DISPLAY_DRIVER_INFO for VM: %d\n", OurVMHandle);
 
 	_asm{
@@ -754,6 +754,39 @@ BOOL VESA_setmode(DWORD w, DWORD h, DWORD bpp, DWORD rr_min, DWORD rr_max)
 	}
 	
 	return status == 0 ? FALSE : TRUE;
+}
+
+static void VESA_HIRES(DWORD hires_on)
+{
+	static DWORD s_hires_on;
+
+	s_hires_on = hires_on;
+
+	_asm
+	{
+		.386
+		push eax
+		push edx
+		push ecx
+	  
+	  mov edx, OP_VESA_HIRES
+	  mov ecx, [s_hires_on]
+	  call dword ptr [VXD_VM]
+	  
+	  pop ecx
+		pop edx
+		pop eax
+	}
+}
+
+void VESA_HIRES_enable()
+{
+	VESA_HIRES(1);
+}
+
+void VESA_HIRES_disable()
+{
+	VESA_HIRES(0);
 }
 
 BOOL VESA_validmode(DWORD w, DWORD h, DWORD bpp)

@@ -41,6 +41,8 @@ THE SOFTWARE.
 #include "svga_all.h"
 #endif
 
+#include "vxd.h"
+
 #include "3d_accel.h"
 
 /* code and data is same segment */
@@ -64,7 +66,8 @@ extern WORD vbe_chip_id;
 extern WORD vesa_version;
 #endif
 
-static BOOL mode_changing = FALSE;
+BOOL mode_changing = FALSE;
+BOOL virtual_int10_mode_set = FALSE;
 
 static void VDD_Register_Extra_Screen_Selector(DWORD selector)
 {
@@ -247,8 +250,6 @@ VDDPROC(GET_CHIP_ID, get_chip_id)
 		VDD_NC;
 	}
 #endif
-
-
 }
 
 /**
@@ -274,10 +275,21 @@ to restore the screen if the user tries to switch back. In this case, if the use
 to switch back, the system terminates the application.
 
 **/
-VDDPROC(CHECK_SCREEN_SWITCH_OK, check_screen_switch_ok)
+#ifdef VESA
+BOOL VESA_check_switch(DWORD mode);
+
+VDDPROCRET(CHECK_SCREEN_SWITCH_OK, check_screen_switch_ok)
 {
-	
+	if(VESA_check_switch(extra_ecx))
+	{
+		dbg_printf("CHECK_SCREEN_SWITCH_OK: OK\n");
+		return 1; /* NC */
+	}
+
+	dbg_printf("CHECK_SCREEN_SWITCH_OK: DENIED\n");
+	return 0; /* CY */
 }
+#endif
 
 /**
 GET_BANK_SIZE (Function 37) 
@@ -298,7 +310,6 @@ VDDPROC(GET_BANK_SIZE, get_bank_size)
 	VDD_CY;
 }
 
-
 VDDPROC(GET_VDD_BANK, get_vdd_bank)
 {
 	state->Client_EDX = state->Client_ECX;
@@ -306,12 +317,12 @@ VDDPROC(GET_VDD_BANK, get_vdd_bank)
 
 VDDPROC(SET_VDD_BANK, set_vdd_bank)
 {
-	
+
 }
 
 VDDPROC(RESET_BANK, reset_bank)
 {
-	
+
 }
 
 /**
@@ -322,7 +333,7 @@ See also GET_CURRENT_BANK_WRITE.
 **/
 VDDPROC(GET_CURRENT_BANK_READ, get_current_bank_read)
 {
-	
+
 }
 
 /**
@@ -338,7 +349,7 @@ GET_CURRENT_BANK_WRITE and GET_CURRENT_BANK_READ are made when the user presses 
 **/
 VDDPROC(GET_CURRENT_BANK_WRITE, get_current_bank_write)
 {
-	
+
 }
 
 /**
@@ -378,7 +389,7 @@ This call is very similar to PRE_HIRES_TO_VGA in that it allows the mini-VDD to 
 **/
 VDDPROC(PRE_HIRES_SAVE_RESTORE, pre_hires_save_restore)
 {
-	
+
 }
 
 /**
@@ -394,7 +405,7 @@ This function is very similar to POST_HIRES_TO_VGA in that it allows the mini-VD
 **/
 VDDPROC(POST_HIRES_SAVE_RESTORE, post_hires_save_restore)
 {
-	
+
 }
 
 /**
@@ -412,7 +423,7 @@ This call requests the mini-VDD to set the read/write bank passed in EAX/EDX. Th
 **/
 VDDPROC(SET_BANK, set_bank)
 {
-	
+
 }
 
 /**
@@ -428,9 +439,10 @@ This routine is called by the VESA/hi-res restore routine in the Main VDD when t
 If the mode number passed in EAX is a VESA mode number, you should return NC and let the Main VDD set the mode. If the mode number passed in EAX is a non-VESA hi-res mode that is particular to your card, if possible, this function should not touch VRAM since this could cause page faults and confuse the register state of the mode set. In other words, try not to erase the screen during the mode set if possible. 
 
 **/
-VDDPROC(SET_HIRES_MODE, set_hires_mode)
+VDDPROCRET(SET_HIRES_MODE, set_hires_mode)
 {
-	
+	dbg_printf("SET_HIRES_MODE\n");
+	return 0;
 }
 
 /**
@@ -463,48 +475,67 @@ The mini-VDD's VESA support decides what to do based on values in the Client reg
 This routine could also be used to setup a VESA call while still letting the Ring 3 VESA BIOS handle the call. The mini-VDD would do what it wants to do, and then return NC indicating that the Main VDD should call the Ring 3 VESA BIOS or VESA.COM program. 
 
 **/
-VDDPROC(VESA_SUPPORT, vesa_support)
+VDDPROCRET(VESA_SUPPORT, vesa_support)
 {
-	
+	if(vm != ThisVM)
+	{
+		return 0; /* STC*/
+	}
+	return 1; /* CLC */
 }
 
 VDDPROC(PRE_HIRES_TO_VGA, pre_hires_to_vga)
 {
+	dbg_printf("PRE_HIRES_TO_VGA\n");
 	mode_changing = TRUE;
 	if(is_qemu)
 	{
 		Disable_Global_Trapping(0x1CE);
 		Disable_Global_Trapping(0x1CF);
 	}
+	VDD_NC;
 }
 
 VDDPROC(POST_HIRES_TO_VGA, post_hires_to_vga)
 {
+	dbg_printf("POST_HIRES_TO_VGA\n");
 	mode_changing = FALSE;
 	if(is_qemu)
 	{
 		Enable_Global_Trapping(0x1CE);
 		Enable_Global_Trapping(0x1CF);
 	}
+	VDD_NC;
 }
 
 VDDPROC(PRE_VGA_TO_HIRES, pre_vga_to_hires)
 {
+	dbg_printf("PRE_VGA_TO_HIRES\n");
 	mode_changing = TRUE;
+	VDD_NC;
 }
 
 VDDPROC(POST_VGA_TO_HIRES, post_vga_to_hires)
 {
+	dbg_printf("POST_VGA_TO_HIRES\n");
 	mode_changing = FALSE;
+	VDD_NC;
 }
 
 VDDPROC(ENABLE_TRAPS, enable_traps)
 {
+	dbg_printf("ENABLE_TRAPS: VM: %ld\n", vm);
+
 	if(is_qemu)
 	{
 		Enable_Global_Trapping(0x1CE);
 		Enable_Global_Trapping(0x1CF);
 	}
+}
+
+VDDPROC(DISABLE_TRAPS, disable_traps)
+{
+
 }
 
 VDDPROC(DISPLAY_DRIVER_DISABLING, display_driver_disabling)
@@ -516,23 +547,51 @@ VDDPROC(DISPLAY_DRIVER_DISABLING, display_driver_disabling)
 	}
 }
 
+/**
+Entry:
+	EAX contains the mode that we're setting to (in AL).
+	EBX contains the VM handle doing the mode set.
+	EBP --> VM's Client Registers.
+Exit:
+	Preserve everything that's used.
+
+This routine is called whenever a VM (including the Windows VM) does an
+INT 10H, function 0 mode set call.  The MiniVDD uses this routine to
+do anything necessary to implement the mode set.  In the case of the XGA,
+where the ROM BIOS itself doesn't take the screen out of HiRes mode (if it's
+currently in an XGA HiRes mode), we take care of restoring the screen to
+VGA mode.  This routine is called regardless of whether the VM is windowed
+or full-screen.  We therefore must be careful not to take the screen out
+of XGA HiRes mode if this is a windowed VM!
+
+Do nothing for the Windows VM:
+
+**/
+
+VDDPROC(PRE_INT_10_MODE_SET, pre_int_10_mode_set)
+{
+	dbg_printf("PRE_INT_10_MODE_SET: client eax=%lX, EAX=%lX\n", state->Client_EAX, extra_eax);
+}
+
 VDDPROC(SAVE_REGISTERS, save_registers)
 {
+	//dbg_printf("SAVE_REGISTERS\n");
 	// NOP
 }
 
-
 VDDPROC(RESTORE_REGISTERS, restore_registers)
 {
+	//dbg_printf("RESTORE_REGISTERS\n");
 	// NOP
 }
 
 VDDPROC(VIRTUALIZE_CRTC_IN, virtualize_crtc_in)
 {
+	//dbg_printf("VIRTUALIZE_CRTC_IN: port: %X, value: %X\n", extra_edx, extra_eax);
 	// NOP
 }
 
 VDDPROC(VIRTUALIZE_CRTC_OUT, virtualize_crtc_out)
 {
-	// NOP
+	//dbg_printf("VIRTUALIZE_CRTC_OUT: port: %X, value: %X\n", extra_edx, extra_eax);
 }

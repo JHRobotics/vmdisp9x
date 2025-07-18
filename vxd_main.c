@@ -52,6 +52,10 @@ THE SOFTWARE.
 # include "vxd_svga.h"
 #endif
 
+#ifdef VESA
+BOOL VESA_check_int10h(DWORD vm, PCRS_32 regs);
+#endif
+
 #include "version.h"
 
 #include "code32.h"
@@ -103,6 +107,27 @@ DWORD DispatchTableLength = 0;
 DWORD ThisVM = 0;
 DWORD is_qemu = FALSE;
 
+void __stdcall port_info(DWORD p_eax, DWORD p_ecx, DWORD p_edx)
+{
+	dbg_printf("virtual_0x1ce eax=%lX ecx=%lX edx=%lX\n", p_eax, p_ecx, p_edx);
+}
+
+DWORD __stdcall virtual_int_proc(DWORD int_num, DWORD vm, PCRS_32 regs)
+{
+	if(int_num == 0x10)
+	{
+#ifdef VESA
+		if(!VESA_check_int10h(vm, regs))
+		{
+			dbg_printf("INT 10h ignored for EAX=%lX\n", regs->Client_EAX);
+			return 1;
+		}
+#endif
+	}
+	
+	return 0;
+}
+
 #if defined(QEMU) || defined(SVGA) || defined(VESA)
 /**
  * This is fix of broken screen when open DOS window
@@ -116,6 +141,15 @@ void __declspec(naked) virtual_0x1ce()
  * ECX contains the direction (in/out) and size (byte/word) of the operation.
  * EDX contains the port number, which for us will either be 1CEh or 1CFh.
  */
+/*
+	_asm{
+		pushad
+		push edx
+		push ecx
+		push eax
+		call port_info
+		popad
+	}*/
 	VxDCall(VDD, Get_VM_Info); // esi = result
 	_asm{
 		cmp edi, ThisVM             ; Is the CRTC controlled by Windows?
@@ -127,6 +161,30 @@ void __declspec(naked) virtual_0x1ce()
 	}
 	VxDJmp(VDD, Do_Physical_IO);
 }
+
+static DWORD int_10h_next_hook = 0;
+void __declspec(naked) virtual_int_10h()
+{
+	_asm
+	{
+		; header (8 bytes)
+		jmp short virtual_int_10h_entry
+		jmp [int_10h_next_hook]
+		virtual_int_10h_entry:
+
+		pushad
+		push ebp
+		push ebx
+		push eax
+		call virtual_int_proc
+		sub eax,1
+		popad
+		retn
+
+		jmp [int_10h_next_hook]
+	}
+}
+
 #endif /* QEMU/SVGA/VESA */
 
 /**
@@ -163,10 +221,22 @@ void __declspec(naked) Device_IO_Control_entry()
 	}
 }
 
+void VESA_check_state();
+
+void __stdcall Set_Device_Focus_proc(DWORD VMHandle, DWORD VID, DWORD Flags, DWORD AssocVMHandle)
+{
+#ifdef VESA
+//	dbg_printf("Set_Device_Focus\n");
+#endif
+}
+
+#ifdef DBGPRINT
 void __stdcall print_ctrl(DWORD type)
 {
-	dbg_printf("VXD_control: %lX\n", type);
+	VMCB_t *cur = Get_Cur_VM_Handle();
+	dbg_printf("VXD_control: type=%lX curVM=%lX thisVM=%lX\n", type, cur, ThisVM);
 }
+#endif
 
 /*
  * service module calls (init, exit, deviceIoControl, ...)
@@ -180,7 +250,7 @@ void __declspec(naked) VXD_control()
 	// eax = 0x1C - dynamic exit
 	// eax = 0x23 - device IO control
 
-#if 0 
+#if 0
 	_asm
 	{
 		pushad
@@ -255,6 +325,18 @@ void __declspec(naked) VXD_control()
 			clc
 			ret
 		control_7:
+		cmp eax, Set_Device_Focus
+		jnz control_8
+			pushad
+			push edi ; AssocVMHandle
+			push esi ; Flags
+			push edx ; VID
+			push ebx ; VMHandle
+			call Set_Device_Focus_proc
+			popad
+			clc
+			ret
+		control_8:
 ;			pushad
 ;			push eax
 ;			call print_ctrl
@@ -459,6 +541,20 @@ WORD __stdcall VXD_API_Proc(PCRS_32 state)
 			rc = 1;
 			break;
 		}
+		case OP_VESA_HIRES:
+		{
+			DWORD enable = state->Client_ECX;
+			if(enable)
+			{
+				VESA_HIRES_enable();
+			}
+			else
+			{
+				VESA_HIRES_disable();
+			}
+			rc = 1;
+			break;
+		}
 #endif
 
 	}
@@ -568,27 +664,50 @@ static void configure_FBHDA()
 
 /* generate all entry pro VDD function */
 #define VDDFUNC(_fnname, _procname) void __declspec(naked) _procname ## _entry() { \
-	_asm { push ebp }; \
+	_asm { push edi }; \
+	_asm { push esi }; \
+	_asm { push edx }; \
+	_asm { push ecx }; /* extra_ecx */ \
+	_asm { push eax }; /* extra_eax */ \
+	_asm { push ebp }; /* state */ \
+	_asm { push ebx }; /* vm */ \
 	_asm { call _procname ## _proc }; \
+	_asm { pop ebx }; \
+	_asm { pop ebp }; \
+	_asm { pop eax }; \
+	_asm { pop ecx }; \
+	_asm { pop edx }; \
+	_asm { pop esi }; \
+	_asm { pop edi }; \
 	_asm { retn }; \
 	}
 
-#define VDDNAKED(_fnname, _procname) void __declspec(naked) _procname ## _entry() { \
-	_asm { pushad }; \
-	_asm { mov eax, esp }; \
-	_asm { add eax, 32 }; \
-	_asm { push eax }; \
+#define VDDFUNCRET(_fnname, _procname) void __declspec(naked) _procname ## _entry() { \
+	_asm { push edi }; \
+	_asm { push esi }; \
+	_asm { push edx }; \
+	_asm { push ecx }; /* extra_ecx */ \
+	_asm { push eax }; /* extra_eax */ \
+	_asm { push ebp }; /* state */ \
+	_asm { push ebx }; /* vm */ \
 	_asm { call _procname ## _proc }; \
-	_asm { popad }; \
+	_asm { sub eax, 1 }; /* set carry on zero */ \
+	_asm { pop ebx }; \
+	_asm { pop ebp }; \
+	_asm { pop eax }; \
+	_asm { pop ecx }; \
+	_asm { pop edx }; \
+	_asm { pop esi }; \
+	_asm { pop edi }; \
 	_asm { retn }; \
 	}
 
 #include "vxd_vdd_list.h"
 #undef VDDFUNC
-#undef VDDNAKED
+#undef VDDFUNCRET
 
 #define VDDFUNC(id, procname) DispatchTable[id] = (DWORD)(procname ## _entry);
-#define VDDNAKED VDDFUNC
+#define VDDFUNCRET VDDFUNC
 
 /* init device and fill dispatch table */
 void Device_Init_proc(DWORD VM)
@@ -612,7 +731,9 @@ void Device_Init_proc(DWORD VM)
 	VESA_init_hw();
 #endif
 
-#if defined(QEMU) || defined(VESA)
+#if defined(VESA)
+	Hook_V86_Int_Chain(0x10, ((DWORD)virtual_int_10h)+8);
+#elif defined(QEMU)
 	Install_IO_Handler(0x1ce, (DWORD)virtual_0x1ce);
 	Disable_Global_Trapping(0x1ce);
 	Install_IO_Handler(0x1cf, (DWORD)virtual_0x1ce);
@@ -739,6 +860,15 @@ DWORD __stdcall Device_IO_Control_proc(DWORD vmhandle, struct DIOCParams *params
 			break;
 		case OP_FBHDA_OVERLAY_UNLOCK:
 			FBHDA_overlay_unlock(inBuf[0]);
+			rc = 0;
+			break;
+		case OP_FBHDA_MODE_QUERY:
+#ifdef VESA
+			/* currently only for VESA */
+			outBuf[0] = FBHDA_mode_query(inBuf[0], (FBHDA_mode_t*)(&outBuf[1]));
+#else
+			outBuf[0] = FALSE;
+#endif
 			rc = 0;
 			break;
 #ifdef SVGA

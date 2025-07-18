@@ -35,6 +35,7 @@ THE SOFTWARE.
 #include "pci.h" /* re-use PCI functions from SVGA */
 
 #include "vesa.h"
+#include "mtrr.h"
 
 #define IO_IN8
 #define IO_OUT8
@@ -97,8 +98,10 @@ void vesa_bios(CRS_32 *V86regs)
 
 void load_client_state(CRS_32 *V86regs)
 {
-	_asm   mov       edi, [V86regs]
-	VMMCall(Save_Client_State);
+//	_asm   mov       edi, [V86regs]
+//	VMMCall(Save_Client_State);
+	VMCB_t *vm = (VMCB_t*)ThisVM;
+	memcpy(V86regs, vm->CB_Client_Pointer, sizeof(CRS_32));
 }
 
 static DWORD vesa_buf_v86;
@@ -153,28 +156,13 @@ BOOL VESA_init_hw()
 	if(vesa_buf)
 	{
 		DWORD modes_count = 0;
-#if 0
-		/* JH: bad idea, memory must be above 640k! */
-		DWORD lp = _GetLastV86Page();
-		DWORD v86_page = lp+1;
+		DWORD v86_page = 0xD0; /* Is this OK? Any collisions? */
 
-		_SetLastV86Page(v86_page, 0);
-		if(_PhysIntoV86(vesa_buf_phy >> 12, ThisVM, v86_page, 1, 0))
-		{
-			vesa_buf_v86 = v86_page*4096;
-		}
-
-		dbg_printf("last page was=%lX\n", lp);
-		dbg_printf("VESA V86 addr=0x%lX, phy=0x%lX\n", vesa_buf_v86, vesa_buf_phy);
-#else
-		/* FIXME: check if page is free! */
-		DWORD v86_page = 0xB0;
 		if(_PhysIntoV86(vesa_buf_phy >> 12, ThisVM, v86_page, 1, 0))
 		{
 			vesa_buf_v86 = v86_page*4096;
 		}
 		dbg_printf("VESA V86 addr=0x%lX, phy=0x%lX\n", vesa_buf_v86, vesa_buf_phy);
-#endif
 
 		if(vesa_buf_v86)
 		{
@@ -235,7 +223,8 @@ BOOL VESA_init_hw()
 					//dbg_printf("mode=%X atrs=0x%lX eax=0x%lX\n", modes[i], modeinfo->ModeAttributes, regs.Client_EAX);
 					if(VESA_SUCC(regs))
 					{
-						if(modeinfo->ModeAttributes &
+						if((modeinfo->ModeAttributes &
+							(VESA_MODE_HW_SUPPORTED | VESA_MODE_COLOR | VESA_MODE_GRAPHICS | VESA_MODE_LFB)) ==
 							(VESA_MODE_HW_SUPPORTED | VESA_MODE_COLOR | VESA_MODE_GRAPHICS | VESA_MODE_LFB))
 						{
 							vesa_mode_t *m = &vesa_modes[vesa_modes_cnt];
@@ -287,6 +276,16 @@ BOOL VESA_init_hw()
 
 				hda->vram_pm32 = (void*)_MapPhysToLinear(fb_phy, hda->vram_size, 0);
 
+#if 0				
+				if(fb_phy > 1*1024*1024)
+				{
+					if(MTRR_GetVersion())
+					{
+						MTRR_SetPhysicalCacheTypeRange(fb_phy, 0, hda->vram_size, MTRR_FRAMEBUFFERCACHED);
+					}
+				}
+#endif
+
 				hda->flags |= FB_SUPPORT_FLIPING | FB_VESA_MODES;
 
 				vesa_pal = (vesa_palette_entry_t*)(((BYTE*)vesa_buf)+PAL_OFFSET);
@@ -298,6 +297,7 @@ BOOL VESA_init_hw()
 				FBHDA_memtest();
 
 				dbg_printf("VESA_init_hw(vram_size=%ld) = TRUE\n", hda->vram_size);
+				
 				return TRUE;
 			}
 		}
@@ -330,22 +330,22 @@ void VESA_clear()
 	memset((BYTE*)hda->vram_pm32+hda->system_surface, 0, hda->pitch*hda->height);
 }
 
-BOOL VESA_setmode(DWORD w, DWORD h, DWORD bpp, DWORD rr_min, DWORD rr_max)
+BOOL VESA_setmode_phy(DWORD w, DWORD h, DWORD bpp, DWORD rr_min, DWORD rr_max)
 {
 	DWORD i;
-	dbg_printf("VESA_validmode()\n");
-	//if(!VESA_validmode(w, h, bpp)) return FALSE;
 
 	for(i = 0; i < vesa_modes_cnt; i++)
 	{
 		if(vesa_modes[i].width == w && vesa_modes[i].height == h && vesa_modes[i].bpp == bpp)
 		{
 			CRS_32 regs;
+			VESA_HIRES_enable();
+
 			load_client_state(&regs);
 
 			// set mode
 			regs.Client_EAX = VESA_CMD_MODE_SET;
-			regs.Client_EBX = vesa_modes[i].mode_id | VESA_SETMODE_LFB;
+			regs.Client_EBX = vesa_modes[i].mode_id | VESA_SETMODE_LFB | VESA_SETMODE_NOCLEAR;
 			regs.Client_ES = 0;
 			regs.Client_EDI = 0;
 
@@ -442,8 +442,6 @@ BOOL VESA_setmode(DWORD w, DWORD h, DWORD bpp, DWORD rr_min, DWORD rr_max)
 					hda->flags |= FB_SUPPORT_VSYNC;
 				}
 
-				VESA_clear();
-				mouse_invalidate();
 				FBHDA_update_heap_size(FALSE);
 
 				act_mode = i;
@@ -462,9 +460,20 @@ BOOL VESA_setmode(DWORD w, DWORD h, DWORD bpp, DWORD rr_min, DWORD rr_max)
 	return FALSE;
 }
 
+BOOL VESA_setmode(DWORD w, DWORD h, DWORD bpp, DWORD rr_min, DWORD rr_max)
+{
+	if(VESA_setmode_phy(w, h, bpp, rr_min, rr_max))
+	{
+		VESA_clear();
+		mouse_invalidate();
+		return TRUE;
+	}
+	return FALSE;
+}
+
 void FBHDA_palette_set(unsigned char index, DWORD rgb)
 {
-	dbg_printf("PAL: %d:0x%lX,bpp:%d\n", index, rgb, vesa_pal_bits);
+//	dbg_printf("PAL: %d:0x%lX,bpp:%d\n", index, rgb, vesa_pal_bits);
 
 	if((vesa_caps & VESA_CAP_NONVGA) == 0)
 	{
@@ -537,7 +546,7 @@ DWORD FBHDA_palette_get(unsigned char index)
 		{
 			return
 				((DWORD)(vesa_pal[index].Red)   << 16) |
-				((DWORD)(vesa_pal[index].Green) << 8) |
+				((DWORD)(vesa_pal[index].Green) <<  8) |
 				 (DWORD)(vesa_pal[index].Blue);
 		}
 		else
@@ -646,3 +655,117 @@ void  FBHDA_overlay_unlock(DWORD flags)
 {
 
 }
+
+static BOOL vga_mode = TRUE;
+
+void VESA_HIRES_enable()
+{
+	dbg_printf("VESA_HIRES_enable\n");
+	vga_mode = FALSE;
+}
+
+void VESA_HIRES_disable()
+{
+	dbg_printf("VESA_HIRES_disable\n");
+	vga_mode = TRUE;
+}
+
+extern BOOL mode_changing;
+
+BOOL FBHDA_mode_query(DWORD index, FBHDA_mode_t *mode)
+{
+	if(index >= vesa_modes_cnt)
+	{
+		return FALSE;
+	}
+
+	if(mode)
+	{
+		mode->cb = sizeof(FBHDA_mode_t);
+		mode->width = vesa_modes[index].width;
+		mode->height = vesa_modes[index].height;
+		mode->bpp = vesa_modes[index].bpp;
+		mode->refresh = 0;
+	}
+
+	return TRUE;
+}
+
+static BYTE saved_vga_mode = 0xFF;
+
+BOOL VESA_check_int10h(DWORD vm, PCRS_32 regs)
+{
+	if(vm != ThisVM)
+	{
+		BYTE ah = (regs->Client_EAX >> 8) & 0xFF;
+		BYTE al =  regs->Client_EAX & 0xFF;
+		if(ah == 0)
+		{
+			if(!vga_mode)
+			{
+				saved_vga_mode = al & 0x7F;
+				return FALSE;
+			}
+		}
+
+		if(ah == 0x4F)
+		{
+			if(al == 0x02) /* mode set */
+			{
+				if(!vga_mode)
+				{
+					regs->Client_EAX &= 0xFFFF;
+					regs->Client_EAX |= 0x034F; /* Function call invalid in current video mode */
+					return FALSE;
+				}
+			}
+		}
+	}
+	return TRUE;
+}
+
+#if 0
+/* NOTE: idea was forbind switch between window and full screen DOS mode,
+         but this currently useless because windows only checking if can out
+         but not if can in 
+ */
+static BOOL is_text_mode(DWORD mode)
+{
+	switch(mode)
+	{
+		case 00:
+		case 01:
+		case 03:
+		case 07:
+			return TRUE;
+	}
+	return FALSE;
+}
+
+BOOL VESA_check_switch(DWORD mode)
+{
+	if(vga_mode)
+	{
+		if(!is_text_mode(mode))
+		{
+			return FALSE;
+		}
+	}
+	else
+	{
+		if(is_text_mode(mode))
+		{
+			return FALSE;
+		}
+	}
+	return TRUE;
+}
+
+#else
+
+BOOL VESA_check_switch(DWORD mode)
+{
+	return TRUE;
+}
+
+#endif

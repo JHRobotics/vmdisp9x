@@ -167,6 +167,10 @@ void SwitchToBgnd( void )
     SVGA_HW_disable();
 #endif
 
+#ifdef VESA
+		VESA_HIRES_disable();
+#endif
+
     lpDriverPDevice->deFlags |= BUSY;   /// @todo Does this need to be a locked op?
     wEnabled = 0;
 }
@@ -181,6 +185,10 @@ void SwitchToFgnd( void )
     dbg_printf( "SwitchToFgnd\n" );
 #ifdef SVGA
     SVGA_HW_enable();
+#endif
+
+#ifdef VESA
+		VESA_HIRES_enable();
 #endif
 
     /* If the PDevice is busy, we need to reset the display mode. */

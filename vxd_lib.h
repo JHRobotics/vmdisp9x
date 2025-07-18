@@ -34,6 +34,7 @@ char *strcat(char *dst, const char *src);
 BOOL RegReadConf(UINT root, const char *path, const char *name, DWORD *out);
 
 DWORD Get_VMM_Version();
+void *Get_Cur_VM_Handle();
 ULONG __cdecl _PageAllocate(ULONG nPages, ULONG pType, ULONG VM, ULONG AlignMask, ULONG minPhys, ULONG maxPhys, ULONG *PhysAddr, ULONG flags);
 ULONG __cdecl _PageFree(PVOID hMem, DWORD flags);
 ULONG __cdecl _CopyPageTable(ULONG LinPgNum, ULONG nPages, DWORD *PageBuf, ULONG flags);
@@ -75,6 +76,8 @@ void __cdecl _BuildDescriptorDWORDs(ULONG DESCBase, ULONG DESCLimit, ULONG DESCT
 void __cdecl _Allocate_LDT_Selector(ULONG vm, ULONG DescHigh, ULONG DescLow, ULONG Count, ULONG flags, DWORD *outFirstSelector, DWORD *outSelectorTable);
 void __cdecl _Allocate_GDT_Selector(ULONG DescHigh, ULONG DescLow, ULONG flags, DWORD *outFirstSelector, DWORD *outSelectorTable);
 ULONG __cdecl _SetDescriptor(ULONG selector, ULONG vm, DWORD DescDWORD1, DWORD DescDWORD2, ULONG flags);
+
+void Hook_V86_Int_Chain(DWORD int_num, DWORD HookProc);
 
 void Enable_Global_Trapping(DWORD port);
 void Disable_Global_Trapping(DWORD port);

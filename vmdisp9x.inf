@@ -152,26 +152,31 @@ vesamini.vxd,,,0x00000004
 [Qemu.AddReg]
 HKR,DEFAULT,drv,,qemumini.drv
 HKR,DEFAULT,minivdd,,qemumini.vxd
+HKR,DEFAULT,ExtModeSwitch,,0
 HKR,DEFAULT,Mode,,"8,640,480"
 
 [QXL.AddReg]
 HKR,DEFAULT,drv,,qxlmini.drv
 HKR,DEFAULT,minivdd,,qxlmini.vxd
+HKR,DEFAULT,ExtModeSwitch,,0
 HKR,DEFAULT,Mode,,"32,640,480"
 
 [VBox.AddReg]
 HKR,DEFAULT,drv,,boxvmini.drv
 HKR,DEFAULT,minivdd,,boxvmini.vxd
+HKR,DEFAULT,ExtModeSwitch,,0
 HKR,DEFAULT,Mode,,"8,640,480"
 
 [VMSvga.AddReg]
 HKR,DEFAULT,drv,,vmwsmini.drv
 HKR,DEFAULT,minivdd,,vmwsmini.vxd
+HKR,DEFAULT,ExtModeSwitch,,0
 HKR,DEFAULT,Mode,,"32,640,480"
 
 [VESA.AddReg]
 HKR,DEFAULT,drv,,vesamini.drv
 HKR,DEFAULT,minivdd,,vesamini.vxd
+;HKR,DEFAULT,ExtModeSwitch,,0
 HKR,DEFAULT,Mode,,"16,640,480"
 
 [VM.DelReg]
@@ -193,7 +198,6 @@ HKR,DEFAULT,vdd,,"*vdd"
 ;HKR,DEFAULT,carddvdd,,cardsamp.vxd
 HKR,DEFAULT,RefreshRate,,-1
 HKR,DEFAULT,DDC,,1
-HKR,DEFAULT,ExtModeSwitch,,0
 HKR,"MODES\4\640,480",drv,,vga.drv
 HKR,"MODES\4\640,480",vdd,,*vdd
 HKR,"MODES\4\800,600",drv,,supervga.drv
