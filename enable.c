@@ -264,7 +264,7 @@ UINT WINAPI __loadds Enable( LPVOID lpDevice, UINT style, LPSTR lpDeviceType,
         lpEng->deWidthBytes   = hda->pitch;
         lpEng->deDeltaScan    = hda->pitch;
         lpEng->dePlanes       = 1;
-        lpEng->deBitsPixel    = wBpp;
+      	lpEng->deBitsPixel    = (wBpp + 7) & 0xFFF8; // must be multiple of 8
         lpEng->deReserved1    = 0;
         lpEng->delpPDevice    = 0;
         lpEng->deBitsOffset   = hda->surface;
@@ -368,7 +368,7 @@ UINT WINAPI __loadds Enable( LPVOID lpDevice, UINT style, LPSTR lpDeviceType,
         /* Update more GDIINFO bits. */
         lpInfo->dpLogPixelsX = wDpi;
         lpInfo->dpLogPixelsY = wDpi;
-        lpInfo->dpBitsPixel  = wBpp;
+       	lpInfo->dpBitsPixel  = (wBpp + 7) & 0xFFF8; // must be multiple of 8
         lpInfo->dpDCManage   = DC_IgnoreDFNP;
         /* In theory we should set the C1_SLOW_CARD flag since this driver is unaccelerated.
          * This flag disables certain visual effects like "embossed" disabled text or animations.

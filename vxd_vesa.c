@@ -156,7 +156,7 @@ BOOL VESA_init_hw()
 	if(vesa_buf)
 	{
 		DWORD modes_count = 0;
-		DWORD v86_page = 0xD0; /* Is this OK? Any collisions? */
+		DWORD v86_page = 0xB0; /* Is this OK? Any collisions? */
 
 		if(_PhysIntoV86(vesa_buf_phy >> 12, ThisVM, v86_page, 1, 0))
 		{
@@ -275,17 +275,20 @@ BOOL VESA_init_hw()
 				}
 
 				hda->vram_pm32 = (void*)_MapPhysToLinear(fb_phy, hda->vram_size, 0);
-
-#if 0				
+#if 1
 				if(fb_phy > 1*1024*1024)
 				{
 					if(MTRR_GetVersion())
 					{
+						dbg_printf("MTRR supported\n");
 						MTRR_SetPhysicalCacheTypeRange(fb_phy, 0, hda->vram_size, MTRR_FRAMEBUFFERCACHED);
+					}
+					else
+					{
+						dbg_printf("MTRR unsupported\n");
 					}
 				}
 #endif
-
 				hda->flags |= FB_SUPPORT_FLIPING | FB_VESA_MODES;
 
 				vesa_pal = (vesa_palette_entry_t*)(((BYTE*)vesa_buf)+PAL_OFFSET);

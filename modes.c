@@ -101,6 +101,9 @@ WORD FixModeInfo( LPMODEDESC lpMode )
     /* First validate bits per pixel. */
     switch( lpMode->bpp ) {
     case 8:
+#ifdef VESA
+    case 15:
+#endif
     case 16:
     case 24:
     case 32:
@@ -129,8 +132,9 @@ WORD CalcPitch( WORD x, WORD bpp )
 {
     WORD    wPitch;
 
-    /* Valid BPP must be a multiple of 8 so it's simple. */
-    wPitch = x * (bpp / 8);
+    /* Valid BPP must be a multiple of 8 so it's simple. Unless we work at 15bpp */
+    // wPitch = x * (bpp / 8);
+    wPitch = x * ((bpp + 7) >> 3);
 
     /* Align to 32 bits. */
     wPitch = (wPitch + 3) & ~3;

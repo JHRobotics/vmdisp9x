@@ -46,6 +46,7 @@ vesamini.vxd=1
 ;wined3d:wined8.dll=1
 ;wined3d:wined9.dll=1
 ;switcher:tray3d.exe=1
+;switcher:vesamode.exe=1
 ;3dfx:3dfxSpl2.dll=1,3dfx
 ;3dfx:3dfxSpl3.dll=1,3dfx
 ;3dfx:3dfxVGL.dll=1,3dfx
@@ -132,6 +133,7 @@ vesamini.vxd,,,0x00000004
 ;mesa:mesa3d.dll,,,0x00000004
 ;vmhal:vmhal9x.dll,,,0x00000004
 ;vmhal:vmdisp9x.dll,,,0x00000004
+;switcher:vesamode.exe,,,0x00000004
 
 [Voodoo.Copy]
 ;3dfx:3dfxspl2.dll,,,0x00000010

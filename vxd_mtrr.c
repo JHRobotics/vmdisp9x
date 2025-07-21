@@ -30,9 +30,14 @@ THE SOFTWARE.
 #include "vxd_lib.h"
 #include "mtrr.h"
 
-DWORD __declspec(naked) __cdecl MTRR_GetVersion()
+DWORD __cdecl MTRR_GetVersion()
 {
-	VxDJmp(MTRR, Get_Version);
+	DWORD rc = 0;
+	VxDCall(MTRR, Get_Version);
+	_asm and eax, 0xFFFF
+	_asm mov eax, [rc]
+	
+	return rc;
 }
 
 DWORD __declspec(naked) __cdecl MTRR_SetPhysicalCacheTypeRange(DWORD PhysicalAddress, DWORD reserved, DWORD NumberOfBytes, DWORD CacheType)
