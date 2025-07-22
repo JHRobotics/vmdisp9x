@@ -38,6 +38,8 @@ ULONG hda_sem = 0;
 LONG fb_lock_cnt = 0;
 DWORD gamma_quirk = 0;
 
+extern BOOL vram_heap_in_ram;
+
 #include "vxd_strings.h"
 
 BOOL FBHDA_init_hw()
@@ -46,26 +48,26 @@ BOOL FBHDA_init_hw()
 	if(hda)
 	{
 		memset(hda, 0, sizeof(FBHDA_t));
-	
+
 		hda->cb = sizeof(FBHDA_t);
 		hda->version = API_3DACCEL_VER;
 		hda->flags = 0;
-		
+
 		hda->gamma = 1 << 16;
-		
+
 		hda_sem = Create_Semaphore(1);
 		if(hda_sem == 0)
 		{
 			_PageFree(hda, 0);
 			return FALSE;
 		}
-		
+
 		return TRUE;
 	}
-	return FALSE;	
+	return FALSE;
 }
 
-void FBHDA_update_heap_size(BOOL init)
+void FBHDA_update_heap_size(BOOL init, BOOL ram)
 {
 	if(hda)
 	{
@@ -77,19 +79,40 @@ void FBHDA_update_heap_size(BOOL init)
 
 		blocks_size += ((FB_VRAM_HEAP_GRANULARITY - (blocks_size) % FB_VRAM_HEAP_GRANULARITY)) % FB_VRAM_HEAP_GRANULARITY;
 
-		hda->heap_end = ((BYTE*)hda->vram_pm32) + (blocks*FB_VRAM_HEAP_GRANULARITY - blocks_size);
-		hda->heap_info = (DWORD*)hda->heap_end;
+		if(!ram)
+		{
+			hda->heap_end = ((BYTE*)hda->vram_pm32) + (blocks*FB_VRAM_HEAP_GRANULARITY - blocks_size);
+			hda->heap_info = (DWORD*)hda->heap_end;
 
-		top = hda->system_surface + hda->stride;
-		start = hda->heap_end - ((BYTE*)hda->vram_pm32 + top);
-		
-		hda->heap_count  = blocks;
-		hda->heap_length = start / FB_VRAM_HEAP_GRANULARITY;
-		hda->heap_start = hda->heap_end - FB_VRAM_HEAP_GRANULARITY*hda->heap_length;
-		
-		dbg_printf("FBHDA_update_heap_size(start=%lu bottom=%lu, hda->heap_length=%lu)\n", start, bottom, hda->heap_length);
+			top = hda->system_surface + hda->stride;
+			start = hda->heap_end - ((BYTE*)hda->vram_pm32 + top);
 
-		if(init)
+			hda->heap_count  = blocks;
+			hda->heap_length = start / FB_VRAM_HEAP_GRANULARITY;
+			hda->heap_start = hda->heap_end - FB_VRAM_HEAP_GRANULARITY*hda->heap_length;
+
+			dbg_printf("FBHDA_update_heap_size(start=%lu bottom=%lu, hda->heap_length=%lu)\n", start, bottom, hda->heap_length);
+		}
+		else
+		{
+			hda->heap_end = ((BYTE*)hda->vram_pm32) + (blocks*FB_VRAM_HEAP_GRANULARITY);
+
+			top = hda->system_surface + hda->stride;
+			start = hda->heap_end - ((BYTE*)hda->vram_pm32 + top);
+
+			hda->heap_count  = blocks;
+			hda->heap_length = start / FB_VRAM_HEAP_GRANULARITY;
+			hda->heap_start = hda->heap_end - FB_VRAM_HEAP_GRANULARITY*hda->heap_length;
+
+			if(init)
+			{
+				hda->heap_info = (DWORD*)_PageAllocate((blocks_size+P_SIZE-1)/P_SIZE, PG_SYS, 0, 0x0, 0, 0x100000, NULL, PAGEZEROINIT);
+			}
+
+			dbg_printf("FBHDA_update_heap_size(start=%lu bottom=%lu, hda->heap_length=%lu)\n", start, bottom, hda->heap_length);
+		}
+
+		if(init && hda->heap_info != NULL)
 		{
 			DWORD i;
 			for(i = 0; i < blocks; i++)
@@ -106,7 +129,7 @@ void FBHDA_release_hw()
 	{
 		_PageFree(hda, 0);
 	}
-	
+
 	if(hda_sem)
 	{
 		Destroy_Semaphore(hda_sem);
@@ -117,7 +140,7 @@ FBHDA_t *FBHDA_setup()
 {
 	dbg_printf("FBHDA_setup()\n");
 	dbg_printf("sizeof(FBHDA_t) = %ld\n", sizeof(FBHDA_t));
-	
+
 	return hda;
 }
 
@@ -140,7 +163,7 @@ static void init_ramp()
 		gamma_ramp[1][i] = (i << 8) | i;
 		gamma_ramp[2][i] = (i << 8) | i;
 	}
-	
+
 	gamma_ramp_init = TRUE;
 }
 
@@ -150,7 +173,7 @@ BOOL FBHDA_gamma_get(VOID FBPTR ramp, DWORD buffer_size)
 	{
 		if(!gamma_ramp_init)
 			init_ramp();
-		
+
 		memcpy(ramp, &gamma_ramp[0][0], sizeof(gamma_ramp));
 		return TRUE;
 	}
@@ -158,7 +181,7 @@ BOOL FBHDA_gamma_get(VOID FBPTR ramp, DWORD buffer_size)
 	{
 		dbg_printf("Wrong ramp size: %ld\n", buffer_size);
 	}
-	
+
 	return FALSE;
 }
 
@@ -180,7 +203,7 @@ BOOL FBHDA_gamma_set(VOID FBPTR ramp, DWORD buffer_size)
 				used_quirk = 2;
 			}
 		}
-		
+
 		dbg_printf("Gamma quirk: %ld\n", used_quirk);
 
 		if(used_quirk == 1) /* gamma quirk for ID Software games */
@@ -190,13 +213,13 @@ BOOL FBHDA_gamma_set(VOID FBPTR ramp, DWORD buffer_size)
 				gamma_table[(new_ramp[1*256 + 64] >> 8)] +
 				gamma_table[(new_ramp[2*256 + 64] >> 8)]
 			) / 3;
-			
+
 			if(gamma >= 0x3000 && gamma < 0x1000000) /* from ~0.2000 to 256.0000 */
 			{
 				int i = 0;
 				hda->gamma = gamma;
 				hda->gamma_update++;
-				
+
 				/* copy new ramp and duplicate odd values */
 				for(i = 0; i < 128; i ++)
 				{
@@ -207,11 +230,11 @@ BOOL FBHDA_gamma_set(VOID FBPTR ramp, DWORD buffer_size)
 					gamma_ramp[2][(i*2) + 0] = new_ramp[2*256 + i];
 					gamma_ramp[2][(i*2) + 1] = new_ramp[2*256 + i];
 				}
-				
+
 				gamma_ramp_init = TRUE;
-				
+
 				dbg_printf("gamma update to 0x%lX\n", hda->gamma);
-				
+
 				return TRUE;
 			}
 		}
@@ -222,18 +245,18 @@ BOOL FBHDA_gamma_set(VOID FBPTR ramp, DWORD buffer_size)
 				gamma_table[(new_ramp[1*256 + 128] >> 8)] +
 				gamma_table[(new_ramp[2*256 + 128] >> 8)]
 			) / 3;
-			
+
 			if(gamma >= 0x3000 && gamma < 0x1000000) /* from ~0.2000 to 256.0000 */
 			{
 				hda->gamma = gamma;
 				hda->gamma_update++;
-				
+
 				/* copy new ramp */
 				memcpy(&gamma_ramp[0][0], ramp, sizeof(gamma_ramp));
 				gamma_ramp_init = TRUE;
-				
+
 				dbg_printf("gamma update to 0x%lX\n", hda->gamma);
-				
+
 				return TRUE;
 			}
 		}
@@ -268,12 +291,12 @@ void FBHDA_memtest()
 		DWORD i;
 		DWORD *ptr = hda->vram_pm32;
 		DWORD size4 = hda->vram_size/4;
-		
+
 		for(i = 0; i < size4; i++)
 		{
 			ptr[i] = TEST_PATTERN;
 		}
-		
+
 		for(i = 0; i < size4; i++)
 		{
 			if(ptr[i] != TEST_PATTERN)
@@ -283,14 +306,23 @@ void FBHDA_memtest()
 				break;
 			}
 		}
-		
-		size4 = i;
-		/* write black, parent may confuse some users... */
-		for(i = 0; i < size4; i++)
+
+		if(hda->vram_size >= 1*1024*1024)
 		{
-			ptr[i] = 0;
+			size4 = i;
+			/* write black, pattert may confuse some users... */
+			for(i = 0; i < size4; i++)
+			{
+				ptr[i] = 0;
+			}
+		}
+		else
+		{
+			dbg_printf("cannot test vram, assume the Videos BIOS returns the correct information.\n");
+			hda->vram_size = size4*4;
+			vram_heap_in_ram = TRUE; /* also assume that same modes can completly overwrite full vram */
 		}
 
-		dbg_printf("VRAM real size=%ld\n", size4);
+		dbg_printf("VRAM real size=%ld, vram_heap_in_ram=%d\n", hda->vram_size, vram_heap_in_ram);
 	}
 }

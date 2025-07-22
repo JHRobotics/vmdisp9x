@@ -14,7 +14,7 @@ OBJS += &
 
 INCS = -I$(%WATCOM)\h\win -Iddk -Ivmware
 
-VER_BUILD = 112
+VER_BUILD = 114
 
 FLAGS = -DDRV_VER_BUILD=$(VER_BUILD)
 

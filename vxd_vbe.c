@@ -59,6 +59,7 @@ THE SOFTWARE.
 static BOOL vbe_is_valid = FALSE;
 extern FBHDA_t *hda;
 extern LONG fb_lock_cnt;
+extern BOOL vram_heap_in_ram;
 WORD vbe_chip_id = 0;
 
 #ifdef QEMU
@@ -275,7 +276,7 @@ BOOL VBE_setmode(DWORD w, DWORD h, DWORD bpp)
 	VBE_clear();
 
 	mouse_invalidate();
-	FBHDA_update_heap_size(FALSE);
+	FBHDA_update_heap_size(FALSE, vram_heap_in_ram);
 
 	return TRUE;
 }

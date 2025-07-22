@@ -267,6 +267,7 @@ HKLM,Software\vmdisp9x\svga,RGB565bug,,0
 HKLM,Software\vmdisp9x\svga,CommandBuffers,,1
 HKLM,Software\vmdisp9x\svga,VRAMLimit,,128
 HKLM,Software\vmdisp9x\svga,PreferFIFO,,1
+HKLM,Software\vmdisp9x\vesa,VRAMLimit,,128
 HKLM,Software\Microsoft\Windows\CurrentVersion\OpenGLdrivers,QEMUFX,2,"qmfxgl32.dll"
 ;mesa:HKLM,Software\Microsoft\Windows\CurrentVersion\OpenGLdrivers,SOFTWARE,2,"mesa3d.dll"
 ;mesa:HKLM,Software\Microsoft\Windows\CurrentVersion\OpenGLdrivers,VMWSVGA,2,"vmwsgl32.dll"

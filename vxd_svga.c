@@ -65,6 +65,8 @@ extern FBHDA_t *hda;
 extern ULONG hda_sem;
 SVGA_DB_t *svga_db = NULL;
 
+extern BOOL vram_heap_in_ram;
+
 extern LONG fb_lock_cnt;
 
        BOOL gb_support = FALSE;
@@ -969,7 +971,7 @@ BOOL SVGA_setmode(DWORD w, DWORD h, DWORD bpp)
 	SVGA_clear();
 
 	mouse_invalidate();
-	FBHDA_update_heap_size(FALSE);
+	FBHDA_update_heap_size(FALSE, vram_heap_in_ram);
 
 	FBHDA_access_end(0);
 

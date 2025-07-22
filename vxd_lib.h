@@ -115,5 +115,5 @@ struct _VPICD_IRQ_Descriptor;
 BOOL VPICD_Virtualize_IRQ(struct _VPICD_IRQ_Descriptor *vid);
 
 /* extra FBHA */
-void FBHDA_update_heap_size(BOOL init);
+void FBHDA_update_heap_size(BOOL init, BOOL ram);
 void FBHDA_memtest();

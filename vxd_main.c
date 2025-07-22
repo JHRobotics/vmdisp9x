@@ -107,6 +107,12 @@ DWORD DispatchTableLength = 0;
 DWORD ThisVM = 0;
 DWORD is_qemu = FALSE;
 
+#ifdef VESA
+BOOL vram_heap_in_ram = TRUE;
+#else
+BOOL vram_heap_in_ram = FALSE;
+#endif
+
 void __stdcall port_info(DWORD p_eax, DWORD p_ecx, DWORD p_edx)
 {
 	dbg_printf("virtual_0x1ce eax=%lX ecx=%lX edx=%lX\n", p_eax, p_ecx, p_edx);
@@ -657,8 +663,8 @@ static void configure_FBHDA()
 		{
 			fbhda->flags |= FB_ACCEL_QEMU3DFX;
 		}
-		
-		FBHDA_update_heap_size(TRUE);
+
+		FBHDA_update_heap_size(TRUE, vram_heap_in_ram);
 	}
 }
 
