@@ -4,6 +4,12 @@
 #include "drvlib.h"
 #include "dpmi.h"
 
+#include <gdidefs.h>
+#include <dibeng.h>
+#include <valmode.h>
+#include <minivdd.h>
+#include "minidrv.h"
+
 #pragma code_seg( _INIT )
 
 void drv_memcpy(void __far *dst, void __far *src, long size)
@@ -108,4 +114,50 @@ void drv_memset_large(DWORD dwLinearBase, DWORD dwOffset, UINT value, DWORD dwNu
 	}
 	
 	DPMI_FreeLDTDesc(wSel);
+}
+
+BOOL drv_is_p2()
+{
+	/* CPUID detection from:
+		https://www.prowaretech.com/articles/current/assembly/x86/check-for-cpuid-support
+	*/
+	static DWORD rc = 0;
+	_asm {
+		push eax
+		push ebx
+		pushfd                    // push eflags on the stack
+		pop eax                   // pop them into eax
+		mov ebx, eax              // save to ebx for restoring afterwards
+		xor eax, 0x200000         // toggle bit 21
+		push eax                  // push the toggled eflags
+		popfd                     // pop them back into eflags
+		pushfd                    // push eflags
+		pop eax                   // pop them back into eax
+		cmp eax, ebx              // see if bit 21 was reset
+		jz non_support_cpuid
+		push edx
+		push ecx
+		mov eax, 1
+		db 0x0F                   // cpuid
+		db 0xA2                   // (manual insert)
+    and  edx, 0x1800000       // MMX + FXSR support
+    cmp  edx, 0x1800000
+    jnz  non_support_mmx
+    pop  ecx
+    pop  edx
+    pop  ebx
+    mov  eax, 1
+    mov  [rc], eax
+    pop  eax
+    jmp done
+    non_support_mmx:
+    	pop ecx
+    	pop edx
+		non_support_cpuid:
+			pop ebx
+			pop eax
+		done:
+	};
+
+	return (rc == 0) ? FALSE : TRUE;
 }

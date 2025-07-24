@@ -214,17 +214,21 @@ LONG WINAPI __loadds Control(LPVOID lpDevice, UINT function,
       if((hda->flags & FB_ACCEL_VMSVGA3D) && ((hda->flags & FB_FORCE_SOFTWARE) == 0))
       {
         _fmemcpy(lpOutput, &vmwsvga_icd, OPENGL_ICD_SIZE);
+        rc = 1;
       }
       else if((hda->flags & FB_ACCEL_QEMU3DFX) && ((hda->flags & FB_FORCE_SOFTWARE) == 0))
       {
         _fmemcpy(lpOutput, &qemu3dfx_icd, OPENGL_ICD_SIZE);
+        rc = 1;
       }
       else
       {
-        _fmemcpy(lpOutput, &software_icd, OPENGL_ICD_SIZE);
+      	if(drv_is_p2())
+      	{
+        	_fmemcpy(lpOutput, &software_icd, OPENGL_ICD_SIZE);
+        	rc = 1;
+        }
       }
-      
-      rc = 1;
       break;
     } /* OPENGL_GETINFO */
     case DCICOMMAND: /* input ptr DCICMD */
@@ -290,6 +294,7 @@ LONG WINAPI __loadds Control(LPVOID lpDevice, UINT function,
               break;
           }
         }
+#if 0
         else if(lpDCICMD->dwVersion == DCI_VERSION)
         {
           dbg_printf("DCI(%d) -> failed!\n", lpDCICMD->dwCommand);
@@ -300,6 +305,17 @@ LONG WINAPI __loadds Control(LPVOID lpDevice, UINT function,
           dbg_printf("hal required: %lX\n", lpDCICMD->dwVersion);
           rc = 1;
         }
+#else
+				else
+				{
+					/* JH: this come from S3 driver, we need to do this or DDRAW not work on emulators*
+						(probably wrong zero page exception handling)
+
+						*emulators = QEMU without KVM/HyperV, DOSBox
+					*/
+					return DIB_Control(lpDevice, function, lpInput, lpOutput);
+				}
+#endif
       }
       break;
     } /* DCICOMMAND */

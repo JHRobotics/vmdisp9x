@@ -68,6 +68,12 @@ WORD vesa_version = 0;
 static DWORD vesa_caps = 0;
 static int act_mode = -1;
 
+/* access rect */
+static DWORD rect_left;
+static DWORD rect_top;
+static DWORD rect_right;
+static DWORD rect_bottom;
+
 extern BOOL vram_heap_in_ram;
 
 #include "vxd_strings.h"
@@ -114,6 +120,8 @@ static int vesa_pal_bits = 6;
 
 static BOOL vesa_valid = FALSE;
 
+static DWORD conf_dos_window = 0;
+
 #define SCREEN_EMULATED_CENTER 0
 #define SCREEN_EMULATED_COPY   1
 #define SCREEN_FLIP            2
@@ -157,8 +165,9 @@ BOOL VESA_init_hw()
 	
 	dbg_printf("VESA init begin...\n");
 
-	RegReadConf(HKEY_LOCAL_MACHINE, VESA_conf_path, "VRAMLimit", &conf_vram_limit);
-	RegReadConf(HKEY_LOCAL_MACHINE, VESA_conf_path, "MTRR",      &conf_mtrr);
+	RegReadConf(HKEY_LOCAL_MACHINE, VESA_conf_path, "VRAMLimit",        &conf_vram_limit);
+	RegReadConf(HKEY_LOCAL_MACHINE, VESA_conf_path, "MTRR",             &conf_mtrr);
+	RegReadConf(HKEY_LOCAL_MACHINE, VESA_conf_path, "DosWindowSetMode", &conf_dos_window);
 
 	flat = _PageAllocate(1, PG_SYS, 0, 0x0, 0, 0x100000, &vesa_buf_phy, PAGEUSEALIGN | PAGECONTIG | PAGEFIXED);
 	vesa_buf = (void*)flat;
@@ -631,13 +640,61 @@ void FBHDA_access_begin(DWORD flags)
 	//Wait_Semaphore(hda_sem, 0);
 	if(fb_lock_cnt++ == 0)
 	{
+		rect_left   = 0;
+		rect_top    = 0;
+		rect_right  = hda->width;
+		rect_bottom = hda->height;
 		mouse_erase();
 	}
 }
 
 void FBHDA_access_rect(DWORD left, DWORD top, DWORD right, DWORD bottom)
 {
-	FBHDA_access_begin(0);
+	if(fb_lock_cnt++ == 0)
+	{
+		mouse_erase();
+		rect_left   = left;
+		rect_top    = top;
+		rect_right  = right;
+		rect_bottom = bottom;
+	}
+	else
+	{
+		if(left < rect_left)
+			rect_left = left;
+
+		if(top < rect_top)
+			rect_top = top;
+
+		if(right > rect_right)
+			rect_right = right;
+
+		if(bottom > rect_bottom)
+			rect_bottom = bottom;
+	}
+}
+
+static void VESA_update_rect()
+{
+	if((rect_right > rect_left) && (rect_bottom > rect_top))
+	{
+		DWORD y;
+		DWORD bs = (hda->bpp + 7) >> 3;
+		DWORD line_size = (rect_right - rect_left) * bs;
+		DWORD line_start = rect_left * bs;
+		BYTE *dst = (BYTE*)hda->vram_pm32;
+		BYTE *src = ((BYTE*)hda->vram_pm32) + hda->surface;
+
+		dst += (rect_top * hda->pitch) + line_start;
+		src += (rect_top * hda->pitch) + line_start;
+
+		for(y = rect_top; y < rect_bottom; y++)
+		{
+			memcpy(dst, src, line_size);
+			dst += hda->pitch;
+			src += hda->pitch;
+		}
+	}
 }
 
 void FBHDA_access_end(DWORD flags)
@@ -652,8 +709,31 @@ void FBHDA_access_end(DWORD flags)
 		{
 			case SCREEN_EMULATED_CENTER:
 			case SCREEN_EMULATED_COPY:
-				memcpy(hda->vram_pm32, ((BYTE*)hda->vram_pm32)+hda->surface, hda->stride);
+			{
+				if(rect_left > hda->width)
+					rect_left = 0;
+
+				if(rect_top > hda->height)
+					rect_top = 0;
+
+				if(rect_right > hda->width)
+					rect_right = hda->width;
+
+				if(rect_bottom > hda->height)
+					rect_bottom = hda->height;
+
+				if(rect_left == 0 && rect_top == 0 &&
+					rect_right == hda->width && rect_bottom == hda->height)
+				{
+					memcpy(hda->vram_pm32, ((BYTE*)hda->vram_pm32)+hda->surface, hda->stride);
+				}
+				else
+				{
+					VESA_update_rect();
+				}
+
 				break;
+			}
 		}
 		// cursor
 	}
@@ -721,7 +801,7 @@ BOOL VESA_check_int10h(DWORD vm, PCRS_32 regs)
 		BYTE al =  regs->Client_EAX & 0xFF;
 		if(ah == 0)
 		{
-			if(!vga_mode)
+			if(!vga_mode && conf_dos_window == 0)
 			{
 				saved_vga_mode = al & 0x7F;
 				return FALSE;
@@ -732,7 +812,7 @@ BOOL VESA_check_int10h(DWORD vm, PCRS_32 regs)
 		{
 			if(al == 0x02) /* mode set */
 			{
-				if(!vga_mode)
+				if(!vga_mode && conf_dos_window == 0)
 				{
 					regs->Client_EAX &= 0xFFFF;
 					regs->Client_EAX |= 0x034F; /* Function call invalid in current video mode */

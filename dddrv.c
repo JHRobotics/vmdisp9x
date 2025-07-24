@@ -43,6 +43,12 @@ const static DD32BITDRIVERDATA_t drv_vmhal9x = {
 	0
 };
 
+const static DD32BITDRIVERDATA_t drv_vmhal486 = {
+	"vmhal486.dll",
+	"DriverInit",
+	0
+};
+
 /*
  * pre-declare our HAL fns
  */
@@ -429,58 +435,109 @@ BOOL DDCreateDriverObject(int bReset)
   /*
    * get addresses of 32-bit routines
    */
-	cbDDCallbacks.CanCreateSurface = hal->cb32.CanCreateSurface;
-	if(cbDDCallbacks.CanCreateSurface) cbDDCallbacks.dwFlags |= DDHAL_CB32_CANCREATESURFACE;
-	
-	cbDDCallbacks.CreateSurface = hal->cb32.CreateSurface;	
-	if(cbDDCallbacks.CreateSurface) cbDDCallbacks.dwFlags |= DDHAL_CB32_CREATESURFACE;
+  if(hal->cb32.CanCreateSurface)
+  {
+		cbDDCallbacks.CanCreateSurface = hal->cb32.CanCreateSurface;
+		cbDDCallbacks.dwFlags |= DDHAL_CB32_CANCREATESURFACE;
+	}
 
-	cbDDSurfaceCallbacks.Blt = hal->cb32.Blt;
-	if(cbDDSurfaceCallbacks.Blt) cbDDSurfaceCallbacks.dwFlags |= DDHAL_SURFCB32_BLT;
-		
-	cbDDSurfaceCallbacks.Flip = hal->cb32.Flip;
-	if(cbDDSurfaceCallbacks.Flip)	cbDDSurfaceCallbacks.dwFlags |= DDHAL_SURFCB32_FLIP;
+	if(hal->cb32.CreateSurface)
+	{
+		cbDDCallbacks.CreateSurface = hal->cb32.CreateSurface;	
+		cbDDCallbacks.dwFlags |= DDHAL_CB32_CREATESURFACE;
+	}
+
+	if(hal->cb32.Blt)
+	{
+		cbDDSurfaceCallbacks.Blt = hal->cb32.Blt;
+		cbDDSurfaceCallbacks.dwFlags |= DDHAL_SURFCB32_BLT;
+	}
+
+	if(hal->cb32.Flip)
+	{
+		cbDDSurfaceCallbacks.Flip = hal->cb32.Flip;
+		cbDDSurfaceCallbacks.dwFlags |= DDHAL_SURFCB32_FLIP;
+	}
+
+	if(hal->cb32.Lock)
+	{
+		cbDDSurfaceCallbacks.Lock = hal->cb32.Lock;
+		cbDDSurfaceCallbacks.dwFlags |= DDHAL_SURFCB32_LOCK;
+	}
+
+	if(hal->cb32.Unlock)
+	{
+		cbDDSurfaceCallbacks.Unlock = hal->cb32.Unlock;
+		cbDDSurfaceCallbacks.dwFlags |= DDHAL_SURFCB32_UNLOCK;
+	}
+
+	if(hal->cb32.GetBltStatus)
+	{
+		cbDDSurfaceCallbacks.GetBltStatus = hal->cb32.GetBltStatus;
+		cbDDSurfaceCallbacks.dwFlags |= DDHAL_SURFCB32_GETBLTSTATUS;
+	}
+
+	if(hal->cb32.GetFlipStatus)
+	{
+		cbDDSurfaceCallbacks.GetFlipStatus = hal->cb32.GetFlipStatus;
+		cbDDSurfaceCallbacks.dwFlags |= DDHAL_SURFCB32_GETFLIPSTATUS;
+	}
+
+	if(hal->cb32.DestroySurface)
+	{
+		cbDDSurfaceCallbacks.DestroySurface = hal->cb32.DestroySurface;
+		cbDDSurfaceCallbacks.dwFlags |= DDHAL_SURFCB32_DESTROYSURFACE;
+	}
 	
-	cbDDSurfaceCallbacks.Lock = hal->cb32.Lock;
-	if(cbDDSurfaceCallbacks.Lock) cbDDSurfaceCallbacks.dwFlags |= DDHAL_SURFCB32_LOCK;
-	
-	cbDDSurfaceCallbacks.Unlock = hal->cb32.Unlock;
-	if(cbDDSurfaceCallbacks.Unlock) cbDDSurfaceCallbacks.dwFlags |= DDHAL_SURFCB32_UNLOCK;
-	
-	cbDDSurfaceCallbacks.GetBltStatus = hal->cb32.GetBltStatus;
-	if(cbDDSurfaceCallbacks.GetBltStatus) cbDDSurfaceCallbacks.dwFlags |= DDHAL_SURFCB32_GETBLTSTATUS;
-	
-	cbDDSurfaceCallbacks.GetFlipStatus = hal->cb32.GetFlipStatus;
-	if(cbDDSurfaceCallbacks.GetFlipStatus) cbDDSurfaceCallbacks.dwFlags |= DDHAL_SURFCB32_GETFLIPSTATUS;
-	
-	cbDDSurfaceCallbacks.DestroySurface = hal->cb32.DestroySurface;
-	if(cbDDSurfaceCallbacks.DestroySurface) cbDDSurfaceCallbacks.dwFlags |= DDHAL_SURFCB32_DESTROYSURFACE;
-	
-	hal->ddHALInfo.GetDriverInfo = hal->cb32.GetDriverInfo;
-	if(hal->ddHALInfo.GetDriverInfo) hal->ddHALInfo.dwFlags |= DDHALINFO_GETDRIVERINFOSET;
+	if(hal->cb32.GetDriverInfo)
+	{
+		hal->ddHALInfo.GetDriverInfo = hal->cb32.GetDriverInfo;
+		hal->ddHALInfo.dwFlags |= DDHALINFO_GETDRIVERINFOSET;
+	}
 	
 	hal->ddHALInfo.dwFlags |= hal->cb32.flags;
-		
-	cbDDCallbacks.WaitForVerticalBlank = hal->cb32.WaitForVerticalBlank;
-	if(cbDDCallbacks.WaitForVerticalBlank) cbDDCallbacks.dwFlags |= DDHAL_CB32_WAITFORVERTICALBLANK;
 	
-	cbDDCallbacks.SetMode = hal->cb32.SetMode;
-	if(cbDDCallbacks.SetMode) cbDDCallbacks.dwFlags |= DDHAL_CB32_SETMODE;
-		
-	cbDDCallbacks.SetExclusiveMode = hal->cb32.SetExclusiveMode;
-	if(cbDDCallbacks.SetExclusiveMode) cbDDCallbacks.dwFlags |= DDHAL_CB32_SETEXCLUSIVEMODE;
-	
-	cbDDCallbacks.FlipToGDISurface = hal->cb32.FlipToGDISurface;
-	if(cbDDCallbacks.FlipToGDISurface) cbDDCallbacks.dwFlags |= DDHAL_CB32_FLIPTOGDISURFACE;
-	
-	cbDDSurfaceCallbacks.SetColorKey = hal->cb32.SetColorKey;
-	if(cbDDSurfaceCallbacks.SetColorKey) cbDDSurfaceCallbacks.dwFlags |= DDHAL_SURFCB32_SETCOLORKEY;
+	if(hal->cb32.WaitForVerticalBlank)
+	{
+		cbDDCallbacks.WaitForVerticalBlank = hal->cb32.WaitForVerticalBlank;
+		cbDDCallbacks.dwFlags |= DDHAL_CB32_WAITFORVERTICALBLANK;
+	}
 
-	cbDDSurfaceCallbacks.AddAttachedSurface = hal->cb32.AddAttachedSurface;
-	if(cbDDSurfaceCallbacks.AddAttachedSurface) cbDDSurfaceCallbacks.dwFlags |= DDHAL_SURFCB32_ADDATTACHEDSURFACE;
+	if(hal->cb32.SetMode)
+	{
+		cbDDCallbacks.SetMode = hal->cb32.SetMode;
+		cbDDCallbacks.dwFlags |= DDHAL_CB32_SETMODE;
+	}
 
-	cbDDSurfaceCallbacks.SetOverlayPosition = hal->cb32.SetOverlayPosition;
-	if(cbDDSurfaceCallbacks.SetOverlayPosition) cbDDSurfaceCallbacks.dwFlags |= DDHAL_SURFCB32_SETOVERLAYPOSITION;
+	if(hal->cb32.SetExclusiveMode)
+	{
+		cbDDCallbacks.SetExclusiveMode = hal->cb32.SetExclusiveMode;
+		cbDDCallbacks.dwFlags |= DDHAL_CB32_SETEXCLUSIVEMODE;
+	}
+
+	if(hal->cb32.FlipToGDISurface)
+	{
+		cbDDCallbacks.FlipToGDISurface = hal->cb32.FlipToGDISurface;
+		cbDDCallbacks.dwFlags |= DDHAL_CB32_FLIPTOGDISURFACE;
+	}
+
+	if(hal->cb32.SetColorKey)
+	{
+		cbDDSurfaceCallbacks.SetColorKey = hal->cb32.SetColorKey;
+		cbDDSurfaceCallbacks.dwFlags |= DDHAL_SURFCB32_SETCOLORKEY;
+	}
+
+	if(hal->cb32.AddAttachedSurface)
+	{
+		cbDDSurfaceCallbacks.AddAttachedSurface = hal->cb32.AddAttachedSurface;
+		cbDDSurfaceCallbacks.dwFlags |= DDHAL_SURFCB32_ADDATTACHEDSURFACE;
+	}
+
+	if(hal->cb32.SetOverlayPosition)
+	{
+		cbDDSurfaceCallbacks.SetOverlayPosition = hal->cb32.SetOverlayPosition;
+		cbDDSurfaceCallbacks.dwFlags |= DDHAL_SURFCB32_SETOVERLAYPOSITION;
+	}
 
 	if(hal->cb32.DestroyDriver)
 	{
@@ -540,8 +597,15 @@ BOOL DDCreateDriverObject(int bReset)
 
 BOOL DDGet32BitDriverName(DD32BITDRIVERDATA_t __far *dd32)
 {
-	_fmemcpy(dd32, &drv_vmhal9x, sizeof(drv_vmhal9x));
-	
+	if(drv_is_p2())
+	{
+		_fmemcpy(dd32, &drv_vmhal9x, sizeof(drv_vmhal9x));
+	}
+	else
+	{
+		_fmemcpy(dd32, &drv_vmhal486, sizeof(drv_vmhal486));
+	}
+
 	if(DDGetPtr(NULL, &(dd32->dwContext)))
 	{
 		return TRUE;

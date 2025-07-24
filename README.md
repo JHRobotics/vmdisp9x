@@ -3,6 +3,7 @@ Virtual Display driver for Windows 95/98/Me. Supported devices are:
 - Bochs VBE Extensions (Bochs: VBE, VirtulBox: VboxVGA, QEMU: std-vga)
 - VMWare SVGA-II (VMWare Workstation/Player, VirtulBox: VMSVGA, QEMU: vmware-svga)
 - VBox SVGA (VirtulBox: VBoxSVGA)
+- Any video adapter with VESA BIOS Extension 2.0/3.0
 
 Supported and tested virtualization software are:
 - ~~VirtualBox 6.0 (2D, software 3D)~~
@@ -12,7 +13,7 @@ Supported and tested virtualization software are:
 - VMWare Workstation 17 (2D, hardware OpenGL 2.1/4.3)
 - QEMU 7.x, 8.0 (2D, software 3D)
 
-2D driver is very generic and probably works with other Virtualization software as well, 3D part required my Mesa port = https://github.com/JHRobotics/mesa9x. See its documentation for more info.
+2D driver is very generic works with any video adapter, 3D part required my Mesa port = https://github.com/JHRobotics/mesa9x. See its documentation for more info.
 
 ## Easy installation
 This repository only contains the display driver, if you want user friendly installation, please use [SoftGPU](https://github.com/JHRobotics/softgpu) instead (this driver is part of SoftGPU project). There is also small [tutorial here](https://github.com/JHRobotics/vmdisp9x/issues/9#issuecomment-2452598883).
@@ -26,6 +27,7 @@ Driver is based on [Michal Necasek's VirtualBox driver](http://www.os2museum.com
 - added API to access VRAM/FB directly
 - added DirectDraw support
 - added DirectX support
+- added VESA BIOS support
 
 QEMU support (`-vga std`) is from [Philip Kelley driver modification](https://github.com/phkelley/boxv9x)
 
@@ -54,6 +56,65 @@ VMware workstation is supported in current version (17.5.x). In theory, this dri
 
 ## QEMU
 QEMU is supported since **v1.2023.0.10**. Supported adapters are `-vga std` which using modified VBE driver (`qemumini.drv`) and `-vga vmware` where VMware driver now works but is limited to 32bpp colours only. I plan to support *VirGL* in future, but currently no 3D acceleration isn't available in vanilla QEMU (but HW acceleration is possible with [QEMU-3DFX](https://github.com/kjliew/qemu-3dfx).
+
+
+## VESA BIOS extension
+
+This driver (in theory) also works on any hardware or software device with VESA BIOS extension 2.0 or 3.0 support. This is almost every video card with PCI bus and its successors (AGP, PCI-E), with this is possible using this driver on real hardware, but there are few limitations:
+
+- you cannot switch between DOS in window mode and fullscreen, DOS games starts from Windows works but sometimes need specify fullscreen mode on startup.
+- only supported 2D acceleration is double buffering (will be also emulated if adapter cannot move framebuffer start position)
+- 3D acceleration is fully software
+- setting refresh rate is not supported yet
+- screen modes (resolution and colour depth) isn't detected on installation and needs be enumerated by extra utility
+
+
+### Driver choice
+
+When you can choice between a native driver (for virtual or real video card), please choose the native driver, it'll be faster and stabler. VESA driver is usually good on situation where HW is too new to have Windows 9X drivers.
+
+### Display modes
+
+Display modes are wired in driver `*.inf`, but is possible to update screen modes (resolution and colour depth) by read them from display adapter. Simplest way, is click on monitor icon on right side of taskbar and chose "Update display modes".
+
+![Update VESA modes](docs/vesa-update-modes.png)
+
+Alternative is run this command:
+```
+cd C:\windows\system
+vesamode /insert /24
+```
+
+
+### DOS in window
+
+When you open command line application or run DOS program (like `command.com`) then lots of things will happen - at first system creates new V86 virtual machine (!) and map to its space BIOS (including Video BIOS) and run in it fresh instance of DOS. System also catches some important interrupts and I/O ports (but not at all). This is necessary to understand, because this is source of lots of strange things what can happen. When DOS boot runs `INT 10h` to set correct console mode (like on real boot), but system catches I/O ports, so your real screen don't switch to console mode. Old video card BIOSes counting with this behaviour, but newer not. Never BIOS will be confused and probably will reset the video card. To prevent this, VESA driver don't allow call mode set from window (`MOV AH,0h; INT 10h`, or `MOV AX,04F02h; INT 10h`), the drawbacks are, that full screen switch (Alt+Enter) not working correctly. Also DOS games usually cannot switch to MODE X, when they run from window.
+
+For using graphical DOS programs and games, please run them in full screen mode:
+
+![Fullscreen for DOS program](docs/vesa-dos-window.png)
+
+When you have video card from Windows 9x era, you can try switch off this "mode set eating", by the setting this registry key:
+
+```
+REGEDIT4
+
+[HKEY_LOCAL_MACHINE\Software\vmdisp9x\vesa]
+"DosWindowSetMode"=dword:00000001
+
+```
+
+(and reboot computer)
+
+To test that you Video BIOS can handle this, simply run (START -> run) `command.com` and when your screen will broke (you will see full black, or some random chars) this setting is not for you. (You can press Alt+Enter to switch DOS to fullscreen and again Alt+Enter to back to window = this probably can you return to right screen mode).
+
+### Minimal configuration
+
+Minimal configuration (for Windows 95 build) is Intel 486 with 16 MB ram + PCI S3 (Trio or Virge) with 4 MB VRAM. On this configuration isn't 3D available (for obvious reason). For 3D acceleration you need at last Pentium 3 CPU + 256 MB RAM. But software 3D acceleration is CPU heavy, so doesn't make any sense to run VMDisp9x on these configurations. Minimal usable configuration is around Intel Core 2 CPU with Intel 965 integrated GPU.
+
+### DOSBox/DOSBox-X
+
+Technically is possible to use VMdisp9x with DOSBox (with `machine=svga_s3trio` or `machine=svga_s3virge`). But it doesn't make much sense, performance will be very bad.
 
 
 ## Technical
@@ -143,7 +204,7 @@ Edit `makefile` to enable addition logging and you can read original [readdev.tx
 - ~Complete GPU10 functions (with synchronization with Mesa)~
 - VirGL
 - ~DDI~
-- VESA support
+- ~VESA support~
 
 ## External links
 http://www.os2museum.com/wp/windows-9x-video-minidriver-hd/

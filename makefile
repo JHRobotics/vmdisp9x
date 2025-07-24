@@ -14,7 +14,7 @@ OBJS += &
 
 INCS = -I$(%WATCOM)\h\win -Iddk -Ivmware
 
-VER_BUILD = 114
+VER_BUILD = 115
 
 FLAGS = -DDRV_VER_BUILD=$(VER_BUILD)
 
@@ -38,7 +38,10 @@ FIXLINK_CC  = wcl386 -q fixlink\fixlink.c -fe=$(FIXLINK_EXE)
 #FLAGS += -DHWBLT
 
 # Set DBGPRINT to add debug printf logging.
-#DBGPRINT = 1
+DBGPRINT = 1
+
+# Generate code for i486, otherwise is code generated for Pentium Pro
+#I486 = 1
 
 !ifdef DBGPRINT
 FLAGS += -DDBGPRINT
@@ -50,10 +53,18 @@ DBGFILE32 = file dbgprint32.obj
 DBGFILE =
 DBGFILE32 =
 !endif
-CFLAGS = -q -wx -s -zu -zls -6 -fp6
-CFLAGS32 = -q -wx -s -zls -6s -fp6 -mf -DVXD32 -fpi87 -ei -oeatxhn 
+CFLAGS = -q -wx -s -zu -zls
+CFLAGS32 = -q -wx -s -zls -mf -DVXD32 -fpi87 -ei -oeatxhn 
 CC = wcc
 CC32 = wcc386
+
+!ifdef I486
+CFLAGS   += -4 -fp3
+CFLAGS32 += -4s -fp3
+!else
+CFLAGS   += -6 -fp6
+CFLAGS32 += -6s -fp6
+!endif
 
 !ifdef DBGPRINT
 # This allows to change mapping debug COM port (for 32bit VXD and 16bit DRV)
