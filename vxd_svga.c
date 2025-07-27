@@ -760,10 +760,10 @@ DWORD SVGA_fix_width(DWORD w, DWORD bpp)
 			return (w) & 0xFFFFFFF0UL;
 		case 16:
 		case 15:
-		case 24:
-		case 32: // round down to a multiple of 8
+		case 24: // round down to a multiple of 8
 			return (w) & 0xFFFFFFF8UL;
-			break;
+		case 32: // round down to a multiple of 2
+			return (w) & 0xFFFFFFFEUL;
 	}
 
 	return w;
