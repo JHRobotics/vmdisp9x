@@ -198,6 +198,7 @@ HKLM,Software\Microsoft\Windows\CurrentVersion\OpenGLdrivers,VMWSVGA
 HKLM,Software\Microsoft\Windows\CurrentVersion\OpenGLdrivers,QEMUFX
 HKLM,Software\Microsoft\Windows\CurrentVersion\Run,Tray3D
 HKLM,Software\vmdisp9x\svga
+HKLM,Software\vmdisp9x\vesa
 
 [VM.AddReg]
 HKR,,Ver,,4.0
