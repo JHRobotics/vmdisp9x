@@ -76,6 +76,10 @@ static DWORD rect_bottom;
 
 extern BOOL vram_heap_in_ram;
 
+/* vxd_mouse.vxd */
+BOOL mouse_get_rect(DWORD *ptr_left, DWORD *ptr_top,
+	DWORD *ptr_right, DWORD *ptr_bottom);
+
 #include "vxd_strings.h"
 
 void vesa_bios(CRS_32 *V86regs)
@@ -121,6 +125,7 @@ static int vesa_pal_bits = 6;
 static BOOL vesa_valid = FALSE;
 
 static DWORD conf_dos_window = 0;
+static DWORD conf_hw_double_buf = 0;
 
 #define SCREEN_EMULATED_CENTER 0
 #define SCREEN_EMULATED_COPY   1
@@ -162,12 +167,15 @@ BOOL VESA_init_hw()
 	DWORD flat;
 	DWORD conf_vram_limit = 128;
 	DWORD conf_mtrr = 1;
+	DWORD conf_no_memtest = 0;
 	
 	dbg_printf("VESA init begin...\n");
 
 	RegReadConf(HKEY_LOCAL_MACHINE, VESA_conf_path, "VRAMLimit",        &conf_vram_limit);
 	RegReadConf(HKEY_LOCAL_MACHINE, VESA_conf_path, "MTRR",             &conf_mtrr);
 	RegReadConf(HKEY_LOCAL_MACHINE, VESA_conf_path, "DosWindowSetMode", &conf_dos_window);
+	RegReadConf(HKEY_LOCAL_MACHINE, VESA_conf_path, "HWDoubleBuffer",   &conf_hw_double_buf);
+	RegReadConf(HKEY_LOCAL_MACHINE, VESA_conf_path, "NoMemTest",        &conf_no_memtest);
 
 	flat = _PageAllocate(1, PG_SYS, 0, 0x0, 0, 0x100000, &vesa_buf_phy, PAGEUSEALIGN | PAGECONTIG | PAGEFIXED);
 	vesa_buf = (void*)flat;
@@ -322,8 +330,11 @@ BOOL VESA_init_hw()
 				vesa_valid  = TRUE;
 
 				//VESA_load_vbios_pm();
-
-				FBHDA_memtest();
+				
+				if(!conf_no_memtest)
+				{
+					FBHDA_memtest();
+				}
 
 				dbg_printf("VESA_init_hw(vram_size=%ld) = TRUE\n", hda->vram_size);
 				
@@ -415,46 +426,51 @@ BOOL VESA_setmode_phy(DWORD w, DWORD h, DWORD bpp, DWORD rr_min, DWORD rr_max)
 						vesa_pal_bits = 6;
 					}
 				}
+				screen_mode = SCREEN_EMULATED_COPY;
 
-				/* test if HW flip supported */
-				offset_calc(hda->stride, &test_x, &test_y);
-				regs.Client_EAX = VESA_CMD_DISPLAY_START;
-				regs.Client_EBX = VESA_DISPLAYSTART_VTRACE;
-				regs.Client_ECX = test_x;
-				regs.Client_EDX = test_y;
-				vesa_bios(&regs);
-				if(VESA_SUCC(regs))
+				if(conf_hw_double_buf > 0)
 				{
-					screen_mode = SCREEN_FLIP_VSYNC;
-
-					regs.Client_EAX = VESA_CMD_DISPLAY_START;
-					regs.Client_EBX = VESA_DISPLAYSTART_SET;
-					regs.Client_ECX = 0;
-					regs.Client_EDX = 0;
-					vesa_bios(&regs);
-				}
-				else
-				{
-					offset_calc(hda->stride, &test_x, &test_y);
-					regs.Client_EAX = VESA_CMD_DISPLAY_START;
-					regs.Client_EBX = VESA_DISPLAYSTART_SET;
-					regs.Client_ECX = test_x;
-					regs.Client_EDX = test_y;
-					vesa_bios(&regs);
-
-					if(VESA_SUCC(regs))
+					if(conf_hw_double_buf >= 2)
 					{
-						screen_mode = SCREEN_FLIP;
+						/* test if HW flip and vtrace supported */
+						offset_calc(hda->stride, &test_x, &test_y);
+						regs.Client_EAX = VESA_CMD_DISPLAY_START;
+						regs.Client_EBX = VESA_DISPLAYSTART_VTRACE;
+						regs.Client_ECX = test_x;
+						regs.Client_EDX = test_y;
+						vesa_bios(&regs);
+						if(VESA_SUCC(regs))
+						{
+							screen_mode = SCREEN_FLIP_VSYNC;
+		
+							regs.Client_EAX = VESA_CMD_DISPLAY_START;
+							regs.Client_EBX = VESA_DISPLAYSTART_SET;
+							regs.Client_ECX = 0;
+							regs.Client_EDX = 0;
+							vesa_bios(&regs);
+						}
+					}
 
+					if(screen_mode <= SCREEN_EMULATED_COPY)
+					{
+						/* test if HW flip supported */
+						offset_calc(hda->stride, &test_x, &test_y);
 						regs.Client_EAX = VESA_CMD_DISPLAY_START;
 						regs.Client_EBX = VESA_DISPLAYSTART_SET;
 						regs.Client_ECX = test_x;
 						regs.Client_EDX = test_y;
 						vesa_bios(&regs);
-					}
-					else
-					{
-						screen_mode = SCREEN_EMULATED_COPY;
+	
+						if(VESA_SUCC(regs))
+						{
+							screen_mode = SCREEN_FLIP;
+	
+							regs.Client_EAX = VESA_CMD_DISPLAY_START;
+							regs.Client_EBX = VESA_DISPLAYSTART_SET;
+							regs.Client_ECX = 0;
+							regs.Client_EDX = 0;
+							vesa_bios(&regs);
+						}
 					}
 				}
 
@@ -468,7 +484,10 @@ BOOL VESA_setmode_phy(DWORD w, DWORD h, DWORD bpp, DWORD rr_min, DWORD rr_max)
 				else
 				{
 					hda->system_surface = 0;
-					hda->flags |= FB_SUPPORT_VSYNC;
+					if(screen_mode == SCREEN_FLIP_VSYNC)
+					{
+						hda->flags |= FB_SUPPORT_VSYNC;
+					}
 				}
 
 				FBHDA_update_heap_size(FALSE, vram_heap_in_ram);
@@ -635,16 +654,53 @@ BOOL FBHDA_swap(DWORD offset)
 	return FALSE;
 }
 
+static inline void update_rect(DWORD left, DWORD top, DWORD right, DWORD bottom)
+{
+	if(left < rect_left)
+		rect_left = left;
+
+	if(top < rect_top)
+		rect_top = top;
+
+	if(right > rect_right)
+		rect_right = right;
+
+	if(bottom > rect_bottom)
+		rect_bottom = bottom;
+}
+
 void FBHDA_access_begin(DWORD flags)
 {
 	//Wait_Semaphore(hda_sem, 0);
 	if(fb_lock_cnt++ == 0)
 	{
-		rect_left   = 0;
-		rect_top    = 0;
-		rect_right  = hda->width;
-		rect_bottom = hda->height;
+		if(flags & FBHDA_ACCESS_MOUSE_MOVE)
+		{
+			if(!mouse_get_rect(&rect_left, &rect_top, &rect_right, &rect_bottom))
+			{
+				rect_left   = 0;
+				rect_top    = 0;
+				rect_right  = 0;
+				rect_bottom = 0;
+			}
+		}
+		else
+		{
+			rect_left   = 0;
+			rect_top    = 0;
+			rect_right  = hda->width;
+			rect_bottom = hda->height;
+		}
 		mouse_erase();
+	}
+	else
+	{
+		DWORD l, t, r, b;
+
+		if(mouse_get_rect(&l, &t, &r, &b))
+		{
+			update_rect(l, t, r, b);
+		}
 	}
 }
 
@@ -660,21 +716,11 @@ void FBHDA_access_rect(DWORD left, DWORD top, DWORD right, DWORD bottom)
 	}
 	else
 	{
-		if(left < rect_left)
-			rect_left = left;
-
-		if(top < rect_top)
-			rect_top = top;
-
-		if(right > rect_right)
-			rect_right = right;
-
-		if(bottom > rect_bottom)
-			rect_bottom = bottom;
+		update_rect(left, top, right, bottom);
 	}
 }
 
-static void VESA_update_rect()
+static void VESA_copy_rect()
 {
 	if((rect_right > rect_left) && (rect_bottom > rect_top))
 	{
@@ -699,6 +745,16 @@ static void VESA_update_rect()
 
 void FBHDA_access_end(DWORD flags)
 {
+	if(flags & FBHDA_ACCESS_MOUSE_MOVE)
+	{
+		DWORD l, t, r, b;
+		
+		if(mouse_get_rect(&l, &t, &r, &b))
+		{
+			update_rect(l, t, r, b);
+		}
+	}
+
 	fb_lock_cnt--;
 	if(fb_lock_cnt < 0) fb_lock_cnt = 0;
 
@@ -729,7 +785,7 @@ void FBHDA_access_end(DWORD flags)
 				}
 				else
 				{
-					VESA_update_rect();
+					VESA_copy_rect();
 				}
 
 				break;

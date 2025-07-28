@@ -155,7 +155,9 @@ BOOL VBE_init_hw()
 	hda->vram_pm32 = (void*)_MapPhysToLinear(vram_phy, vram_size, 0);
 	hda->flags    |= FB_SUPPORT_FLIPING;
 
+#ifndef QEMU
 	FBHDA_memtest();
+#endif
 	
 	memcpy(hda->vxdname, vbe_vxd_name, sizeof(vbe_vxd_name));
 	

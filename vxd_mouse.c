@@ -116,7 +116,7 @@ BOOL mouse_load()
 	cur = (CURSORSHAPE*)mouse_buffer_mem;
 	
 	/* erase cursor if present */
-	FBHDA_access_begin(0);
+	FBHDA_access_begin(FBHDA_ACCESS_MOUSE_MOVE);
 	
 	mouse_valid = FALSE;
 	
@@ -154,7 +154,7 @@ BOOL mouse_load()
 		mouse_swap_data == NULL)
 	{
 		dbg_printf(dbg_mouse_no_mem);
-		FBHDA_access_end(0);
+		FBHDA_access_end(FBHDA_ACCESS_MOUSE_MOVE);
 		return FALSE;
 	}
 	
@@ -194,7 +194,7 @@ BOOL mouse_load()
 	//dbg_printf(dbg_cursor_empty, mouse_empty);
 
 	/* blit new cursor */
-	FBHDA_access_end(0);
+	FBHDA_access_end(FBHDA_ACCESS_MOUSE_MOVE);
 	
 	mouse_notify_accel();
 	
@@ -238,9 +238,9 @@ void mouse_show()
 		return;
 	}
 #endif
-	FBHDA_access_begin(0);
+	FBHDA_access_begin(FBHDA_ACCESS_MOUSE_MOVE);
 	mouse_visible = TRUE;
-	FBHDA_access_end(0);
+	FBHDA_access_end(FBHDA_ACCESS_MOUSE_MOVE);
 	
 	mouse_notify_accel();
 }
@@ -257,9 +257,9 @@ void mouse_hide()
 	}
 #endif
 	
-	FBHDA_access_begin(0);
+	FBHDA_access_begin(FBHDA_ACCESS_MOUSE_MOVE);
 	mouse_visible = FALSE;
-	FBHDA_access_end(0);
+	FBHDA_access_end(FBHDA_ACCESS_MOUSE_MOVE);
 	
 	mouse_notify_accel();
 }
