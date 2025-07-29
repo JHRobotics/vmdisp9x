@@ -171,7 +171,7 @@ int main(int argc, char **argv)
 			{
 				if(strstr(linebuf, "DriverVer=") == linebuf)
 				{
-					sprintf(linebuf, "DriverVer=%02d/%02d/%04d, %d.%d.0.%d", month, day, year, softgpu+1, year, build);
+					sprintf(linebuf, "DriverVer=%02d/%02d/%04d,%d.%d.%d.%d", month, day, year, 4, year, softgpu, build);
 				}
 				else
 				{

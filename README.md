@@ -108,6 +108,23 @@ REGEDIT4
 
 To test that you Video BIOS can handle this, simply run (START -> run) `command.com` and when your screen will broke (you will see full black, or some random chars) this setting is not for you. (You can press Alt+Enter to switch DOS to fullscreen and again Alt+Enter to back to window = this probably can you return to right screen mode).
 
+### Double buffering
+
+Most VESA card support double buffering (e.g. seamless move frame buffer to different location in VRAM). But sometime (or for some applications) this don’t work correctly and [tearing](https://wiki.osdev.org/Double_Buffering#Tearing) is too high - mostly because application control buffer flipping, but due emulation of most drawing and timing function simply doesn't catch right time. For this situation you can force double buffer emulation by this registry key:
+
+```
+REGEDIT4
+
+[HKEY_LOCAL_MACHINE\Software\vmdisp9x\vesa]
+"HWDoubleBuffer"=dword:00000000
+
+```
+
+(Default value is 2)
+
+Also note, that software double buffering can by very slow (because needs reading from video ram).
+
+
 ### Minimal configuration
 
 Minimal configuration (for Windows 95 build) is Intel 486 with 16 MB ram + PCI S3 (Trio or Virge) with 4 MB VRAM. On this configuration isn't 3D available (for obvious reason). For 3D acceleration you need at last Pentium 3 CPU + 256 MB RAM. But software 3D acceleration is CPU heavy, so doesn't make any sense to run VMDisp9x on these configurations. Minimal usable configuration is around Intel Core 2 CPU with Intel 965 integrated GPU.

@@ -125,7 +125,7 @@ static int vesa_pal_bits = 6;
 static BOOL vesa_valid = FALSE;
 
 static DWORD conf_dos_window = 0;
-static DWORD conf_hw_double_buf = 0;
+static DWORD conf_hw_double_buf = 2;
 
 #define SCREEN_EMULATED_CENTER 0
 #define SCREEN_EMULATED_COPY   1
@@ -609,6 +609,8 @@ DWORD FBHDA_palette_get(unsigned char index)
 	return 0;
 }
 
+#define SWAP_TESTS 1024
+
 BOOL FBHDA_swap(DWORD offset)
 {
 	if((offset + hda->stride) < hda->vram_size && offset >= hda->system_surface)
@@ -639,8 +641,32 @@ BOOL FBHDA_swap(DWORD offset)
 					(screen_mode == SCREEN_FLIP_VSYNC) ? VESA_DISPLAYSTART_VTRACE : VESA_DISPLAYSTART_SET;
 				regs.Client_ECX = off_x;
 				regs.Client_EDX = off_y;
-				hda->surface = offset;
+
 				vesa_bios(&regs);
+				if(VESA_SUCC(regs))
+				{
+					/* wait until is set */
+					DWORD test_off_x, test_off_y;
+					DWORD nums_test = 0;
+					do
+					{
+						regs.Client_EAX = VESA_CMD_DISPLAY_START;
+						regs.Client_EBX = VESA_DISPLAYSTART_GET;
+						regs.Client_ECX = 0;
+						regs.Client_EDX = 0;
+						if(!VESA_SUCC(regs))
+						{
+							break;
+						}
+						if(++nums_test > SWAP_TESTS)
+						{
+							break;
+						}
+						test_off_x = regs.Client_ECX & 0xFFFF;
+						test_off_y = regs.Client_EDX & 0xFFFF;
+					} while((test_off_x != off_x) || (test_off_y != off_y));
+				}
+				hda->surface = offset;
 
 				if(fb_lock_cnt == 0)
 				{

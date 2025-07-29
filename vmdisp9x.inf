@@ -8,7 +8,7 @@
 ;           2023-2025, Jaroslav Hensl
 
 [version]
-DriverVer=01/01/2025, 4.2025.0.0
+DriverVer=01/01/2025,4.2025.0.0
 Class=DISPLAY
 signature="$CHICAGO$"
 Provider=%Mfg%
