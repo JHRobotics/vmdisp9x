@@ -179,6 +179,8 @@ static void buildPixelFormat(LPDDHALMODEINFO lpMode, LPDDPIXELFORMAT lpddpf)
 	lpddpf->dwRGBAlphaBitMask = lpMode->dwAlphaBitMask;
 } /* buildPixelFormat */
 
+#define MAKEFOURCC(_a, _b, _c, _d) (((DWORD)_d << 24) | ((DWORD)_c << 16) | ((DWORD)_b << 8) | ((DWORD)_a))
+
 /*
  * buildDDHALInfo
  *
@@ -197,7 +199,10 @@ static void buildDDHALInfo(VMDAHAL_t __far *hal, int modeidx)
 	WORD                heap;
 	WORD                bytes_per_pixel;
 	DWORD               stride;
-//	static DWORD    dwpFOURCCs[3];
+	static DWORD    dwpFOURCCs[] = 
+	{
+		MAKEFOURCC('Y', 'U', 'V', '2')
+	};
 //	DWORD               bufpos;
 
 	LPDWORD pGbl, pHAL;
@@ -300,6 +305,15 @@ static void buildDDHALInfo(VMDAHAL_t __far *hal, int modeidx)
                                  DDCAPS_BLTSTRETCH   | /* stretching blt */
                                  DDCAPS_COLORKEY     | /* transparentBlt */
                                  DDCAPS_CANBLTSYSMEM; /* from to sysmem blt */
+	/* DDK: The semantics of the DirectDraw DDCAPS_CANBLTSYSMEM capability bit
+	   imply that the display driver is called for all blts from system memory
+	   to display memory. Consequently, the driver may be called for such blts
+	   from DXT surfaces to non-DXT surfaces. The only requirement in this case
+	   is that the driver return DDHAL_DRIVER_NOTHANDLED if it cannot perform
+	   the decompression. This causes DirectDraw to propagate a DDERR_UNSUPPORTED
+	   error code to the application. It is acceptable to implement decompression
+	   for blts from system memory to display memory in your driver, but this
+	   is not required for DirectX 6.0 and later versions. */
 
 	hal->ddHALInfo.ddCaps.dwCKeyCaps     = DDCKEYCAPS_SRCBLT | DDCKEYCAPS_DESTBLT;
 	hal->ddHALInfo.ddCaps.dwFXCaps       = DDFXCAPS_BLTARITHSTRETCHY |
@@ -374,11 +388,18 @@ static void buildDDHALInfo(VMDAHAL_t __far *hal, int modeidx)
 	hal->ddHALInfo.lpDDPaletteCallbacks = &cbDDPaletteCallbacks;
 
 	/*
-	 *  FOURCCs not supported
+	 *  FOURCC
 	 */
-	hal->ddHALInfo.ddCaps.dwNumFourCCCodes = 0;
-	hal->ddHALInfo.lpdwFourCC = NULL;
-	
+	hal->ddHALInfo.ddCaps.dwNumFourCCCodes = sizeof(dwpFOURCCs)/sizeof(DWORD);
+	hal->ddHALInfo.lpdwFourCC = &dwpFOURCCs[0];
+
+  hal->ddHALInfo.ddCaps.dwMinOverlayStretch   = 1000;
+	hal->ddHALInfo.ddCaps.dwMinLiveVideoStretch = 1000;
+	hal->ddHALInfo.ddCaps.dwMinHwCodecStretch   = 1000;
+	hal->ddHALInfo.ddCaps.dwMaxOverlayStretch   = 9999;
+	hal->ddHALInfo.ddCaps.dwMaxLiveVideoStretch = 9999;
+	hal->ddHALInfo.ddCaps.dwMaxHwCodecStretch   = 9999;
+
 	/*
 	 * mode information
    */
