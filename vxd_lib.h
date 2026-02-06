@@ -49,6 +49,7 @@ DWORD __cdecl _RegQueryValueEx(DWORD hKey, char *lpszValueName, DWORD *lpdwReser
 DWORD __cdecl _PageModifyPermissions(ULONG page, ULONG npages, ULONG permand, ULONG permor);
 volatile void __cdecl Begin_Critical_Section(ULONG Flags);
 volatile void __cdecl End_Critical_Section();
+BOOL Get_Crit_Section_Status(DWORD *out_vm, DWORD *out_claims);
 ULONG __cdecl Create_Semaphore(ULONG TokenCount);
 void __cdecl Destroy_Semaphore(ULONG SemHandle);
 void __cdecl Wait_Semaphore(ULONG semHandle, ULONG flags);
@@ -83,6 +84,10 @@ void Hook_V86_Int_Chain(DWORD int_num, DWORD HookProc);
 void Enable_Global_Trapping(DWORD port);
 void Disable_Global_Trapping(DWORD port);
 
+DWORD Set_Async_Time_Out(DWORD delayms, DWORD refdata, void *callback);
+DWORD Get_System_Time();
+DWORD *Get_System_Time_Address();
+
 /**
  * round size in bytes to number of pages
  **/
@@ -116,5 +121,13 @@ struct _VPICD_IRQ_Descriptor;
 BOOL VPICD_Virtualize_IRQ(struct _VPICD_IRQ_Descriptor *vid);
 
 /* extra FBHA */
-void FBHDA_update_heap_size(BOOL init, BOOL ram);
 void FBHDA_memtest();
+BOOL FBHDA_lock();
+void FBHDA_unlock();
+
+#define PAGE_ALLOC_MIN 0x1001
+#define PAGE_ALLOC_MAX 0x100000
+
+/* critical sections */
+void critical_section_enter();
+void critical_section_leave();

@@ -33,7 +33,7 @@ THE SOFTWARE.
 #endif
 #endif
 
-#define API_3DACCEL_VER 20250801
+#define API_3DACCEL_VER 20260101
 
 #define ESCAPE_DRV_NT         0x1103 /* (4355) */
 
@@ -55,6 +55,7 @@ THE SOFTWARE.
 
 #define OP_FBHDA_PAGE_MOD     0x1118 /* VXD */
 #define OP_FBHDA_MODE_QUERY   0x1119 /* VXD */
+#define OP_FBHDA_REFRESH      0x1120 /* VXD, DRV, ESCAPE_DRV_NT */
 
 #define OP_SVGA_VALID         0x2000  /* VXD, DRV, ESCAPE_DRV_NT */
 #define OP_SVGA_SETMODE       0x2001  /* DRV */
@@ -157,23 +158,20 @@ typedef struct FBHDA
 	         DWORD gamma_update; /* INC by one everytime when the pallete is updated */
 	         DWORD gpu_mem_total;
 	         DWORD gpu_mem_used;
-	         /* heap allocator */
-#ifndef FBHDA_SIXTEEN
-	         DWORD *heap_info; /* info block (id of first block, or ~0 on free) */
-	         BYTE  *heap_start; /* minimal address (but allocation from end to beginning) */
-	         BYTE  *heap_end;   /* maximal address + 1 */
-#else
-	         DWORD heap_info;
-	         DWORD heap_start;
-	         DWORD heap_end;
-#endif
-	         DWORD heap_count; /* number of blocks = heap_size_in_bytes / FB_VRAM_HEAP_GRANULARITY */
-	         DWORD heap_length; /* maximum usable block with current framebuffer */
+	         /* heap allocator (removed) */
+	         DWORD rem0;
+	         DWORD rem1;
+	         DWORD rem2;
+	         DWORD rem3;
+	         DWORD rem4;
+	         /* reserved */
 	         DWORD res0;
 	         DWORD res1;
 	         DWORD res2;
 	         DWORD res3;
 } FBHDA_t;
+
+#define FBHDA_MODE_MAX_REFRESH 16
 
 typedef struct FBHDA_mode
 {
@@ -181,7 +179,7 @@ typedef struct FBHDA_mode
 	         DWORD width;
 	         DWORD height;
 	         DWORD bpp;
-	         DWORD refresh;
+	         DWORD refresh[FBHDA_MODE_MAX_REFRESH];
 } FBHDA_mode_t;
 
 #define FB_VRAM_HEAP_GRANULARITY (4*32)
@@ -247,6 +245,10 @@ void  FBHDA_overlay_unlock(DWORD flags);
 BOOL FBHDA_gamma_get(VOID FBPTR ramp, DWORD buffer_size);
 BOOL FBHDA_gamma_set(VOID FBPTR ramp, DWORD buffer_size);
 
+/* set refresh rate (Hz), this not affected monitor refresh rate (only for VESA)
+ but internal timer, maximum frequency is about 250 Hz, default is 60 Hz */
+void FBHDA_refresh(DWORD refresh_rate);
+
 /* mouse */
 #ifdef FBHDA_SIXTEEN
 void mouse_buffer(void __far* __far* pBuf, DWORD __far* pLinear);
@@ -260,8 +262,6 @@ void mouse_hide();
 
 /* vxd internal */
 void mouse_invalidate(); 
-BOOL mouse_blit();
-void mouse_erase();
 
 #define MOUSE_BUFFER_SIZE 65535
 

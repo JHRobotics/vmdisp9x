@@ -381,6 +381,25 @@ BOOL FBHDA_gamma_set(VOID FBPTR ramp, DWORD buffer_size)
 	return status == 0 ? FALSE : TRUE;
 }
 
+void FBHDA_refresh(DWORD refresh_rate)
+{
+	_asm
+	{
+		.386
+		push eax
+		push ecx
+		push edx
+
+		mov edx, OP_FBHDA_REFRESH
+		mov ecx, [refresh_rate]
+		call dword ptr [VXD_VM]
+
+		pop edx
+		pop ecx
+		pop eax
+	}
+}
+
 BOOL mouse_load()
 {
 	static BOOL status;

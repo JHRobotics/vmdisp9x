@@ -42,6 +42,8 @@ THE SOFTWARE.
 #define VESA_CMD_DISPLAY_START  0x4F07
 #define VESA_CMD_PALETTE_FORMAT 0x4F08
 #define VESA_CMD_PALETTE_DATA   0x4F09
+#define VESA_CMD_PM_ENTRY       0x4F0A
+#define VESA_CMD_PIXEL_CLOCK    0x4F0B
 
 /* VBE 3.0 specification, p.25 */
 
@@ -154,6 +156,13 @@ typedef struct vesa_crtc_info
 	uint16 RefreshRate;            /* Refresh rate in units of 0.01 Hz */
 	uint8  Reserved[40];           /* remainder of ModeInfoBlock */
 } vesa_crtc_info_t;
+
+#define VESA_CRTC_FLAG_DOUBLE_SCAN 0x01
+#define VESA_CRTC_FLAG_INTERLACED  0x02
+#define VESA_CRTC_FLAG_HSYC_POS    0x00
+#define VESA_CRTC_FLAG_HSYC_NEG    0x04
+#define VESA_CRTC_FLAG_VSYC_POS    0x00
+#define VESA_CRTC_FLAG_VSYC_NEG    0x08
 
 #define VESA_SETMODE_CRTC  0x0800
 #define VESA_SETMODE_LFB   0x4000

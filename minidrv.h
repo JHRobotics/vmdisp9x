@@ -78,6 +78,8 @@ extern WORD wDpi;                   /* Current DPI. */
 extern WORD wBpp;                   /* Current bits per pixel. */
 extern WORD wScrX;                  /* Configured X resolution. */
 extern WORD wScrY;                  /* Configured Y resolution. */
+extern WORD wFreqMin;               /* Screen refresh frequency */
+extern WORD wFreqMax;
 extern WORD wScreenX;               /* Screen width in pixels. */
 extern WORD wScreenY;               /* Screen height in pixels. */
 extern WORD wEnabled;               /* PDevice enabled flag. */

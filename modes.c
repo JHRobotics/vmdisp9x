@@ -207,6 +207,7 @@ static int SetDisplayMode( WORD wXRes, WORD wYRes, int bFullSet )
 		{
 			return 0;
 		}
+		FBHDA_refresh(wFreqMax);
 #endif
 
 #ifdef VBE
@@ -214,10 +215,11 @@ static int SetDisplayMode( WORD wXRes, WORD wYRes, int bFullSet )
 		{
 			return 0;
 		}
+		FBHDA_refresh(wFreqMax);
 #endif
 
 #ifdef VESA
-		if(!VESA_setmode(wXRes, wYRes, wBpp, 0, 0))
+		if(!VESA_setmode(wXRes, wYRes, wBpp, wFreqMin, wFreqMax))
 		{
 			return 0;
 		}

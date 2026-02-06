@@ -107,12 +107,6 @@ DWORD DispatchTableLength = 0;
 DWORD ThisVM = 0;
 DWORD is_qemu = FALSE;
 
-#ifdef VESA
-BOOL vram_heap_in_ram = TRUE;
-#else
-BOOL vram_heap_in_ram = FALSE;
-#endif
-
 void __stdcall port_info(DWORD p_eax, DWORD p_ecx, DWORD p_edx)
 {
 	dbg_printf("virtual_0x1ce eax=%lX ecx=%lX edx=%lX\n", p_eax, p_ecx, p_edx);
@@ -423,17 +417,20 @@ WORD __stdcall VXD_API_Proc(PCRS_32 state)
 			state->Client_ECX = FBHDA_gamma_set((void *)state->Client_ESI, state->Client_ECX);
 			rc = 1;
 			break;
+		case OP_FBHDA_REFRESH:
+			FBHDA_refresh(state->Client_ECX);
+			break;
 		/* mouse */
 		case OP_MOUSE_LOAD:
-			Begin_Critical_Section(0);
+			critical_section_enter();
 			state->Client_ECX = mouse_load();
-			End_Critical_Section();
+			critical_section_leave();
 			rc = 1;
 			break;
 		case OP_MOUSE_BUFFER:
-			Begin_Critical_Section(0);
+			critical_section_enter();
 			state->Client_ECX = (DWORD)mouse_buffer();
-			End_Critical_Section();
+			critical_section_leave();
 			rc = 1;
 			break;
 		case OP_MOUSE_MOVE:
@@ -460,9 +457,9 @@ WORD __stdcall VXD_API_Proc(PCRS_32 state)
 		case OP_SVGA_SETMODE:
 		{
 			BOOL rs;
-			Begin_Critical_Section(0);
+			critical_section_enter();
 			rs = SVGA_setmode(state->Client_ESI, state->Client_EDI, state->Client_ECX);
-			End_Critical_Section();
+			critical_section_leave();
 			state->Client_ECX = (DWORD)rs;
 			rc = 1;
 			break;
@@ -497,9 +494,9 @@ WORD __stdcall VXD_API_Proc(PCRS_32 state)
 		case OP_VBE_SETMODE:
 		{
 			BOOL rs;
-			Begin_Critical_Section(0);
+			critical_section_enter();
 			rs = VBE_setmode(state->Client_ESI, state->Client_EDI, state->Client_ECX);
-			End_Critical_Section();
+			critical_section_leave();
 			state->Client_ECX = (DWORD)rs;
 			rc = 1;
 			break;
@@ -532,9 +529,9 @@ WORD __stdcall VXD_API_Proc(PCRS_32 state)
 			rr_min = state->Client_EDI >> 16;
 			rr_max = state->Client_EDI & 0xFFFF;
 
-			Begin_Critical_Section(0);
+			critical_section_enter();
 			rs = VESA_setmode(w, h, state->Client_ECX, rr_min, rr_max);
-			End_Critical_Section();
+			critical_section_leave();
 			state->Client_ECX = (DWORD)rs;
 			rc = 1;
 			break;
@@ -663,8 +660,6 @@ static void configure_FBHDA()
 		{
 			fbhda->flags |= FB_ACCEL_QEMU3DFX;
 		}
-
-		FBHDA_update_heap_size(TRUE, vram_heap_in_ram);
 	}
 }
 
@@ -718,7 +713,7 @@ static void configure_FBHDA()
 /* init device and fill dispatch table */
 void Device_Init_proc(DWORD VM)
 {
-	Begin_Critical_Section(0);
+	critical_section_enter();
 	dbg_printf(dbg_Device_Init_proc);
 
 	VMMCall(_Allocate_Device_CB_Area);
@@ -764,13 +759,15 @@ void Device_Init_proc(DWORD VM)
 	{
 		#include "vxd_vdd_list.h"
 	}
-	
+
 	configure_FBHDA();
 #ifdef SVGA
 	vxd_hstats_update();
 #endif
-	End_Critical_Section();
+
+	critical_section_leave();
 	dbg_printf("Device_Init_proc DONE\n");
+	dbg_printf("Address=0x%lX\n", port_info);
 }
 #undef VDDFUNC
 #undef VDDNAKED
@@ -875,6 +872,10 @@ DWORD __stdcall Device_IO_Control_proc(DWORD vmhandle, struct DIOCParams *params
 #else
 			outBuf[0] = FALSE;
 #endif
+			rc = 0;
+			break;
+		case OP_FBHDA_REFRESH:
+			FBHDA_refresh(inBuf[0]);
 			rc = 0;
 			break;
 #ifdef SVGA

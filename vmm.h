@@ -1206,30 +1206,30 @@ typedef struct tagVxD_Desc_Block
 #pragma pack(1)
 typedef struct tagCRS_32
 {
-   DWORD  Client_EDI ;
-   DWORD  Client_ESI ;
-   DWORD  Client_EBP ;
-   DWORD  dwReserved_1 ;          // ESP at pushall
-   DWORD  Client_EBX ;
-   DWORD  Client_EDX ;
-   DWORD  Client_ECX ;
-   DWORD  Client_EAX ;
-   DWORD  Client_Error ;          // DWORD error code
-   DWORD  Client_EIP ;
-   WORD   Client_CS ;
-   WORD   wReserved_2 ;           // (padding)
-   DWORD  Client_EFlags ;
-   DWORD  Client_ESP ;
-   WORD   Client_SS ;
-   WORD   wReserved_3 ;           // (padding)
-   WORD   Client_ES ;
-   WORD   WReserved_4 ;           // (padding)
-   WORD   Client_DS ;
-   WORD   wReserved_5 ;           // (padding)
-   WORD   Client_FS ;
-   WORD   wReserved_6 ;           // (padding)
-   WORD   Client_GS ;
-   WORD   wReserved_7 ;           // (padding)
+   DWORD  Client_EDI ;            // 0x00
+   DWORD  Client_ESI ;            // 0x04
+   DWORD  Client_EBP ;            // 0x08
+   DWORD  dwReserved_1 ;          // ESP at pushall - 0x0C
+   DWORD  Client_EBX ;            // 0x10
+   DWORD  Client_EDX ;            // 0x14
+   DWORD  Client_ECX ;            // 0x18
+   DWORD  Client_EAX ;            // 0x1C
+   DWORD  Client_Error ;          // DWORD error code - 0x20
+   DWORD  Client_EIP ;            // 0x24
+   WORD   Client_CS ;             // 0x28
+   WORD   wReserved_2 ;           // (padding)  - 0x2A
+   DWORD  Client_EFlags ;         // 0x2C
+   DWORD  Client_ESP ;            // 0x30
+   WORD   Client_SS ;             // 0x34
+   WORD   wReserved_3 ;           // (padding) - 0x36
+   WORD   Client_ES ;             // 0x38
+   WORD   WReserved_4 ;           // (padding) - 0x3A
+   WORD   Client_DS ;             // 0x3C
+   WORD   wReserved_5 ;           // (padding) - 0x3E
+   WORD   Client_FS ;             // 0x40
+   WORD   wReserved_6 ;           // (padding) - 0x42
+   WORD   Client_GS ;             // 0x44
+   WORD   wReserved_7 ;           // (padding) - 0x46
 
    DWORD  Client_Alt_EIP ;
    WORD   Client_Alt_CS ;
@@ -1475,5 +1475,23 @@ struct pmcb_s {
     ULONG PMCB_Flags;
     ULONG PMCB_Parent;
 };
+
+/*
+ * FLAGS FOR BEGIN_CRITICAL_SECTION,
+ * ENTER_MUTEX
+ * AND WAIT_SEMAPHORE
+ */
+#define BLOCK_SVC_INTS_BIT            0
+#define BLOCK_SVC_INTS               (1 << BLOCK_SVC_INTS_BIT)
+#define BLOCK_SVC_IF_INTS_LOCKED_BIT  1
+#define BLOCK_SVC_IF_INTS_LOCKED     (1 << BLOCK_SVC_IF_INTS_LOCKED_BIT)
+#define BLOCK_ENABLE_INTS_BIT	        2
+#define BLOCK_ENABLE_INTS	           (1 << BLOCK_ENABLE_INTS_BIT)
+#define BLOCK_POLL_BIT   	            3
+#define BLOCK_POLL                   (1 << BLOCK_POLL_BIT)
+#define BLOCK_THREAD_IDLE_BIT         4
+#define BLOCK_THREAD_IDLE		         (1 << BLOCK_THREAD_IDLE_BIT)
+#define BLOCK_FORCE_SVC_INTS_BIT      5
+#define BLOCK_FORCE_SVC_INTS         (1 << BLOCK_FORCE_SVC_INTS_BIT)
 
 #endif /* __VMM_H__INCLUDED__ */

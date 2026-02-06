@@ -10,7 +10,8 @@ OBJS += &
   vxd_main_qemu.obj vxd_main_svga.obj vxd_svga.obj vxd_vdd.obj vxd_vdd_qemu.obj &
   vxd_vdd_svga.obj vxd_vbe.obj vxd_vbe_qemu.obj vxd_mouse.obj &
   vxd_mouse_svga.obj vxd_svga_mouse.obj vxd_svga_mem.obj vxd_svga_cb.obj &
-  vxd_halloc.obj vxd_main_vesa.obj vxd_vesa.obj vxd_vdd_vesa.obj vxd_mtrr.obj
+  vxd_halloc.obj vxd_main_vesa.obj vxd_vesa.obj vxd_vdd_vesa.obj vxd_mtrr.obj &
+  vxd_wram.obj vxd_async.obj vxd_gtf.obj
 
 INCS = -I$(%WATCOM)\h\win -Iddk -Ivmware
 
@@ -38,7 +39,7 @@ FIXLINK_CC  = wcl386 -q fixlink\fixlink.c -fe=$(FIXLINK_EXE)
 #FLAGS += -DHWBLT
 
 # Set DBGPRINT to add debug printf logging.
-#DBGPRINT = 1
+DBGPRINT = 1
 
 # Generate code for i486, otherwise is code generated for Pentium Pro
 #I486 = 1
@@ -70,8 +71,8 @@ CFLAGS32 += -6s -fp6
 # This allows to change mapping debug COM port (for 32bit VXD and 16bit DRV)
 # -DCOM0 means mute in current module (for example: your HW has only one port
 # and you want debug only VXD)
-CFLAGS   += -DCOM1
-CFLAGS32 += -DCOM2
+CFLAGS   += -DCOM2
+CFLAGS32 += -DCOM1
 !else
 CFLAGS32 += -d0
 !endif
@@ -227,6 +228,15 @@ vxd_vdd_vesa.obj : vxd_vdd_vesa.c .autodepend
 	$(CC32) $(CFLAGS32) $(INCS) $(FLAGS) $<
 
 vxd_mtrr.obj : vxd_mtrr.c .autodepend
+	$(CC32) $(CFLAGS32) $(INCS) $(FLAGS) $<
+
+vxd_wram.obj : vxd_wram.c .autodepend
+	$(CC32) $(CFLAGS32) $(INCS) $(FLAGS) $<
+
+vxd_async.obj : vxd_async.c .autodepend
+	$(CC32) $(CFLAGS32) $(INCS) $(FLAGS) $<
+
+vxd_gtf.obj : vxd_gtf.c .autodepend
 	$(CC32) $(CFLAGS32) $(INCS) $(FLAGS) $<
 
 # Resources
@@ -556,6 +566,8 @@ file vxd_svga_cb.obj
 file vxd_vdd_svga.obj
 file vxd_mouse_svga.obj
 file vxd_halloc.obj
+file vxd_wram.obj
+file vxd_async.obj
 segment '_TEXT'  PRELOAD NONDISCARDABLE
 segment '_DATA'  PRELOAD NONDISCARDABLE
 segment 'CONST'  PRELOAD NONDISCARDABLE
@@ -581,6 +593,8 @@ file vxd_lib.obj
 file vxd_vbe_qemu.obj
 file vxd_vdd_qemu.obj
 file vxd_mouse.obj
+file vxd_wram.obj
+file vxd_async.obj
 segment '_TEXT'  PRELOAD NONDISCARDABLE
 segment '_DATA'  PRELOAD NONDISCARDABLE
 segment 'CONST'  PRELOAD NONDISCARDABLE
@@ -603,6 +617,8 @@ file vxd_vbe.obj
 file vxd_lib.obj
 file vxd_vdd.obj
 file vxd_mouse.obj
+file vxd_wram.obj
+file vxd_async.obj
 segment '_TEXT'  PRELOAD NONDISCARDABLE
 segment '_DATA'  PRELOAD NONDISCARDABLE
 segment 'CONST'  PRELOAD NONDISCARDABLE
@@ -623,9 +639,12 @@ file pci.obj
 file vxd_fbhda.obj
 file vxd_lib.obj
 file vxd_vesa.obj
+file vxd_gtf.obj
 file vxd_vdd_vesa.obj
 file vxd_mouse.obj
 file vxd_mtrr.obj
+file vxd_wram.obj
+file vxd_async.obj
 segment '_TEXT'  PRELOAD NONDISCARDABLE
 segment '_DATA'  PRELOAD NONDISCARDABLE
 segment 'CONST'  PRELOAD NONDISCARDABLE

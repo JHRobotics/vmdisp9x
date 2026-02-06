@@ -623,3 +623,87 @@ void Hook_V86_Int_Chain(DWORD int_num, DWORD HookProc)
 	_asm mov esi, [HookProc]
 	VMMCall(Hook_V86_Int_Chain)
 }
+
+DWORD Set_Async_Time_Out(DWORD delayms, DWORD refdata, void *callback)
+{
+	volatile DWORD handle = 0;
+	
+	_asm mov eax, [delayms]
+	_asm mov edx, [refdata]
+	_asm mov esi, [callback]
+	VMMCall(Set_Async_Time_Out)
+	_asm mov [handle], esi
+	
+	return handle;
+}
+
+/*
+	Async_Time_Out_Proc
+		ecx = tardiness (number of extra milliseconds that have elapsed)
+		edx = refdata
+*/
+
+DWORD Get_System_Time()
+{
+	VMMJmp(Get_System_Time);
+	return 0; /* never reached */
+}
+
+DWORD *Get_System_Time_Address()
+{
+	DWORD *retaddr = NULL;
+	
+	VMMCall(Get_System_Time_Address);
+	_asm mov [retaddr], eax
+	
+	return retaddr; /* never reached */
+}
+
+void _EnterMustComplete()
+{
+	VMMCall(_EnterMustComplete);
+}
+
+void _LeaveMustComplete()
+{
+	VMMCall(_LeaveMustComplete);
+}
+
+BOOL Get_Crit_Section_Status(DWORD *out_vm, DWORD *out_claims)
+{
+	DWORD vm = 0;
+	DWORD claims = 0;
+	VMMCall(Get_Crit_Section_Status);
+	_asm mov [vm], ebx
+	_asm mov [claims], ecx
+	
+	if(out_vm != NULL)
+	{
+		*out_vm = vm;
+	}
+	
+	if(out_claims != NULL)
+	{
+		*out_claims = claims;
+	}
+	
+	if(claims == 0)
+	{
+		return FALSE;
+	}
+	
+	return TRUE;
+}
+
+void critical_section_enter()
+{
+	Begin_Critical_Section(BLOCK_SVC_INTS);
+	_EnterMustComplete();
+}
+
+void critical_section_leave()
+{
+	_LeaveMustComplete();
+	End_Critical_Section();
+}
+

@@ -65,8 +65,6 @@ extern FBHDA_t *hda;
 extern ULONG hda_sem;
 SVGA_DB_t *svga_db = NULL;
 
-extern BOOL vram_heap_in_ram;
-
 extern LONG fb_lock_cnt;
 
        BOOL gb_support = FALSE;
@@ -973,7 +971,6 @@ BOOL SVGA_setmode(DWORD w, DWORD h, DWORD bpp)
 	SVGA_clear();
 
 	mouse_invalidate();
-	FBHDA_update_heap_size(FALSE, vram_heap_in_ram);
 
 	FBHDA_access_end(0);
 
@@ -1261,17 +1258,17 @@ void FBHDA_access_rect(DWORD left, DWORD top, DWORD right, DWORD bottom)
 		return;
 	}
 	
-	Wait_Semaphore(hda_sem, 0);
+	FBHDA_lock();
 	
 	if(left > hda->width)
 	{
-		Signal_Semaphore(hda_sem);
+		FBHDA_unlock();
 		return;
 	}
 	
 	if(top > hda->height)
 	{
-		Signal_Semaphore(hda_sem);
+		FBHDA_unlock();
 		return;
 	}
 	
@@ -1291,7 +1288,7 @@ void FBHDA_access_rect(DWORD left, DWORD top, DWORD right, DWORD bottom)
 		rect_right  = right;
 		rect_bottom = bottom;
 
-		mouse_erase();
+		//mouse_erase();
 
 		if(mouse_get_rect(&left, &top, &right, &bottom))
 		{
@@ -1303,7 +1300,7 @@ void FBHDA_access_rect(DWORD left, DWORD top, DWORD right, DWORD bottom)
 		update_rect(left, top, right, bottom);
 	}
 
-	Signal_Semaphore(hda_sem);
+	FBHDA_unlock();
 }
 
 void FBHDA_access_begin(DWORD flags)
@@ -1315,14 +1312,14 @@ void FBHDA_access_begin(DWORD flags)
 	
 	if(flags & (FBHDA_ACCESS_RAW_BUFFERING | FBHDA_ACCESS_MOUSE_MOVE))
 	{
-		Wait_Semaphore(hda_sem, 0);
+		FBHDA_lock();
 		
 //		dbg_printf("FBHDA_access_begin(%ld)\n", flags);
 		
 		if(fb_lock_cnt++ == 0)
 		{
 			SVGA_CMB_wait_update();
-			mouse_erase();
+			//mouse_erase();
 			check_dirty();
 			
 			if(!mouse_get_rect(&rect_left, &rect_top, &rect_right, &rect_bottom))
@@ -1343,7 +1340,7 @@ void FBHDA_access_begin(DWORD flags)
 			}
 		}
 		
-		Signal_Semaphore(hda_sem);
+		FBHDA_unlock();
 	}
 	else
 	{
@@ -1360,7 +1357,7 @@ void FBHDA_access_end(DWORD flags)
 		return;
 	}
 
-	Wait_Semaphore(hda_sem, 0);
+	FBHDA_lock();
 
 	if(flags & FBHDA_ACCESS_SURFACE_DIRTY)
 	{
@@ -1393,7 +1390,7 @@ void FBHDA_access_end(DWORD flags)
 		if(w > 0 && h > 0)
 		{
 			check_dirty();
-			mouse_blit();
+			//mouse_blit();
 			if(hda->surface > 0)
 			{
 				switch(hda->bpp)
@@ -1471,11 +1468,11 @@ void FBHDA_access_end(DWORD flags)
 		}
 		else
 		{
-			mouse_blit(); /* in this case is mouse unvisible, but we need still switch visibility state */
+			//mouse_blit(); /* in this case is mouse unvisible, but we need still switch visibility state */
 		} // w == 0 && h == 0
 	} // fb_lock_cnt == 0
 	
-	Signal_Semaphore(hda_sem);
+	FBHDA_unlock();
 }
 
 void FBHDA_palette_set(unsigned char index, DWORD rgb)
@@ -1674,7 +1671,7 @@ void SVGA_ProcessCleanup(DWORD pid)
 	if(!svga_saved_state.enabled)
 		return;
 
-	Begin_Critical_Section(0);
+	critical_section_enter();
 	if(svga_db != NULL)
 	{
 		/* clean surfaces */
@@ -1765,7 +1762,7 @@ void SVGA_ProcessCleanup(DWORD pid)
 		dbg_printf("Free - pid: %ld, used memory: %ld\n", pid, svga_db->stat_regions_usage);
 	} // db != NULL
 
-	End_Critical_Section();
+	critical_section_leave();
 }
 
 void SVGA_AllProcessCleanup()
@@ -1776,7 +1773,7 @@ void SVGA_AllProcessCleanup()
 	if(!svga_saved_state.enabled)
 		return;
 
-	Begin_Critical_Section(0);
+	critical_section_enter();
 	if(svga_db != NULL)
 	{
 		/* clean surfaces */
@@ -1867,5 +1864,5 @@ void SVGA_AllProcessCleanup()
 		dbg_printf("Cleanup: used memory: %ld\n", svga_db->stat_regions_usage);
 	} // db != NULL
 
-	End_Critical_Section();
+	critical_section_leave();
 }

@@ -1,202 +1,12 @@
 
-static BOOL calc_save(int x, int y)
-{
-	mouse_swap_w = mouse_w;
-	mouse_swap_x = x - mouse_pointx;
-	
-	if(mouse_swap_x < 0)
-	{
-		mouse_swap_w += mouse_swap_x;
-		mouse_swap_x = 0;
-	}
-	
-	if(mouse_swap_x + mouse_swap_w > hda->width)
-	{
-		mouse_swap_w = hda->width - mouse_swap_x;
-	}
-	
-	mouse_swap_h = mouse_h;
-	mouse_swap_y = y - mouse_pointy;
-	
-	if(mouse_swap_y < 0)
-	{
-		mouse_swap_h += mouse_swap_y;
-		mouse_swap_y = 0;
-	}
-	
-	if(mouse_swap_y + mouse_swap_h > hda->height)
-	{
-		mouse_swap_h = hda->height - mouse_swap_y;
-	}
-	
-	if(mouse_swap_w <= 0 || mouse_swap_h <= 0)
-	{
-		mouse_swap_valid = FALSE;
-		return FALSE;
-	}
-	
-	if((DWORD)(mouse_swap_w * mouse_swap_h * mouse_ps) > mouse_mem_size)
-	{
-		mouse_swap_valid = FALSE;
-		return FALSE;
-	}
-	
-	return TRUE;
-}
-
-#define DEF_SAVE(_bpp, _type) \
-static void save ## _bpp(int mx, int my){ \
-	int x, y; \
-	_type *screen; \
-	_type *buf = mouse_swap_data; \
-	BYTE *screen_pos = ((BYTE*)hda->vram_pm32) + hda->surface; \
-	if(!calc_save(mx, my)){ return; } \
-	screen = (_type*)(screen_pos + hda->pitch * mouse_swap_y); \
-	for(y = 0; y < mouse_swap_h; y++) { \
-		for(x = 0; x < mouse_swap_w; x++) { \
-			*buf = screen[mouse_swap_x + x]; \
-			buf++; \
-		} \
-		screen = (_type*)((BYTE*)screen+hda->pitch); \
-	} \
-	mouse_swap_valid = TRUE; }
-
-DEF_SAVE( 8,  BYTE)
-DEF_SAVE(16,  WORD)
-DEF_SAVE(32, DWORD)
-
-static void save24(int mx, int my)
-{
-	int x, y;
-	BYTE *screen;
-	BYTE *buf = mouse_swap_data;
-	BYTE *screen_pos = ((BYTE*)hda->vram_pm32) + hda->surface;
-	if(!calc_save(mx, my)){ return; }
-	screen = screen_pos + hda->pitch * mouse_swap_y;
-	for(y = 0; y < mouse_swap_h; y++)
-	{
-		for(x = 0; x < mouse_swap_w; x++)
-		{
-			*(buf++) = screen[(mouse_swap_x + x)*3    ];
-			*(buf++) = screen[(mouse_swap_x + x)*3 + 1];
-			*(buf++) = screen[(mouse_swap_x + x)*3 + 2];
-		}
-		screen += hda->pitch;
-	}
-	mouse_swap_valid = TRUE;
-}
-
-#define DEF_RESTORE(_bpp, _type) \
-static void restore ## _bpp () { \
-	int x, y; \
-	_type *screen; \
-	_type *buf = mouse_swap_data; \
-	BYTE *screen_pos = ((BYTE*)hda->vram_pm32) + hda->surface; \
-	if(!mouse_swap_valid){ return; } \
-	screen = (_type*)(screen_pos + hda->pitch * mouse_swap_y); \
-	for(y = 0; y < mouse_swap_h; y++) { \
-		for(x = 0; x < mouse_swap_w; x++) { \
-			screen[mouse_swap_x + x] = *buf; buf++; \
-		} \
-		screen = (_type*)((BYTE*)screen+hda->pitch); \
-	} \
-	mouse_swap_valid = FALSE; }
-
-DEF_RESTORE( 8, BYTE)
-DEF_RESTORE(16, WORD)
-DEF_RESTORE(32, DWORD)
-
-void restore24()
-{
-	int x, y;
-	BYTE *screen;
-	BYTE *buf = mouse_swap_data;
-	BYTE *screen_pos = ((BYTE*)hda->vram_pm32) + hda->surface;
-	if(!mouse_swap_valid){ return; }
-	screen = screen_pos + hda->pitch * mouse_swap_y;
-	for(y = 0; y < mouse_swap_h; y++)
-	{
-		for(x = 0; x < mouse_swap_w; x++)
-		{
-			screen[(mouse_swap_x + x)*3    ] = *(buf++);
-			screen[(mouse_swap_x + x)*3 + 1] = *(buf++);
-			screen[(mouse_swap_x + x)*3 + 2] = *(buf++);
-		}
-		screen += hda->pitch;
-	}
-	mouse_swap_valid = FALSE;
-}
-
-#define DEF_BLIT(_bpp, _type) \
-static void blit ## _bpp (int mx, int my) { \
-	int x, y; \
-	_type *screen_line; \
-	_type *and_line; \
-	_type *xor_line; \
-	int real_x = mx - mouse_pointx; \
-	int real_y = my - mouse_pointy; \
-	int real_xx, real_yy; \
-	BYTE *screen_pos = ((BYTE*)hda->vram_pm32) + hda->surface; \
-	for(y = 0; y < mouse_h; y++) { \
-		real_yy = real_y+y; \
-		if(real_yy >= 0 && real_yy < hda->height) { \
-			screen_line = (_type*)(screen_pos + hda->pitch * (real_yy)); \
-			and_line    = ((_type*)mouse_andmask_data + mouse_w * y); \
-			xor_line    = ((_type*)mouse_xormask_data + mouse_w * y); \
-			for(x = 0; x < mouse_w; x++) { \
-				real_xx = real_x+x; \
-				if(real_xx >= 0 && real_xx < hda->width) { \
-					screen_line[real_xx] &= and_line[x]; \
-					screen_line[real_xx] ^= xor_line[x]; \
-} } } } }
-
-DEF_BLIT(8,  BYTE)
-DEF_BLIT(16, WORD)
-DEF_BLIT(32, DWORD)
-
-static void blit24(int mx, int my)
-{
-	int x, y;
-	BYTE *screen_line;
-	BYTE *and_line;
-	BYTE *xor_line;
-	int real_x = mx - mouse_pointx;
-	int real_y = my - mouse_pointy;
-	int real_xx, real_yy;
-	int real_xx3, x3;
-	BYTE *screen_pos = ((BYTE*)hda->vram_pm32) + hda->surface;
-	for(y = 0; y < mouse_h; y++)
-	{
-		real_yy = real_y+y;
-		if(real_yy >= 0 && real_yy < hda->height)
-		{
-			screen_line = screen_pos + hda->pitch * real_yy;
-			and_line    = ((BYTE*)mouse_andmask_data) + mouse_w * y * 3;
-			xor_line    = ((BYTE*)mouse_xormask_data) + mouse_w * y * 3;
-			for(x = 0; x < mouse_w; x++)
-			{
-				real_xx = real_x+x;
-				if(real_xx >= 0 && real_xx < hda->width)
-				{
-					real_xx3 = real_xx*3;
-					x3 = x*3;
-					screen_line[real_xx3  ] &= and_line[x3  ]; screen_line[real_xx3  ] ^= xor_line[x3  ];
-					screen_line[real_xx3+1] &= and_line[x3+1]; screen_line[real_xx3+1] ^= xor_line[x3+1];
-					screen_line[real_xx3+2] &= and_line[x3+2]; screen_line[real_xx3+2] ^= xor_line[x3+2];
-				}
-			}
-		}
-	}
-}
-
 #define EXPAND_BIT(_dsttype, _bit) (~(((_dsttype)(_bit))-1))
 
 #define DEF_CONVMASK(_bpp, _type) \
 static void convmask ## _bpp(CURSORSHAPE *lpCursor, DWORD cbWidth, void *src, void *dst) { \
-	_type *ptr = dst; \
 	int x, y, xb, x8; \
 	BYTE pix8; \
 	for(y = 0; y < lpCursor->cy; y++) { \
+		_type *ptr = (_type *)(((DWORD*)dst)+CURSOR_DMAX*y); \
 		for(x = 0; x < cbWidth; x++) { \
 			pix8 = ((BYTE *)src)[cbWidth*y + x]; \
 			x8 = x*8; \
@@ -204,92 +14,153 @@ static void convmask ## _bpp(CURSORSHAPE *lpCursor, DWORD cbWidth, void *src, vo
 				*(ptr++) = EXPAND_BIT(_type, ((pix8 >> xb) & 0x1)); \
 } } } }
 
-DEF_CONVMASK( 8,  BYTE)
-DEF_CONVMASK(16,  WORD)
+//DEF_CONVMASK( 8,  BYTE)
+//DEF_CONVMASK(16,  WORD)
 DEF_CONVMASK(32, DWORD)
 
-static void convmask24(CURSORSHAPE *lpCursor, DWORD cbWidth, void *src, void *dst)
+static void expandmask16(CURSORSHAPE *lpCursor, DWORD cbWidth, void *src, void *dst)
 {
-	BYTE *ptr = dst;
-	int x, y, xb, x8;
-	BYTE pix8;
-	BYTE mask;
+	LONG y, x;
+	WORD px16;
+	pixel_32_t px;
+	px.dw = 0;
+
 	for(y = 0; y < lpCursor->cy; y++)
 	{
-		for(x = 0; x < cbWidth; x++)
+		DWORD *ptr = ((DWORD*)dst)+CURSOR_DMAX*y;
+		for(x = 0; x < cbWidth; x += 2)
 		{
-			pix8 = ((BYTE *)src)[cbWidth*y + x];
-			x8 = x*8;
-			for(xb = 7; xb >= 0 && x8 < lpCursor->cx; xb--,x8++)
-			{
-				mask = EXPAND_BIT(BYTE, ((pix8 >> xb) & 0x1));
-				*(ptr++) = mask;
-				*(ptr++) = mask;
-				*(ptr++) = mask;
-			}
+			px16 = *((WORD*)(((BYTE*)src)+cbWidth*y + x*2));
+			px.c.r = px16 >> 11;
+			px.c.g = (px16 >> 5) & 0xFC;
+			px.c.b = px16 & 0xF8;
+			
+			/* expand by last 2 LSB bits */
+			if((px.c.r & 0x18) == 0x18) px.c.r |= 0x7;
+			if((px.c.g & 0x0C) == 0x0C) px.c.r |= 0x3;
+			if((px.c.b & 0x18) == 0x18) px.c.b |= 0x7;
+				
+			*ptr = px.dw;
+			ptr++;
 		}
 	}
 }
 
-static void draw_save(int mx, int my)
+static void expandmask15(CURSORSHAPE *lpCursor, DWORD cbWidth, void *src, void *dst)
 {
-	switch(mouse_ps)
+	LONG y, x;
+	WORD px16;
+	pixel_32_t px;
+	px.dw = 0;
+
+	for(y = 0; y < lpCursor->cy; y++)
 	{
-		case 1:  save8(mx, my); return;
-		case 2: save16(mx, my); return;
-		case 3: save24(mx, my); return;
-		case 4: save32(mx, my); return;
+		DWORD *ptr = ((DWORD*)dst)+CURSOR_DMAX*y;
+		for(x = 0; x < cbWidth; x+= 2)
+		{
+			px16 = *((WORD*)(((BYTE*)src)+cbWidth*y + x));
+			px.c.r = (px16 >> 10) & 0xF8;
+			px.c.g = (px16 >>  5) & 0xF8;
+			px.c.b =  px16 & 0xF8;
+			
+			/* expand by last 2 LSB bits */
+			if((px.c.r & 0x18) == 0x18) px.c.r |= 0x7;
+			if((px.c.g & 0x18) == 0x18) px.c.r |= 0x7;
+			if((px.c.b & 0x18) == 0x18) px.c.b |= 0x7;
+				
+			*ptr = px.dw;
+			ptr++;
+		}
 	}
 }
 
-static void draw_restore()
+static void expandmask8(CURSORSHAPE *lpCursor, DWORD cbWidth, void *src, void *dst)
 {
-	switch(mouse_ps)
+	LONG y, x;
+	for(y = 0; y < lpCursor->cy; y++)
 	{
-		case 1:  restore8(); return;
-		case 2: restore16(); return;
-		case 3: restore24(); return;
-		case 4: restore32(); return;
+		DWORD *ptr = ((DWORD*)dst)+CURSOR_DMAX*y;
+		for(x = 0; x < cbWidth; x++)
+		{
+			BYTE index = ((BYTE*)src)[cbWidth*y + x];
+			*ptr = wram->palette[index].dw;
+			ptr++;
+		}
 	}
 }
 
-static void draw_blit(int mx, int my)
+static void expandmask24(CURSORSHAPE *lpCursor, DWORD cbWidth, void *src, void *dst)
 {
-	switch(mouse_ps)
+	LONG y, x;
+	pixel_32_t px;
+	px.dw = 0;
+
+	for(y = 0; y < lpCursor->cy; y++)
 	{
-		case 1:  blit8(mx, my); return;
-		case 2: blit16(mx, my); return;
-		case 3: blit24(mx, my); return;
-		case 4: blit32(mx, my); return;
+		DWORD *ptr = ((DWORD*)dst)+CURSOR_DMAX*y;
+		for(x = 0; x < cbWidth; x += 3)
+		{
+			px.c.r = ((BYTE*)src)[cbWidth*y + x];
+			px.c.g = ((BYTE*)src)[cbWidth*y + x + 1];
+			px.c.b = ((BYTE*)src)[cbWidth*y + x + 2];
+			*ptr = px.dw;
+			ptr++;
+		}
 	}
 }
 
-static void convmask(CURSORSHAPE *lpCursor, DWORD cbWidth, void *src, void *dst)
+static void expandmask32(CURSORSHAPE *lpCursor, DWORD cbWidth, void *src, void *dst)
 {
-	switch(mouse_ps)
+	LONG y, x;
+	for(y = 0; y < lpCursor->cy; y++)
 	{
-		case 1:  convmask8(lpCursor, cbWidth, src, dst); return;
-		case 2: convmask16(lpCursor, cbWidth, src, dst); return;
-		case 3: convmask24(lpCursor, cbWidth, src, dst); return;
-		case 4: convmask32(lpCursor, cbWidth, src, dst); return;
+		DWORD *ptr = ((DWORD*)dst)+CURSOR_DMAX*y;
+		for(x = 0; x < cbWidth; x += 4)
+		{
+			*ptr = *((DWORD*)(((BYTE*)src)+cbWidth*y + x));
+			ptr++;
+		}
+	}
+}
+
+static void expandmask(CURSORSHAPE *lpCursor, DWORD cbWidth, void *src, void *dst, int bits)
+{
+	switch(bits)
+	{
+		case 1:
+			convmask32(lpCursor, cbWidth, src, dst);
+			break;
+		case 8:
+			expandmask8(lpCursor, cbWidth, src, dst);
+			break;
+		case 15:
+			expandmask15(lpCursor, cbWidth, src, dst);
+			break;
+		case 16:
+			expandmask16(lpCursor, cbWidth, src, dst);
+			break;
+		case 24:
+			expandmask24(lpCursor, cbWidth, src, dst);
+			break;
+		case 32:
+			expandmask32(lpCursor, cbWidth, src, dst);
+			break;
 	}
 }
 
 static BOOL cursor_is_empty()
 {
-	DWORD s = mouse_w * mouse_h * mouse_ps;
-	BYTE *and_mask = (BYTE *)mouse_andmask_data;
-	BYTE *xor_mask = (BYTE *)mouse_xormask_data;
-	
-	while(s--)
+	LONG x, y;	
+	for(y = 0; y < wram->regs.s.cursor_h; y++)
 	{
-		if((*and_mask) != 0xFF || (*xor_mask) != 0x00)
+		for(x = 0; x < wram->regs.s.cursor_w; x++)
 		{
-			return FALSE;
+			if(wram->cursor.andmask[CURSOR_DMAX*y + x] != 0xFF ||
+				wram->cursor.xormask[CURSOR_DMAX*y + x] != 0x00)
+			{
+				return FALSE;
+			}
 		}
-		and_mask++;
-		xor_mask++;
 	}
-	
 	return TRUE;
 }

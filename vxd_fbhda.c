@@ -26,6 +26,9 @@ THE SOFTWARE.
 #include "vmm.h"
 #include "vxd.h"
 
+#include "wram.h"
+#include "async.h"
+
 #include "vxd_lib.h"
 #include "3d_accel.h"
 
@@ -38,13 +41,13 @@ ULONG hda_sem = 0;
 LONG fb_lock_cnt = 0;
 DWORD gamma_quirk = 0;
 
-extern BOOL vram_heap_in_ram;
-
 #include "vxd_strings.h"
 
 BOOL FBHDA_init_hw()
 {
-	hda = (FBHDA_t *)_PageAllocate(RoundToPages(sizeof(FBHDA_t)), PG_SYS, 0, 0, 0x0, 0x100000, NULL, PAGEFIXED);
+	//hda = (FBHDA_t *)_PageAllocate(RoundToPages(sizeof(FBHDA_t)), PG_SYS, 0, 0, 0x0, 0x100000, NULL, PAGEFIXED);
+	hda = (FBHDA_t *)&wram->extradata[0];
+
 	if(hda)
 	{
 		memset(hda, 0, sizeof(FBHDA_t));
@@ -65,62 +68,6 @@ BOOL FBHDA_init_hw()
 		return TRUE;
 	}
 	return FALSE;
-}
-
-void FBHDA_update_heap_size(BOOL init, BOOL ram)
-{
-	if(hda)
-	{
-		DWORD bottom = hda->vram_size - hda->overlays_size;
-		DWORD blocks = bottom/FB_VRAM_HEAP_GRANULARITY;
-		DWORD blocks_size = blocks*sizeof(DWORD);
-		DWORD top;
-		DWORD start;
-
-		blocks_size += ((FB_VRAM_HEAP_GRANULARITY - (blocks_size) % FB_VRAM_HEAP_GRANULARITY)) % FB_VRAM_HEAP_GRANULARITY;
-
-		if(!ram)
-		{
-			hda->heap_end = ((BYTE*)hda->vram_pm32) + (blocks*FB_VRAM_HEAP_GRANULARITY - blocks_size);
-			hda->heap_info = (DWORD*)hda->heap_end;
-
-			top = hda->system_surface + hda->stride;
-			start = hda->heap_end - ((BYTE*)hda->vram_pm32 + top);
-
-			hda->heap_count  = blocks;
-			hda->heap_length = start / FB_VRAM_HEAP_GRANULARITY;
-			hda->heap_start = hda->heap_end - FB_VRAM_HEAP_GRANULARITY*hda->heap_length;
-
-			dbg_printf("FBHDA_update_heap_size(start=%lu bottom=%lu, hda->heap_length=%lu)\n", start, bottom, hda->heap_length);
-		}
-		else
-		{
-			hda->heap_end = ((BYTE*)hda->vram_pm32) + (blocks*FB_VRAM_HEAP_GRANULARITY);
-
-			top = hda->system_surface + hda->stride;
-			start = hda->heap_end - ((BYTE*)hda->vram_pm32 + top);
-
-			hda->heap_count  = blocks;
-			hda->heap_length = start / FB_VRAM_HEAP_GRANULARITY;
-			hda->heap_start = hda->heap_end - FB_VRAM_HEAP_GRANULARITY*hda->heap_length;
-
-			if(init)
-			{
-				hda->heap_info = (DWORD*)_PageAllocate((blocks_size+P_SIZE-1)/P_SIZE, PG_SYS, 0, 0x0, 0, 0x100000, NULL, PAGEZEROINIT);
-			}
-
-			dbg_printf("FBHDA_update_heap_size(start=%lu bottom=%lu, hda->heap_length=%lu)\n", start, bottom, hda->heap_length);
-		}
-
-		if(init && hda->heap_info != NULL)
-		{
-			DWORD i;
-			for(i = 0; i < blocks; i++)
-			{
-				hda->heap_info[i] = (~0UL);
-			}
-		}
-	}
 }
 
 void FBHDA_release_hw()
@@ -146,9 +93,11 @@ FBHDA_t *FBHDA_setup()
 
 void FBHDA_clean()
 {
+	dbg_printf("FBHDA_clean\n");
 	FBHDA_access_begin(0);
 	memset(hda->vram_pm32, 0, hda->stride);
 	FBHDA_access_end(0);
+	dbg_printf("FBHDA_clean done\n");
 }
 
 static WORD gamma_ramp[3][256];
@@ -320,9 +269,50 @@ void FBHDA_memtest()
 		{
 			dbg_printf("cannot test vram, assume the Videos BIOS returns the correct information.\n");
 			hda->vram_size = size4*4;
-			vram_heap_in_ram = TRUE; /* also assume that same modes can completly overwrite full vram */
 		}
 
-		dbg_printf("VRAM real size=%ld, vram_heap_in_ram=%d\n", hda->vram_size, vram_heap_in_ram);
+		dbg_printf("VRAM real size=%ld, vram_heap_in_ram=%d\n", hda->vram_size, FALSE);
+	}
+}
+
+static BOOL fbhda_lock_valid;
+
+BOOL FBHDA_lock()
+{
+	if(!Get_Crit_Section_Status(NULL, NULL))
+	{
+		Wait_Semaphore(hda_sem, 0);
+		fbhda_lock_valid = TRUE;
+		return TRUE;
+	}
+	
+	fbhda_lock_valid = FALSE;
+	return FALSE;
+}
+
+void FBHDA_unlock()
+{
+	if(fbhda_lock_valid)
+	{
+		Signal_Semaphore(hda_sem);
+	}
+}
+
+void FBHDA_refresh(DWORD refresh_rate)
+{
+	DWORD ms = 0;
+
+	if(refresh_rate > 0)
+	{
+		ms = 1000/refresh_rate;
+	}
+	
+	if(ms >= ASYNC_MIN)
+	{
+		async_blit_settime(ms);
+	}
+	else
+	{
+		async_blit_settime(ASYNC_DEFAULT);
 	}
 }

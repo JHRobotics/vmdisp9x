@@ -35,33 +35,12 @@ THE SOFTWARE.
 #include "vxd_svga.h"
 #endif
 
+#include "wram.h"
 #include "code32.h"
 
 extern FBHDA_t *hda;
 
 static void *mouse_buffer_mem = NULL;
-static void *mouse_andmask_data = NULL;
-static void *mouse_xormask_data = NULL;
-static void *mouse_swap_data = NULL;
-static DWORD mouse_mem_size = 0;
-
-static int mouse_x = 0;
-static int mouse_y = 0;
-
-static int mouse_w = 0;
-static int mouse_h = 0;
-static int mouse_pointx = 0;
-static int mouse_pointy = 0;
-static int mouse_swap_x = 0;
-static int mouse_swap_y = 0;
-static int mouse_swap_w = 0;
-static int mouse_swap_h = 0;
-static int mouse_swap_valid = FALSE;
-static int mouse_ps = 0;
-
-static BOOL  mouse_valid = FALSE;
-static BOOL  mouse_empty = FALSE;
-static BOOL  mouse_visible  = FALSE;
 
 #define CUR_MIN_SIZE (32*32*4)
 
@@ -73,7 +52,7 @@ void *mouse_buffer()
 {
 	if(mouse_buffer_mem == NULL)
 	{
-		mouse_buffer_mem = (void*)_PageAllocate(RoundToPages(MOUSE_BUFFER_SIZE), PG_SYS, 0, 0, 0x0, 0x100000, NULL, PAGEFIXED);
+		mouse_buffer_mem = (void*)_PageAllocate(RoundToPages(MOUSE_BUFFER_SIZE), PG_SYS, 0, 0, PAGE_ALLOC_MIN, PAGE_ALLOC_MAX, NULL, PAGEFIXED|PAGEUSEALIGN);
 	}
 	
 	return mouse_buffer_mem;
@@ -81,14 +60,7 @@ void *mouse_buffer()
 
 static void mouse_notify_accel()
 {
-	if(mouse_valid && mouse_visible && !mouse_empty)
-	{
-		hda->flags &= ~((DWORD)FB_MOUSE_NO_BLIT);
-	}
-	else
-	{
-		hda->flags |= FB_MOUSE_NO_BLIT;
-	}
+	hda->flags |= FB_MOUSE_NO_BLIT;
 }
 
 BOOL mouse_load()
@@ -98,6 +70,7 @@ BOOL mouse_load()
 	void *xormask_ptr;
 	CURSORSHAPE *cur;
 	DWORD cbw;
+	LONG x, y;
 	
 	//dbg_printf(dbg_mouse_load);
 	
@@ -107,7 +80,8 @@ BOOL mouse_load()
 	if(SVGA_mouse_hw())
 	{
 		BOOL r = SVGA_mouse_load();
-		mouse_valid = FALSE;
+		wram->regs.s.cursor_empty = 1;
+		wram->regs.s.cursor_visible = 0;
 		mouse_notify_accel();
 		return r;
 	}
@@ -117,77 +91,43 @@ BOOL mouse_load()
 	
 	/* erase cursor if present */
 	FBHDA_access_begin(FBHDA_ACCESS_MOUSE_MOVE);
-	
-	mouse_valid = FALSE;
-	
+
 	/* check and alocate/resize buffer */
 	ms = (cur->cx * cur->cy * 4);
 	if(ms < CUR_MIN_SIZE)
 		ms = CUR_MIN_SIZE;
-	
-	if(ms > mouse_mem_size)
-	{
-		if(mouse_andmask_data)
-			_PageFree(mouse_andmask_data, 0);
-		
-		if(mouse_xormask_data)
-			_PageFree(mouse_xormask_data, 0);
-			
-		if(mouse_swap_data)
-			_PageFree(mouse_swap_data, 0);
-			
-		mouse_andmask_data = 
-			(void*)_PageAllocate(RoundToPages(ms), PG_SYS, 0, 0, 0x0, 0x100000, NULL, PAGEFIXED);
-		
-		mouse_xormask_data = 
-			(void*)_PageAllocate(RoundToPages(ms), PG_SYS, 0, 0, 0x0, 0x100000, NULL, PAGEFIXED);
-		
-		mouse_swap_data = 
-			(void*)_PageAllocate(RoundToPages(ms), PG_SYS, 0, 0, 0x0, 0x100000, NULL, PAGEFIXED);
-			
-		mouse_mem_size = ms;
-	}
-	
-	/* can't allocate memory */
-	if(mouse_andmask_data == NULL ||
-		mouse_xormask_data == NULL ||
-		mouse_swap_data == NULL)
-	{
-		dbg_printf(dbg_mouse_no_mem);
-		FBHDA_access_end(FBHDA_ACCESS_MOUSE_MOVE);
-		return FALSE;
-	}
-	
-	mouse_w = cur->cx;
-	mouse_h = cur->cy;
-	mouse_pointx = cur->xHotSpot;
-	mouse_pointy = cur->yHotSpot;
-	
+
+
+	x = wram->regs.s.cursor_x + wram->regs.s.cursor_spotx;
+	y = wram->regs.s.cursor_y + wram->regs.s.cursor_spoty;
+
+	wram->regs.s.cursor_spotx = cur->xHotSpot;
+	wram->regs.s.cursor_spoty = cur->yHotSpot;
+
+	wram->regs.s.cursor_x = x - wram->regs.s.cursor_spotx;
+	wram->regs.s.cursor_y = y - wram->regs.s.cursor_spoty;
+	wram->regs.s.cursor_w = cur->cx;
+	wram->regs.s.cursor_h = cur->cy;
+
 	andmask_ptr = (void*)(cur + 1);
 	xormask_ptr = (void*)(((BYTE*)andmask_ptr) + cur->cbWidth*cur->cy);
-	
-	mouse_ps = (hda->bpp + 7) / 8;
-	
-	cbw = (mouse_w+7)/8;
-	
+
 	/* AND mask (always 1bpp) */
-	convmask(cur, cbw, andmask_ptr, mouse_andmask_data);
+	expandmask(cur, cur->cbWidth, andmask_ptr, wram->cursor.andmask, 1);
 	
 	/* XOR mask (1bpp or screen bpp) */
 	if(cur->BitsPixel == 1)
 	{
-		convmask(cur, cbw, xormask_ptr, mouse_xormask_data);
+		expandmask(cur, cur->cbWidth, xormask_ptr, wram->cursor.xormask, 1);
 	}
 	else
 	{
-		memcpy(mouse_xormask_data, xormask_ptr, 
-			((cur->BitsPixel + 7)/8) * cur->cx * cur->cy
-		);
+		cbw = (cur->BitsPixel * cur->cx + 7) / 8;
+		expandmask(cur, cbw, xormask_ptr, wram->cursor.xormask, cur->BitsPixel);
 	}
 	
-	mouse_valid = TRUE;
-	mouse_visible = TRUE;
-	mouse_empty = cursor_is_empty();
+	wram->regs.s.cursor_empty = cursor_is_empty();
+	wram->regs.s.cursor_visible  = !wram->regs.s.cursor_empty;
 	
 	//dbg_printf(dbg_mouse_status, mouse_valid, mouse_visible, mouse_empty);
 	
@@ -213,17 +153,17 @@ void mouse_move(int x, int y)
 	}
 #endif
 	
-	if(mouse_valid && mouse_visible && !mouse_empty)
+	if(wram->regs.s.cursor_visible)
 	{
 		FBHDA_access_begin(FBHDA_ACCESS_MOUSE_MOVE);
-		mouse_x = x;
-		mouse_y = y;
+		wram->regs.s.cursor_x = x - wram->regs.s.cursor_spotx;
+		wram->regs.s.cursor_y = y - wram->regs.s.cursor_spoty;
 		FBHDA_access_end(FBHDA_ACCESS_MOUSE_MOVE);
 	}
 	else
 	{
-		mouse_x = x;
-		mouse_y = y;
+		wram->regs.s.cursor_x = x - wram->regs.s.cursor_spotx;
+		wram->regs.s.cursor_y = y - wram->regs.s.cursor_spoty;
 	}
 }
 
@@ -239,7 +179,7 @@ void mouse_show()
 	}
 #endif
 	FBHDA_access_begin(FBHDA_ACCESS_MOUSE_MOVE);
-	mouse_visible = TRUE;
+	wram->regs.s.cursor_visible = !wram->regs.s.cursor_empty;
 	FBHDA_access_end(FBHDA_ACCESS_MOUSE_MOVE);
 	
 	mouse_notify_accel();
@@ -258,7 +198,7 @@ void mouse_hide()
 #endif
 	
 	FBHDA_access_begin(FBHDA_ACCESS_MOUSE_MOVE);
-	mouse_visible = FALSE;
+	wram->regs.s.cursor_visible = 0;
 	FBHDA_access_end(FBHDA_ACCESS_MOUSE_MOVE);
 	
 	mouse_notify_accel();
@@ -276,45 +216,23 @@ void mouse_invalidate()
 	}
 #endif
 	
-	mouse_valid = FALSE;
-	
+	wram->regs.s.cursor_empty   = 0;
+	wram->regs.s.cursor_visible = 0;
 	mouse_notify_accel();
-}
-
-/* called by FBHDA_access_end */
-BOOL mouse_blit()
-{
-	if(mouse_valid && mouse_visible && !mouse_empty)
-	{
-		draw_save(mouse_x, mouse_y);
-		draw_blit(mouse_x, mouse_y);
-		return TRUE;
-	}
-	
-	return FALSE;
-}
-
-/* called by FBHDA_access_begin */
-void mouse_erase()
-{
-	if(mouse_valid && mouse_visible && !mouse_empty)
-	{
-		draw_restore();
-	}
 }
 
 BOOL mouse_get_rect(DWORD *ptr_left, DWORD *ptr_top,
 	DWORD *ptr_right, DWORD *ptr_bottom)
 {
-	int mx;
-	int my;
-	int mw;
-	int mh;
+	LONG mx;
+	LONG my;
+	LONG mw;
+	LONG mh;
 	
-	if(mouse_valid && !mouse_empty)
+	if(wram->regs.s.cursor_visible)
 	{
-		mw = mouse_w;
-		mx = mouse_x - mouse_pointx;
+		mw = wram->regs.s.cursor_w;
+		mx = wram->regs.s.cursor_x;
 		
 		if(mx < 0)
 		{
@@ -322,13 +240,13 @@ BOOL mouse_get_rect(DWORD *ptr_left, DWORD *ptr_top,
 			mx = 0;
 		}
 		
-		if(mx + mw > hda->width)
+		if(mx + mw > wram->regs.s.width)
 		{
-			mw = hda->width - mx;
+			mw = wram->regs.s.width - mx;
 		}
 		
-		mh = mouse_h;
-		my = mouse_y - mouse_pointy;
+		mh = wram->regs.s.cursor_h;
+		my = wram->regs.s.cursor_y;
 		
 		if(my < 0)
 		{
@@ -336,23 +254,21 @@ BOOL mouse_get_rect(DWORD *ptr_left, DWORD *ptr_top,
 			my = 0;
 		}
 		
-		if(my + mh > hda->height)
+		if(my + mh > wram->regs.s.height)
 		{
-			mh = hda->height - my;
+			mh = wram->regs.s.height - my;
 		}
 		
 		if(mw > 0 && mh > 0)
 		{
-			*ptr_left    = mx;
-			*ptr_top     = my;
-			*ptr_right   = mx + mw;
-			*ptr_bottom  = my + mh;
+			*ptr_left    = (DWORD)mx;
+			*ptr_top     = (DWORD)my;
+			*ptr_right   = (DWORD)(mx + mw);
+			*ptr_bottom  = (DWORD)(my + mh);
 			
 			return TRUE;
 		}
-		
-		return TRUE;
 	}
-	
+
 	return FALSE;
 }

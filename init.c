@@ -44,6 +44,8 @@ WORD    wScrY       = 480;  /* Current Y resolution. */
 WORD    wDpi        = 96;   /* Current DPI setting. */
 WORD    wBpp        = 8;    /* Current BPP setting. */
 WORD    wPalettized = 0;    /* Non-zero if palettized. */
+WORD    wFreqMin    = 0;    /* Frame refresh rate (Hz) */
+WORD    wFreqMax    = 0;
 
 WORD    OurVMHandle   = 0;  /* The current VM's ID. */
 DWORD   VDDEntryPoint = 0;  /* The VDD entry point. */
@@ -94,8 +96,19 @@ void ReadDisplayConfig( void )
     /* Get the bits per pixel. */
     wBpp = GetPrivateProfileInt( "display", "bpp", 0, "system.ini" );
 
-    dbg_printf( "SYSTEM.INI: %ux%u %ubpp %udpi\n", wX, wY, wBpp, wDpi );
+    /* Get refresh rate */
+    wFreqMin = 0;
+    wFreqMax = GetPrivateProfileInt( "display", "refreshRate", 0, "system.ini" );
+    if(wFreqMax >= 0x8000) /* negative */
+    {
+    	wFreqMax = 0;
+    }
+    if(wFreqMax > 0)
+    {
+    	wFreqMin = wFreqMax-1;
+    }
 
+    dbg_printf( "SYSTEM.INI: %ux%u %ubpp %udpi\n", wX, wY, wBpp, wDpi );
 
     bIgnoreRegistry = GetPrivateProfileInt( "display", "IgnoreRegistry", 0, "system.ini" );
 
@@ -111,6 +124,23 @@ void ReadDisplayConfig( void )
             wBpp = DispInfo.diBpp;
 
             dbg_printf( "Registry: %ux%u %ubpp %udpi\n", DispInfo.diXRes, DispInfo.diYRes, DispInfo.diBpp, DispInfo.diDPI );
+            
+            if((DispInfo.diInfoFlags & (MONITOR_INFO_NOT_VALID | MONITOR_INFO_DISABLED_BY_USER)) == 0)
+            {
+            	if((DispInfo.diInfoFlags & REFRESH_RATE_MAX_ONLY) != 0)
+            	{
+            		wFreqMax = DispInfo.diRefreshRateMax;
+            		if(wFreqMax > 0)
+            		{
+            			wFreqMin = wFreqMax-1;
+            		}
+            	}
+            	else
+            	{
+            		wFreqMax = DispInfo.diRefreshRateMax;
+            		wFreqMin = DispInfo.diRefreshRateMin;
+            	}
+            }
 
             /* DPI might not be set, careful. */
             if( DispInfo.diDPI )
