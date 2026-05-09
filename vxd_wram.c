@@ -39,7 +39,7 @@ wram_t *wram = NULL;
 BOOL wram_init(DWORD bytes)
 {
 	DWORD x;
-	DWORD pages = bytes / P_SIZE;
+	DWORD pages = RoundToPages(bytes);
 
 	if(pages < 16) return FALSE;
 

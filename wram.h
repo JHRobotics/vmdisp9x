@@ -175,4 +175,6 @@ void wram_clear();
 BOOL wram_swap(void *virtptr, blit_t *blit);
 void wram_changes(blit_t *blit, DWORD sx, DWORD sy, DWORD ex, DWORD ey);
 
+#define WRAM_MIN_MB 4
+
 #endif /* __WRAM_H__INCLUDED__ */

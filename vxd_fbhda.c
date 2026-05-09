@@ -65,6 +65,8 @@ BOOL FBHDA_init_hw()
 			return FALSE;
 		}
 
+		FBHDA_DD_init();
+
 		return TRUE;
 	}
 	return FALSE;

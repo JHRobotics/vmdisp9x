@@ -153,7 +153,7 @@ VDDPROC(REGISTER_DISPLAY_DRIVER, register_display_driver)
 	
 	if(hda->vram_pm16 == 0)
 	{
-		hda->vram_pm16 = map_pm16(state->Client_EBX, (DWORD)hda->vram_pm32, hda->vram_size);
+		hda->vram_pm16 = map_pm16(state->Client_EBX, (DWORD)hda->vram_pm32, hda->vram_size_virt);
 	}
 	
 	if(hda_pm16 == 0)

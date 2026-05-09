@@ -153,7 +153,7 @@ static void SVGA_DB_alloc()
 	  sizeof(SVGA_DB_t) +
 	  regions_map_size + contexts_map_size + surfaces_map_size;
 	  
-	svga_db = (SVGA_DB_t*)_PageAllocate(RoundToPages(size), PG_VM, ThisVM, 0, 0x0, 0x100000, NULL, PAGEFIXED);
+	svga_db = (SVGA_DB_t*)_PageAllocate(RoundToPages(size), PG_VM, ThisVM, 0, PAGE_ALLOC_MIN, PAGE_ALLOC_MAX, NULL, PAGEFIXED);
 	if(svga_db)
 	{
 		memset(svga_db, 0, size);

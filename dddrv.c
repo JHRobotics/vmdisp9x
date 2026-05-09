@@ -216,13 +216,13 @@ static void buildDDHALInfo(VMDAHAL_t __far *hal, int modeidx)
 	_fmemset(&hal->ddHALInfo, 0, sizeof(hal->ddHALInfo));
 	hal->ddHALInfo.lpD3DHALCallbacks = pHAL;
 	hal->ddHALInfo.lpD3DGlobalDriverData = pGbl;
-    
+
 	//clean 3d callback pointers on 8bpps
 	if(hda->bpp > 8)
 	{
 		hal->ddHALInfo.lpDDExeBufCallbacks = pExeBuf;
 	}
-	
+
 	bytes_per_pixel = (hda->bpp+7)/8;
 	hal->ddHALInfo.dwSize = sizeof(hal->ddHALInfo);
 
@@ -280,20 +280,8 @@ static void buildDDHALInfo(VMDAHAL_t __far *hal, int modeidx)
 	hal->vidMem[0].dwFlags = VIDMEM_ISLINEAR;
 	hal->vidMem[0].ddsCaps.dwCaps = 0;//DDSCAPS_OFFSCREENPLAIN; - what this memory CANNOT be used for
 	hal->vidMem[0].fpStart = hda->vram_pm32 + hda->system_surface + stride;
-	hal->vidMem[0].fpEnd   = hda->vram_pm32 + hda->vram_size - hda->overlays_size - 1;
+	hal->vidMem[0].fpEnd   = hda->vram_pm32 + hda->vram_size_virt - hda->overlays_size - 1;
 	hal->ddHALInfo.vmiData.dwNumHeaps = 1;
-
-#if 0
-	if(hda->vram_size < hda->vram_bar_size)
-	{
-		/* on vmware is only first 16 MB regular memory, we map the "blackhole" to another heap, but driver will alocate surface in system memory */
-		hal->vidMem[1].fpStart = hda->vram_pm32 + hda->vram_size;
-		hal->vidMem[1].fpEnd   = hda->vram_pm32 + hda->vram_bar_size - 1;
-		hal->vidMem[1].dwFlags = VIDMEM_ISLINEAR;
-		hal->vidMem[1].ddsCaps.dwCaps = DDSCAPS_PRIMARYSURFACE | DDSCAPS_OFFSCREENPLAIN;
-		hal->ddHALInfo.vmiData.dwNumHeaps = 2;
-	}
-#endif
 
 	/*
 	 * capabilities supported
@@ -333,7 +321,6 @@ static void buildDDHALInfo(VMDAHAL_t __far *hal, int modeidx)
 
 	hal->ddHALInfo.ddCaps.ddsCaps.dwCaps = DDSCAPS_OFFSCREENPLAIN |
 	                                       DDSCAPS_ALPHA;
-
 
 	/* 3D support */
 	if(hal->d3dhal_global != NULL)
@@ -456,7 +443,7 @@ BOOL DDCreateDriverObject(int bReset)
 	}
 	
 	hal->vramLinear = hda->vram_pm32;
-	hal->vramSize   = hda->vram_size;
+	hal->vramSize   = hda->vram_size_virt;
 
   /*
    * set up hal info

@@ -105,6 +105,7 @@ DDB VXD_DDB = {
 DWORD *DispatchTable = 0;
 DWORD DispatchTableLength = 0;
 DWORD ThisVM = 0;
+void *DeviceCTX = NULL;
 DWORD is_qemu = FALSE;
 
 void __stdcall port_info(DWORD p_eax, DWORD p_ecx, DWORD p_edx)
@@ -641,7 +642,7 @@ static void configure_FBHDA()
 			if(fbhda->overlays[i].size > 0)
 			{
 				fbhda->overlays_size += fbhda->overlays[i].size;
-				fbhda->overlays[i].ptr = ((BYTE*)fbhda->vram_pm32) + fbhda->vram_size - fbhda->overlays_size;
+				fbhda->overlays[i].ptr = ((BYTE*)fbhda->vram_pm32) + fbhda->vram_size_virt - fbhda->overlays_size;
 			}
 			else
 			{
@@ -718,6 +719,7 @@ void Device_Init_proc(DWORD VM)
 
 	VMMCall(_Allocate_Device_CB_Area);
  	ThisVM = VM;
+ 	DeviceCTX = _GetCurrentContext();
 
 #ifdef SVGA
 	gpu_allocated = vxd_hinit();
@@ -876,6 +878,30 @@ DWORD __stdcall Device_IO_Control_proc(DWORD vmhandle, struct DIOCParams *params
 			break;
 		case OP_FBHDA_REFRESH:
 			FBHDA_refresh(inBuf[0]);
+			rc = 0;
+			break;
+		case OP_FBHDA_SURFACE_GET:
+			outBuf[0] = FBHDA_DD_surface_get((void*)inBuf[0], (FBHDA_DD_surface_t*)inBuf[1]);
+			rc = 0;
+			break;
+		case OP_FBHDA_SURFACE_SET:
+			outBuf[0] = FBHDA_DD_surface_set((void*)inBuf[0], (FBHDA_DD_surface_t*)inBuf[1]);
+			rc = 0;
+			break;
+		case OP_FBHDA_SURFACE_DELETE:
+			FBHDA_DD_surface_delete((void*)inBuf[0]);
+			rc = 0;
+			break;
+		case OP_FBHDA_SURFACE_MODIFY:
+			outBuf[0] = FBHDA_DD_surface_modify((void*)inBuf[0]);
+			rc = 0;
+			break;
+		case OP_FBHDA_SURFACE_NOTIFY:
+			FBHDA_DD_surface_notify((void*)inBuf[0]);
+			rc = 0;
+			break;
+		case OP_FBHDA_SURFACE_WATCH:
+			outBuf[0] = FBHDA_DD_surface_watch((void*)inBuf[0], (FBHDA_DD_watch_callback_t)inBuf[1]);
 			rc = 0;
 			break;
 #ifdef SVGA

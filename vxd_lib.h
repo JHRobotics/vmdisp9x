@@ -27,6 +27,7 @@ THE SOFTWARE.
 void memset(void *dst, int c, unsigned int size);
 void *memcpy(void *dst, const void *src, unsigned int size);
 int memcmp(const void *ptr1, const void *ptr2, unsigned int num);
+void *memmove(void *destination, const void *source, unsigned int num);
 unsigned int strlen(const char *s);
 char *strcpy(char *dst, const char *src);
 char *strcat(char *dst, const char *src);
@@ -70,6 +71,12 @@ DWORD __cdecl _Allocate_Global_V86_Data_Area(ULONG nBytes, ULONG flags);
 DWORD __cdecl _GetFirstV86Page();
 DWORD __cdecl _GetLastV86Page();
 DWORD __cdecl _SetLastV86Page(ULONG PgNum, ULONG flags);
+
+PVOID __cdecl _ContextCreate();
+ULONG __cdecl _ContextDestroy(PVOID hcd);
+PVOID __cdecl _ContextSwitch(PVOID hcd);
+PVOID __cdecl _GetCurrentContext();
+ULONG __cdecl _PageAttach(ULONG page, PVOID hcontextsrc, ULONG npages);
 
 void __cdecl Resume_VM(ULONG VM);
 void Release_Time_Slice();

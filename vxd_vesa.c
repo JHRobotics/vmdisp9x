@@ -247,13 +247,20 @@ BOOL VESA_init_hw()
 {
 	DWORD flat;
 	DWORD conf_vram_limit = 32;
+	DWORD wram_size = 64;
 	
 	dbg_printf("VESA init begin...\n");
 
 	RegReadConf(HKEY_LOCAL_MACHINE, VESA_conf_path, "VRAMLimit",        &conf_vram_limit);
+	RegReadConf(HKEY_LOCAL_MACHINE, VESA_conf_path, "WRAMSize",         &wram_size);
 	RegReadConf(HKEY_LOCAL_MACHINE, VESA_conf_path, "MTRR",             &conf_mtrr);
 	RegReadConf(HKEY_LOCAL_MACHINE, VESA_conf_path, "DosWindowSetMode", &conf_dos_window);
 	RegReadConf(HKEY_LOCAL_MACHINE, VESA_conf_path, "HWDoubleBuffer",   &conf_hw_double_buf);
+
+	if(wram_size < WRAM_MIN_MB)
+	{
+		wram_size = WRAM_MIN_MB;
+	}
 
 	flat = _PageAllocate(1, PG_SYS, 0, 0x0, PAGE_ALLOC_MIN, PAGE_ALLOC_MAX, &vesa_buf_phy, PAGEUSEALIGN | PAGECONTIG | PAGEFIXED);
 	vesa_buf = (void*)flat;
@@ -433,9 +440,9 @@ BOOL VESA_init_hw()
 				/* 9x have trobles with alloc large continuous memory block */
 				vram_lin = (void*)_MapPhysToLinear(vram_phy, vram_size, 0);
 
-				if(!wram_init(vram_size))
+				if(!wram_init(wram_size*1024*1024))
 				{
-					dbg_printf("cannot allocated %d MB RAM!\n", vram_size);
+					dbg_printf("cannot allocated %d MB RAM!\n", wram_size);
 					return FALSE;
 				}
 
@@ -448,11 +455,11 @@ BOOL VESA_init_hw()
 				memcpy(hda->vxdname, vesa_vxd_name, sizeof(vesa_vxd_name));
 
 				hda->vram_size = vram_size;
-				hda->vram_size_bar = hda->vram_size;
+				hda->vram_size_bar = conf_vram_limit*1024*1024;
 
 				hda->vram_phylin = vram_lin;
 				hda->vram_pm32   = (BYTE*)wram + wram->regs.s.fbmin;
-				hda->vram_size_virt = wram->regs.s.fbmax;
+				hda->vram_size_virt = wram->regs.s.fbmax - wram->regs.s.fbmin;
 				dbg_printf("vram_phy=%lX vram_phylin=%lX\n", vram_phy, hda->vram_phylin);
 
 				hda->flags |= FB_SUPPORT_FLIPING | FB_VESA_MODES;
@@ -471,7 +478,8 @@ BOOL VESA_init_hw()
 				timer_set = async_blit_init(&wblit, VESA_draw);
 				dbg_printf("timer = %d\n", timer_set);
 
-				dbg_printf("VESA_init_hw(vram_size=%ld) = TRUE\n", hda->vram_size);
+				dbg_printf("VESA_init_hw(vram_size=%ld, wram_size=%ld, real_memory=%ld) = TRUE\n",
+					hda->vram_size, hda->vram_size_virt, hda->vram_size_bar);
 
 				return TRUE;
 			}
@@ -625,21 +633,6 @@ BOOL VESA_valid()
 	return vesa_valid;
 }
 
-BOOL VESA_validmode(DWORD w, DWORD h, DWORD bpp)
-{
-	DWORD i;
-
-	for(i = 0; i < vesa_modes_cnt; i++)
-	{
-		if(vesa_modes[i].width == w && vesa_modes[i].height == h && vesa_modes[i].bpp == bpp)
-		{
-			return TRUE;
-		}
-	}
-	//dbg_printf("fail to valid mode: %ld %ld %ld\n", w, h, bpp);
-	return FALSE;
-}
-
 void VESA_clear()
 {
 	memset((BYTE*)hda->vram_pm32+hda->system_surface, 0, hda->stride);
@@ -707,6 +700,19 @@ static DWORD VESA_freqchoice(int mode, DWORD rr_min, DWORD rr_max)
 	}
 	return 0;
 }
+
+BOOL VESA_validmode(DWORD w, DWORD h, DWORD bpp)
+{
+	DWORD mode = VESA_modechoice(w, h, bpp);
+
+	if(mode < vesa_modes_cnt)
+	{
+		return TRUE;
+	}
+
+	return FALSE;
+}
+
 
 BOOL VESA_setmode_phy(DWORD w, DWORD h, DWORD bpp, DWORD rr_min, DWORD rr_max)
 {
@@ -1007,7 +1013,13 @@ static void VESA_setptr(DWORD offset, BOOL triplebuf)
 
 BOOL VESA_setmode(DWORD w, DWORD h, DWORD bpp, DWORD rr_min, DWORD rr_max)
 {
-	if(VESA_setmode_phy(w, h, bpp, rr_min, rr_max))
+	BOOL valid;
+	
+	FBHDA_lock();
+	valid = VESA_setmode_phy(w, h, bpp, rr_min, rr_max);
+	FBHDA_unlock();
+	
+	if(valid)
 	{
 		mtrr_setup();
 		VESA_clear();

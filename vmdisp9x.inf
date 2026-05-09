@@ -56,6 +56,7 @@ vesamini.vxd=1
 ;vmhal:vmhal9x.dll=1
 ;vmhal486:vmhal486.dll=1
 ;vmhal:vmdisp9x.dll=1
+;vmhal:vmhal3d.dll=1
 
 [Manufacturer]
 %Mfg%=Mfg.VM
@@ -105,6 +106,7 @@ boxvmini.drv,,,0x00000004
 boxvmini.vxd,,,0x00000004
 ;mesa:mesa3d.dll,,,0x00000004
 ;vmhal:vmhal9x.dll,,,0x00000004
+;vmhal:vmhal3d.dll,,,0x00000004
 ;vmhal:vmdisp9x.dll,,,0x00000004
 ;vmhal486:vmhal486.dll,,,0x00000004
 
@@ -113,6 +115,7 @@ qemumini.drv,,,0x00000004
 qemumini.vxd,,,0x00000004
 ;mesa:mesa3d.dll,,,0x00000004
 ;vmhal:vmhal9x.dll,,,0x00000004
+;vmhal:vmhal3d.dll,,,0x00000004
 ;vmhal:vmdisp9x.dll,,,0x00000004
 ;vmhal486:vmhal486.dll,,,0x00000004
 
@@ -121,6 +124,7 @@ qxlmini.drv,,,0x00000004
 qxlmini.vxd,,,0x00000004
 ;mesa:mesa3d.dll,,,0x00000004
 ;vmhal:vmhal9x.dll,,,0x00000004
+;vmhal:vmhal3d.dll,,,0x00000004
 ;vmhal:vmdisp9x.dll,,,0x00000004
 ;vmhal486:vmhal486.dll,,,0x00000004
 
@@ -130,6 +134,7 @@ vmwsmini.vxd,,,0x00000004
 ;mesa:vmwsgl32.dll,,,0x00000004
 ;mesa:mesa3d.dll,,,0x00000004
 ;vmhal:vmhal9x.dll,,,0x00000004
+;vmhal:vmhal3d.dll,,,0x00000004
 ;vmhal:vmdisp9x.dll,,,0x00000004
 ;vmhal486:vmhal486.dll,,,0x00000004
 
@@ -138,6 +143,7 @@ vesamini.drv,,,0x00000004
 vesamini.vxd,,,0x00000004
 ;mesa:mesa3d.dll,,,0x00000004
 ;vmhal:vmhal9x.dll,,,0x00000004
+;vmhal:vmhal3d.dll,,,0x00000004
 ;vmhal:vmdisp9x.dll,,,0x00000004
 ;vmhal486:vmhal486.dll,,,0x00000004
 ;switcher:vesamode.exe,,,0x00000004

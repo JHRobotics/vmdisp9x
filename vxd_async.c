@@ -42,6 +42,7 @@ volatile DWORD *curtime = NULL;
 
 extern LONG fb_lock_cnt;
 extern FBHDA_t *hda;
+extern void *DeviceCTX;
 
 #define TIME_MIN_PLAN 4
 
@@ -69,6 +70,11 @@ void __stdcall async_timeout(DWORD tardiness, DWORD refdata)
 	DWORD burned;
 	DWORD act = *curtime;
 	DWORD delta;
+	
+	void *curctx = _GetCurrentContext();
+	//dbg_printf("CTX: %lX, device CTX: %lX\n", curctx, DeviceCTX);
+	//_ContextSwitch(DeviceCTX);
+	
 	//dbg_printf("async_timeout %d ...", refdata);
 	
 	if(FBHDA_lock())
@@ -85,6 +91,7 @@ void __stdcall async_timeout(DWORD tardiness, DWORD refdata)
 	
 	delta = calc_delta(burned);
 	Set_Async_Time_Out(delta, refdata+1, async_timeout_proc);
+	_ContextSwitch(curctx);
 	//dbg_printf("... set (%d)!\n", delta);
 }
 

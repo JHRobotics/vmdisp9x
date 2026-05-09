@@ -140,7 +140,7 @@ DWORD *SVGA_CMB_alloc_size(DWORD datasize)
 	SVGACBHeader *cb;
 	cb_queue_t *q;
 	
-	q = (cb_queue_t*)_PageAllocate(RoundToPages(datasize+sizeof(SVGACBHeader)+sizeof(cb_queue_t)), PG_SYS, 0, 0, 0x0, 0x100000, &phy, PAGECONTIG | PAGEUSEALIGN | PAGEFIXED);
+	q = (cb_queue_t*)_PageAllocate(RoundToPages(datasize+sizeof(SVGACBHeader)+sizeof(cb_queue_t)), PG_SYS, 0, 0, PAGE_ALLOC_MIN, PAGE_ALLOC_MAX, &phy, PAGECONTIG | PAGEUSEALIGN | PAGEFIXED);
 	
 	if(q)
 	{

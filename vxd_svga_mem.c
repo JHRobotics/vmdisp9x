@@ -249,7 +249,7 @@ void SVGA_OTable_alloc(BOOL screentargets)
 	
 	if(otable == NULL)
 	{
-		otable = (SVGA_OT_info_entry_t *)_PageAllocate(RoundToPages(sizeof(otable_setup)), PG_VM, ThisVM, 0, 0x0, 0x100000, NULL, PAGEFIXED);
+		otable = (SVGA_OT_info_entry_t *)_PageAllocate(RoundToPages(sizeof(otable_setup)), PG_VM, ThisVM, 0, PAGE_ALLOC_MIN, PAGE_ALLOC_MAX, NULL, PAGEFIXED);
 		if(otable)
 		{
 			memcpy(otable, &(otable_setup[0]), sizeof(otable_setup));
@@ -274,7 +274,7 @@ void SVGA_OTable_alloc(BOOL screentargets)
 			SVGA_OT_info_entry_t *entry = &otable[i];
 			if(entry->size != 0 && (entry->flags & SVGA_OT_FLAG_ALLOCATED) == 0)
 			{
-				void *ptr = (void*)_PageAllocate(RoundToPages(entry->size)+PT_count(entry->size), PG_VM, ThisVM, 0, 0x0, 0x100000, NULL, PAGEFIXED);
+				void *ptr = (void*)_PageAllocate(RoundToPages(entry->size)+PT_count(entry->size), PG_VM, ThisVM, 0, PAGE_ALLOC_MIN, PAGE_ALLOC_MAX, NULL, PAGEFIXED);
 				
 				if(ptr)
 				{

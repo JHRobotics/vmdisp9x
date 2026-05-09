@@ -33,7 +33,7 @@ THE SOFTWARE.
 #endif
 #endif
 
-#define API_3DACCEL_VER 20260101
+#define API_3DACCEL_VER 20260213
 
 #define ESCAPE_DRV_NT         0x1103 /* (4355) */
 
@@ -56,6 +56,14 @@ THE SOFTWARE.
 #define OP_FBHDA_PAGE_MOD     0x1118 /* VXD */
 #define OP_FBHDA_MODE_QUERY   0x1119 /* VXD */
 #define OP_FBHDA_REFRESH      0x1120 /* VXD, DRV, ESCAPE_DRV_NT */
+#define OP_FBHDA_PERIOD       0x1121 /* VXD, ESCAPE_DRV_NT */
+
+#define OP_FBHDA_SURFACE_GET  0x1122 /* VXD, ESCAPE_DRV_NT */
+#define OP_FBHDA_SURFACE_SET  0x1123 /* VXD, ESCAPE_DRV_NT */
+#define OP_FBHDA_SURFACE_DELETE 0x1124 /* VXD, ESCAPE_DRV_NT */
+#define OP_FBHDA_SURFACE_MODIFY 0x1125 /* VXD, ESCAPE_DRV_NT */
+#define OP_FBHDA_SURFACE_NOTIFY 0x1126 /* VXD, ESCAPE_DRV_NT */
+#define OP_FBHDA_SURFACE_WATCH  0x1127 /* VXD, ESCAPE_DRV_NT */
 
 #define OP_SVGA_VALID         0x2000  /* VXD, DRV, ESCAPE_DRV_NT */
 #define OP_SVGA_SETMODE       0x2001  /* DRV */
@@ -124,6 +132,13 @@ typedef struct FBHDA_overlay
 	DWORD size;
 } FBHDA_overlay_t;
 
+typedef struct _FBHDA_DD_fifo_item_t
+{
+	void *surface_flat;
+	DWORD uid;
+	DWORD action;
+} FBHDA_DD_fifo_item_t;
+
 typedef struct FBHDA
 {
 	         DWORD cb;
@@ -158,9 +173,14 @@ typedef struct FBHDA
 	         DWORD gamma_update; /* INC by one everytime when the pallete is updated */
 	         DWORD gpu_mem_total;
 	         DWORD gpu_mem_used;
-	         /* heap allocator (removed) */
-	         DWORD rem0;
-	         DWORD rem1;
+	         /* direct draw helpers */
+#ifndef FBHDA_SIXTEEN
+	         FBHDA_DD_fifo_item_t *dd_fifo;
+#else
+           DWORD dd_fifo;
+#endif
+	         DWORD dd_fifo_length; /* in elements */
+	volatile DWORD dd_fifo_top; /* point TO last element */
 	         DWORD rem2;
 	         DWORD rem3;
 	         DWORD rem4;
@@ -248,6 +268,8 @@ BOOL FBHDA_gamma_set(VOID FBPTR ramp, DWORD buffer_size);
 /* set refresh rate (Hz), this not affected monitor refresh rate (only for VESA)
  but internal timer, maximum frequency is about 250 Hz, default is 60 Hz */
 void FBHDA_refresh(DWORD refresh_rate);
+/* get period (in ms) between 2 frames */
+DWORD FBHDA_period();
 
 /* mouse */
 #ifdef FBHDA_SIXTEEN
@@ -460,6 +482,60 @@ BOOL VESA_setmode(DWORD w, DWORD h, DWORD bpp, DWORD rr_min, DWORD rr_max);
 
 #endif
 
+/*
+ * DirectDraw/X resource management
+ */
+typedef struct _FBHDA_DD_surface_attrs_t
+{
+	DWORD flags;
+	DWORD palette_offset; /* vram offset */
+	DWORD palette_update; /* changes when palette is updated */
+	DWORD colorkey_low; /* inclusive */
+	DWORD colorkey_high;/* inclusive */
+} FBHDA_DD_surface_attrs_t;
+ 
+typedef struct _FBHDA_DD_surface_t
+{
+	DWORD uid;
+	DWORD four_cc;
+	DWORD size;
+	DWORD width;
+	DWORD height;
+	DWORD pitch;
+	void *data;
+	FBHDA_DD_surface_attrs_t attrs;
+} FBHDA_DD_surface_t;
+
+typedef void (__stdcall *FBHDA_DD_watch_callback_t)(void *flat, DWORD action);
+
+void FBHDA_DD_init(); /* internal only */
+
+BOOL FBHDA_DD_surface_get(void *flat, FBHDA_DD_surface_t *info);
+BOOL FBHDA_DD_surface_set(void *flat, FBHDA_DD_surface_t *info);
+void FBHDA_DD_surface_delete(void *flat);
+BOOL FBHDA_DD_surface_modify(void *flat);
+
+/* Register user callback for watch surface operation.
+ * Callback fired when:
+ *   - modify (someone call FBHDA_DD_surface_modify)
+ *   - delete (someone call FBHDA_DD_surface_deleted)
+ *   - read (someone call FBHDA_DD_surface_notify)
+ */
+BOOL FBHDA_DD_surface_watch(void *flat, FBHDA_DD_watch_callback_t callback);
+
+/* notify watchman than we started operation with surface */
+void FBHDA_DD_surface_notify(void *flat);
+
+#define FBHDA_DD_NOP    0
+#define FBHDA_DD_CREATE 1
+#define FBHDA_DD_MODIFY 2
+#define FBHDA_DD_DELETE 3
+#define FBHDA_DD_NOTIFY 4
+
+#define FBHDA_DD_FLAG_TEXTURE  1
+#define FBHDA_DD_FLAG_COLORKEY 2
+#define FBHDA_DD_FLAG_PALETTE  4
+
 #pragma pack(pop)
 
 /* DLL handlers */
@@ -474,6 +550,13 @@ typedef BOOL (__cdecl *FBHDA_page_modify_t)(DWORD flat_address, DWORD size, cons
 typedef void (__cdecl *FBHDA_clean_t)(void);
 typedef BOOL (__cdecl *FBHDA_mode_query_t)(DWORD index, FBHDA_mode_t *mode);
 
+typedef BOOL (__cdecl *FBHDA_DD_surface_get_t)(void *flat, FBHDA_DD_surface_t *info);
+typedef BOOL (__cdecl *FBHDA_DD_surface_set_t)(void *flat, FBHDA_DD_surface_t *info);
+typedef void (__cdecl *FBHDA_DD_surface_delete_t)(void *flat);
+typedef BOOL (__cdecl *FBHDA_DD_surface_modify_t)(void *flat);
+typedef BOOL (__cdecl *FBHDA_DD_surface_watch_t)(void *flat, FBHDA_DD_watch_callback_t callback);
+typedef void (__cdecl *FBHDA_DD_surface_notify_t)(void *flat);
+
 typedef struct _fbhda_lib_t
 {
 	HMODULE lib;
@@ -486,6 +569,12 @@ typedef struct _fbhda_lib_t
 	FBHDA_page_modify_t pFBHDA_page_modify;
 	FBHDA_clean_t pFBHDA_clean;
 	FBHDA_mode_query_t pFBHDA_mode_query;
+	FBHDA_DD_surface_get_t pFBHDA_DD_surface_get;
+	FBHDA_DD_surface_set_t pFBHDA_DD_surface_set;
+	FBHDA_DD_surface_delete_t pFBHDA_DD_surface_delete;
+	FBHDA_DD_surface_modify_t pFBHDA_DD_surface_modify;
+	FBHDA_DD_surface_watch_t pFBHDA_DD_surface_watch;
+	FBHDA_DD_surface_notify_t pFBHDA_DD_surface_notify;
 } fbhda_lib_t;
 
 #endif /* __3D_ACCEL_H__ */

@@ -102,6 +102,30 @@ int memcmp(const void *ptr1, const void *ptr2, unsigned int num)
 	return *p1 - *p2;
 }
 
+void *memmove(void *destination, const void *source, unsigned int num)
+{
+	unsigned char *dst = (unsigned char *)destination;
+	const unsigned char *src = (const unsigned char *)source;
+	
+	if(src > dst)
+	{
+		while(num--)
+		{
+			*dst++ = *src++;
+		}
+	}
+	else if(src < dst)
+	{
+		dst += num;
+		src += num;
+		while(num--)
+		{
+			*dst-- = *src--;
+		}
+	}
+	return destination;
+}
+
 unsigned int strlen(const char *s)
 {
 	const char *ptr = s;
@@ -673,9 +697,16 @@ BOOL Get_Crit_Section_Status(DWORD *out_vm, DWORD *out_claims)
 {
 	DWORD vm = 0;
 	DWORD claims = 0;
+	DWORD boost = 0;
 	VMMCall(Get_Crit_Section_Status);
-	_asm mov [vm], ebx
-	_asm mov [claims], ecx
+	_asm
+	{
+		mov [vm], ebx
+		mov [claims], ecx
+		jnc no_boost
+		mov [boost], 1
+		no_boost:
+	}
 	
 	if(out_vm != NULL)
 	{
@@ -687,7 +718,7 @@ BOOL Get_Crit_Section_Status(DWORD *out_vm, DWORD *out_claims)
 		*out_claims = claims;
 	}
 	
-	if(claims == 0)
+	if(claims == 0 && boost == 0)
 	{
 		return FALSE;
 	}
@@ -707,3 +738,27 @@ void critical_section_leave()
 	End_Critical_Section();
 }
 
+PVOID __declspec(naked) __cdecl _ContextCreate()
+{
+	VMMJmp(_ContextCreate);
+}
+
+ULONG __declspec(naked) __cdecl _ContextDestroy(PVOID hcd)
+{
+	VMMJmp(_ContextDestroy);
+}
+
+PVOID __declspec(naked) __cdecl _ContextSwitch(PVOID hcd)
+{
+	VMMJmp(_ContextSwitch);
+}
+
+PVOID __declspec(naked) __cdecl _GetCurrentContext()
+{
+	VMMJmp(_GetCurrentContext);
+}
+
+ULONG __declspec(naked) __cdecl _PageAttach(ULONG page, PVOID hcontextsrc, ULONG npages)
+{
+	VMMJmp(_PageAttach);
+}

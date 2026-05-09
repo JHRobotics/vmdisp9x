@@ -11,7 +11,7 @@ OBJS += &
   vxd_vdd_svga.obj vxd_vbe.obj vxd_vbe_qemu.obj vxd_mouse.obj &
   vxd_mouse_svga.obj vxd_svga_mouse.obj vxd_svga_mem.obj vxd_svga_cb.obj &
   vxd_halloc.obj vxd_main_vesa.obj vxd_vesa.obj vxd_vdd_vesa.obj vxd_mtrr.obj &
-  vxd_wram.obj vxd_async.obj vxd_gtf.obj
+  vxd_wram.obj vxd_async.obj vxd_gtf.obj vxd_fbhda_dd.obj
 
 INCS = -I$(%WATCOM)\h\win -Iddk -Ivmware
 
@@ -39,7 +39,7 @@ FIXLINK_CC  = wcl386 -q fixlink\fixlink.c -fe=$(FIXLINK_EXE)
 #FLAGS += -DHWBLT
 
 # Set DBGPRINT to add debug printf logging.
-DBGPRINT = 1
+#DBGPRINT = 1
 
 # Generate code for i486, otherwise is code generated for Pentium Pro
 #I486 = 1
@@ -168,6 +168,9 @@ pci.obj : vmware/pci.c .autodepend
 	$(CC32) $(CFLAGS32) $(INCS) $(FLAGS) $<
 
 vxd_fbhda.obj : vxd_fbhda.c .autodepend
+	$(CC32) $(CFLAGS32) $(INCS) $(FLAGS) $<
+
+vxd_fbhda_dd.obj : vxd_fbhda_dd.c .autodepend
 	$(CC32) $(CFLAGS32) $(INCS) $(FLAGS) $<
 
 vxd_lib.obj : vxd_lib.c .autodepend
@@ -558,6 +561,7 @@ file vxd_main_svga.obj
 file svga.obj
 file pci.obj
 file vxd_fbhda.obj
+file vxd_fbhda_dd.obj
 file vxd_lib.obj
 file vxd_svga.obj
 file vxd_svga_mouse.obj
@@ -589,6 +593,7 @@ name qemumini.vxd
 file vxd_main_qemu.obj
 file pci.obj
 file vxd_fbhda.obj
+file vxd_fbhda_dd.obj
 file vxd_lib.obj
 file vxd_vbe_qemu.obj
 file vxd_vdd_qemu.obj
@@ -613,6 +618,7 @@ name boxvmini.vxd
 file vxd_main.obj
 file pci.obj
 file vxd_fbhda.obj
+file vxd_fbhda_dd.obj
 file vxd_vbe.obj
 file vxd_lib.obj
 file vxd_vdd.obj
@@ -637,6 +643,7 @@ name vesamini.vxd
 file vxd_main_vesa.obj
 file pci.obj
 file vxd_fbhda.obj
+file vxd_fbhda_dd.obj
 file vxd_lib.obj
 file vxd_vesa.obj
 file vxd_gtf.obj
