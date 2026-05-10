@@ -71,7 +71,7 @@ void __stdcall async_timeout(DWORD tardiness, DWORD refdata)
 	DWORD act = *curtime;
 	DWORD delta;
 	
-	void *curctx = _GetCurrentContext();
+	//void *curctx = _GetCurrentContext();
 	//dbg_printf("CTX: %lX, device CTX: %lX\n", curctx, DeviceCTX);
 	//_ContextSwitch(DeviceCTX);
 	
@@ -90,8 +90,12 @@ void __stdcall async_timeout(DWORD tardiness, DWORD refdata)
 	burned = *curtime - act;
 	
 	delta = calc_delta(burned);
-	Set_Async_Time_Out(delta, refdata+1, async_timeout_proc);
-	_ContextSwitch(curctx);
+	if(!Set_Async_Time_Out(delta, refdata+1, async_timeout_proc))
+	{
+		delta = calc_delta(0);
+		Set_Async_Time_Out(delta, refdata+1, async_timeout_proc);		
+	}
+	//_ContextSwitch(curctx);
 	//dbg_printf("... set (%d)!\n", delta);
 }
 

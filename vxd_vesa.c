@@ -44,6 +44,8 @@ THE SOFTWARE.
 #define IO_OUT8
 #include "io32.h"
 
+#include "vxd_terror.h"
+
 #include "code32.h"
 
 #define ISA_LFB 0xE0000000UL
@@ -170,7 +172,7 @@ static int vesa_pal_bits = 6;
 static BOOL vesa_valid = FALSE;
 
 static DWORD conf_dos_window = 0;
-static DWORD conf_hw_double_buf = 2;
+static DWORD conf_hw_double_buf = 1; /* much better performance on real HW */
 static DWORD conf_mtrr = 1;
 
 #define MODE_OFFSET 1024
@@ -307,7 +309,8 @@ BOOL VESA_init_hw()
 
 				if(info->VESAVersion < VESA_VBE_2_0)
 				{
-					dbg_printf("We need VBE 2.0 as minimum, abort\n");
+					terror("We need VBE 2.0 as minimum, abort\n");
+					tpause();
 					return FALSE;
 				}
 
@@ -369,6 +372,7 @@ BOOL VESA_init_hw()
 							dbg_printf("Mode 0x%X = (%ld x %ld x %ld) = phy:%lX\n",
 								m->mode_id, m->width, m->height, m->bpp, m->phy);
 
+#if 0
 							if(info->VESAVersion >= VESA_VBE_3_0)
 							{
 								vesa_crtc_info_t crtc_test;
@@ -409,6 +413,7 @@ BOOL VESA_init_hw()
 								mode_sort_freqs(i);
 							}
 							else
+#endif
 							{
 								m->freqs[0] = 0;
 							}
@@ -465,7 +470,7 @@ BOOL VESA_init_hw()
 				hda->flags |= FB_SUPPORT_FLIPING | FB_VESA_MODES;
 				if(vesa_version >= VESA_VBE_3_0)
 				{
-					hda->flags |= FB_SUPPORT_CLOCK;
+					//hda->flags |= FB_SUPPORT_CLOCK;
 				}
 
 				vesa_pal = (vesa_palette_entry_t*)(((BYTE*)vesa_buf)+PAL_OFFSET);
@@ -483,6 +488,11 @@ BOOL VESA_init_hw()
 
 				return TRUE;
 			}
+			else
+			{
+				terror("Can't interact with VESA BIOS, this driver can't work\n");
+				tpause();
+			}
 		}
 	}
 	return FALSE;
@@ -499,6 +509,7 @@ BOOL VESA_display_start_pm(BOOL vtrace, DWORD start_addr)
 	... but in 8+ bits per pixel modes this is the offset from the start of memory divided by 4 */
 	WORD h1 = (start_addr >> 2) & 0xFFFF;
 	WORD h2 = start_addr >> 18;
+
 	if(vbios32 != NULL && vbios32[VESA_PMTABLE_OFF_DISPLAY_START])
 	{
 		//dbg_printf("VESA_display_start_pm ...");
@@ -559,22 +570,32 @@ void VESA_load_vbios_pm()
 			bios_pm = (WORD*)bios_pm_flat;
 			
 			dbg_printf("set display off func: %X\n", bios_pm[VESA_PMTABLE_OFF_DISPLAY_START]);
-			
+
 			vbios32 = (WORD*)_PageAllocate(code_pages, PG_SYS, 0, 0x0, PAGE_ALLOC_MIN, PAGE_ALLOC_MAX, NULL, PAGEZEROINIT);
 			if(vbios32 != NULL)
 			{
+				memset(vbios32, 0xFF, code_pages*P_SIZE);
 				memcpy(vbios32, bios_pm, code_size);
 				_PageModifyPermissions(((DWORD)vbios32) / P_SIZE, code_pages, 0, PC_USER | PC_WRITEABLE);
 				dbg_printf("copy to vbios32 success\n");
 			}
-			
+/*
+			terror("Here is dump of pm32 table:\n");
+			terrorf("vbios32[0] = %X\n", vbios32[0]);
+			terrorf("vbios32[1] = %X\n", vbios32[1]);
+			terrorf("vbios32[2] = %X\n", vbios32[2]);
+			terrorf("vbios32[3] = %X\n", vbios32[3]);
+			terrorf("code size = %d\n", code_size);
+*/
 			if(vbios32[VESA_PMTABLE_OFF_PORTS])
 			{
 				ports = vbios32 + vbios32[VESA_PMTABLE_OFF_PORTS];
+				// ^ some BIOSes has this table after the code to copy
 				
 				while(*ports != 0xFFFF)
 				{
 					dbg_printf("port: %04X\n", *ports);
+					//terrorf("port: = %X\n", *ports);
 					ports++;
 				}
 				ports++;
@@ -583,7 +604,9 @@ void VESA_load_vbios_pm()
 					DWORD mem_adr = *((DWORD*)ports);
 					DWORD mem_size = ports[2];
 					
-					vbios32_mem = _MapPhysToLinear(mem_adr, mem_adr, 0);
+					//terrorf("mem: = %X, size = %d\n", mem_adr, mem_size);
+					
+					vbios32_mem = _MapPhysToLinear(mem_adr, mem_size, 0);
 					if(vbios32_mem != 0xFFFFFFFF)
 					{
 						DWORD hi  = 0;
@@ -596,10 +619,6 @@ void VESA_load_vbios_pm()
 					}
 					
 					dbg_printf("VESA PM need memory addr=0x%8X (size=%d)\n", mem_adr, mem_size);
-				}
-				else
-				{
-					dbg_printf("VESA PM using only I/O ports!\n");
 				}
 			}
 

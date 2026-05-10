@@ -11,11 +11,11 @@ OBJS += &
   vxd_vdd_svga.obj vxd_vbe.obj vxd_vbe_qemu.obj vxd_mouse.obj &
   vxd_mouse_svga.obj vxd_svga_mouse.obj vxd_svga_mem.obj vxd_svga_cb.obj &
   vxd_halloc.obj vxd_main_vesa.obj vxd_vesa.obj vxd_vdd_vesa.obj vxd_mtrr.obj &
-  vxd_wram.obj vxd_async.obj vxd_gtf.obj vxd_fbhda_dd.obj
+  vxd_wram.obj vxd_async.obj vxd_gtf.obj vxd_fbhda_dd.obj vxd_terror.obj
 
 INCS = -I$(%WATCOM)\h\win -Iddk -Ivmware
 
-VER_BUILD = 120
+VER_BUILD = 124
 
 FLAGS = -DDRV_VER_BUILD=$(VER_BUILD)
 
@@ -240,6 +240,9 @@ vxd_async.obj : vxd_async.c .autodepend
 	$(CC32) $(CFLAGS32) $(INCS) $(FLAGS) $<
 
 vxd_gtf.obj : vxd_gtf.c .autodepend
+	$(CC32) $(CFLAGS32) $(INCS) $(FLAGS) $<
+
+vxd_terror.obj : vxd_terror.c .autodepend
 	$(CC32) $(CFLAGS32) $(INCS) $(FLAGS) $<
 
 # Resources
@@ -572,11 +575,12 @@ file vxd_mouse_svga.obj
 file vxd_halloc.obj
 file vxd_wram.obj
 file vxd_async.obj
-segment '_TEXT'  PRELOAD NONDISCARDABLE
-segment '_DATA'  PRELOAD NONDISCARDABLE
-segment 'CONST'  PRELOAD NONDISCARDABLE
-segment 'CONST2' PRELOAD NONDISCARDABLE
-segment '_BSS'   PRELOAD NONDISCARDABLE
+file vxd_terror.obj
+segment '_TEXT'  PRELOAD NONDISCARDABLE IOPL
+segment '_DATA'  PRELOAD NONDISCARDABLE IOPL
+segment 'CONST'  PRELOAD NONDISCARDABLE IOPL
+segment 'CONST2' PRELOAD NONDISCARDABLE IOPL
+segment '_BSS'   PRELOAD NONDISCARDABLE IOPL
 export VXD_DDB.1
 <<
 	$(FIXLINK_EXE) -vxd32 $@
@@ -600,11 +604,12 @@ file vxd_vdd_qemu.obj
 file vxd_mouse.obj
 file vxd_wram.obj
 file vxd_async.obj
-segment '_TEXT'  PRELOAD NONDISCARDABLE
-segment '_DATA'  PRELOAD NONDISCARDABLE
-segment 'CONST'  PRELOAD NONDISCARDABLE
-segment 'CONST2' PRELOAD NONDISCARDABLE
-segment '_BSS'   PRELOAD NONDISCARDABLE
+file vxd_terror.obj
+segment '_TEXT'  PRELOAD NONDISCARDABLE IOPL
+segment '_DATA'  PRELOAD NONDISCARDABLE IOPL
+segment 'CONST'  PRELOAD NONDISCARDABLE IOPL
+segment 'CONST2' PRELOAD NONDISCARDABLE IOPL
+segment '_BSS'   PRELOAD NONDISCARDABLE IOPL
 export VXD_DDB.1
 <<
 	$(FIXLINK_EXE) -vxd32 $@
@@ -625,11 +630,12 @@ file vxd_vdd.obj
 file vxd_mouse.obj
 file vxd_wram.obj
 file vxd_async.obj
-segment '_TEXT'  PRELOAD NONDISCARDABLE
-segment '_DATA'  PRELOAD NONDISCARDABLE
-segment 'CONST'  PRELOAD NONDISCARDABLE
-segment 'CONST2' PRELOAD NONDISCARDABLE
-segment '_BSS'   PRELOAD NONDISCARDABLE
+file vxd_terror.obj
+segment '_TEXT'  PRELOAD NONDISCARDABLE IOPL
+segment '_DATA'  PRELOAD NONDISCARDABLE IOPL
+segment 'CONST'  PRELOAD NONDISCARDABLE IOPL
+segment 'CONST2' PRELOAD NONDISCARDABLE IOPL
+segment '_BSS'   PRELOAD NONDISCARDABLE IOPL
 export VXD_DDB.1
 <<
 	$(FIXLINK_EXE) -vxd32 $@
@@ -652,11 +658,12 @@ file vxd_mouse.obj
 file vxd_mtrr.obj
 file vxd_wram.obj
 file vxd_async.obj
-segment '_TEXT'  PRELOAD NONDISCARDABLE
-segment '_DATA'  PRELOAD NONDISCARDABLE
-segment 'CONST'  PRELOAD NONDISCARDABLE
-segment 'CONST2' PRELOAD NONDISCARDABLE
-segment '_BSS'   PRELOAD NONDISCARDABLE
+file vxd_terror.obj
+segment '_TEXT'  PRELOAD NONDISCARDABLE IOPL
+segment '_DATA'  PRELOAD NONDISCARDABLE IOPL
+segment 'CONST'  PRELOAD NONDISCARDABLE IOPL
+segment 'CONST2' PRELOAD NONDISCARDABLE IOPL
+segment '_BSS'   PRELOAD NONDISCARDABLE IOPL
 export VXD_DDB.1
 <<
 	$(FIXLINK_EXE) -vxd32 $@
