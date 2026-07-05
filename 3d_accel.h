@@ -298,6 +298,10 @@ BOOL FBHDA_mode_query(DWORD index, FBHDA_mode_t *mode);
  */
 #ifdef SVGA
 
+#define SVGA_REGION_ALLOC 0
+#define SVGA_REGION_USE_USERMEM 1
+#define SVGA_REGION_USE_FIXEDMEM 2
+
 typedef struct SVGA_region_info
 {
 	DWORD   region_id;
@@ -310,6 +314,7 @@ typedef struct SVGA_region_info
 	DWORD   mob_pt_depth;
 	DWORD   is_mob;
 	DWORD   mobonly;
+	DWORD   alloctype;
 } SVGA_region_info_t;
 
 typedef struct SVGA_CMB_status
@@ -330,8 +335,6 @@ typedef struct SVGA_DB_region
 {
 	DWORD pid;
 	SVGA_region_info_t info;
-	DWORD pad1;
-	DWORD pad2;
 } SVGA_DB_region_t;
 
 typedef struct SVGA_DB_context
@@ -413,6 +416,7 @@ void SVGA_fence_query(DWORD FBPTR ptr_fence_passed, DWORD FBPTR ptr_fence_last);
 void SVGA_fence_wait(DWORD fence_id);
 BOOL SVGA_region_create(SVGA_region_info_t FBPTR rinfo);
 void SVGA_region_free(SVGA_region_info_t FBPTR rinfo);
+int SVGA_region_focus(void FBPTR mem, DWORD w, DWORD h, DWORD bpp);
 
 #define SVGA_QUERY_REGS 1
 #define SVGA_QUERY_FIFO 2

@@ -2,8 +2,11 @@
 #define __VXD_SVGA_H__INCLUDED__
 
 /* consts */
-#define ST_REGION_ID 1
-#define ST_SURFACE_ID 1
+//#define ST_REGION_ID 1
+//#define ST_SURFACE_ID 1
+
+#define WRAM_REGION_ID 1
+#define WRAM_SURFACE_ID 1
 
 #define ST_16BPP   1
 #define ST_CURSOR  2

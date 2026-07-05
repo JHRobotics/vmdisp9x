@@ -92,8 +92,10 @@ void Enable_Global_Trapping(DWORD port);
 void Disable_Global_Trapping(DWORD port);
 
 DWORD Set_Async_Time_Out(DWORD delayms, DWORD refdata, void *callback);
+DWORD Set_Global_Time_Out(DWORD delayms, DWORD refdata, void *callback);
 DWORD Get_System_Time();
 DWORD *Get_System_Time_Address();
+void Cancel_Time_Out(DWORD handle);
 
 /**
  * round size in bytes to number of pages

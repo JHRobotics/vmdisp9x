@@ -99,6 +99,7 @@ void vesa_bios_V86(CRS_32 *V86regs)
 {
 	CRS_32 *pstate = &reg_state;
 	
+	_asm    push      ebx
 	// sizeof(CRS_32) = 108
 	_asm    mov       ebx, [ThisVM]
 	_asm    mov       ecx, [V86regs]
@@ -122,6 +123,7 @@ void vesa_bios_V86(CRS_32 *V86regs)
 	//_asm    mov       esi, esp
 	_asm   mov       esi, [pstate]
 	VMMCall(Restore_Client_State)
+	_asm   pop       ebx
 	//_asm    add       esp, 128
 }
 
@@ -241,7 +243,8 @@ static void mode_sort_freqs(int m)
 
 DWORD vram_phy = 0;
 
-static char VESA_conf_path[] = "Software\\vmdisp9x\\vesa";
+extern const char reg_path[];
+static const char VESA_conf_path[] = "Software\\vmdisp9x\\vesa";
 
 void VESA_load_vbios_pm();
 
@@ -253,8 +256,8 @@ BOOL VESA_init_hw()
 	
 	dbg_printf("VESA init begin...\n");
 
+	RegReadConf(HKEY_LOCAL_MACHINE, reg_path,       "WRAMSize",         &wram_size);
 	RegReadConf(HKEY_LOCAL_MACHINE, VESA_conf_path, "VRAMLimit",        &conf_vram_limit);
-	RegReadConf(HKEY_LOCAL_MACHINE, VESA_conf_path, "WRAMSize",         &wram_size);
 	RegReadConf(HKEY_LOCAL_MACHINE, VESA_conf_path, "MTRR",             &conf_mtrr);
 	RegReadConf(HKEY_LOCAL_MACHINE, VESA_conf_path, "DosWindowSetMode", &conf_dos_window);
 	RegReadConf(HKEY_LOCAL_MACHINE, VESA_conf_path, "HWDoubleBuffer",   &conf_hw_double_buf);
@@ -423,7 +426,8 @@ BOOL VESA_init_hw()
 
 				if(vesa_modes_cnt == 0)
 				{
-					return FALSE;
+					terrorf("No VESA modes found, bad VBIOS?\n");
+					tpause();
 				}
 
 				vesa_version = info->VESAVersion;
@@ -447,7 +451,9 @@ BOOL VESA_init_hw()
 
 				if(!wram_init(wram_size*1024*1024))
 				{
-					dbg_printf("cannot allocated %d MB RAM!\n", wram_size);
+					terrorf("Cannot alocate %d MB RAM!\n", wram_size);
+					terror("Please adjust WRAMSize registry key or increase physical RAM\n");
+					tpause();
 					return FALSE;
 				}
 

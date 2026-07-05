@@ -419,7 +419,7 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 	ULONG nPages = RoundToPages(new_size);
 	//ULONG nPages = RoundToPages64k(rinfo->size);
 	SVGAGuestMemDescriptor *desc;
-	ULONG size_total = 0;
+	//ULONG size_total = 0;
 	
 	DWORD pt_pages = PT_count(new_size);
 
@@ -440,16 +440,32 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 		ULONG blk_pages_raw = 0;
 		
 		/* allocate user block */
-		
-		if(!vxd_halloc(nPages+pt_pages, (void**)&maddr))
+		if(rinfo->alloctype == SVGA_REGION_ALLOC)
 		{
-			Signal_Semaphore(mem_sem);
-			return FALSE;
+			if(!vxd_halloc(nPages+pt_pages, (void**)&maddr))
+			{
+				Signal_Semaphore(mem_sem);
+				return FALSE;
+			}
+			cachePPN(maddr, nPages+pt_pages);
+			laddr = maddr + pt_pages*P_SIZE;
 		}
-
-		cachePPN(maddr, nPages+pt_pages);
-
-		laddr = maddr + pt_pages*P_SIZE;
+		else
+		{
+			if(!vxd_halloc(pt_pages, (void**)&maddr))
+			{
+				Signal_Semaphore(mem_sem);
+				return FALSE;
+			}
+			
+			if(rinfo->alloctype == SVGA_REGION_USE_USERMEM)
+			{
+				_LinPageLock(_PAGE((DWORD)rinfo->address), nPages, 0);
+			}
+			
+			laddr = (DWORD)rinfo->address;
+			cachePPN(laddr, nPages);
+		}
 		
 		if(!rinfo->mobonly)
 		{
@@ -486,7 +502,7 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 			//pgblk = _PageAllocate(blk_pages, pa_type, pa_vm, pa_align, 0x0, 0x100000, NULL, pa_flags);
 			if(!vxd_halloc(blk_pages, (void**)&pgblk))
 			{
-				vxd_hfree((void*)laddr);
+				vxd_hfree((void*)maddr);
 				Signal_Semaphore(mem_sem);
 				return FALSE;
 			}
@@ -545,7 +561,7 @@ BOOL SVGA_region_create(SVGA_region_info_t *rinfo)
 		rinfo->region_address = (void*)pgblk;
 		rinfo->region_ppn     = getPPN(pgblk);
 				
-		size_total = (nPages + blk_pages + pt_pages)*P_SIZE;
+		//size_total = (nPages + blk_pages + pt_pages)*P_SIZE;
 		
 		//dbg_printf(dbg_region_fragmented);
 	}
@@ -667,16 +683,98 @@ void SVGA_region_free(SVGA_region_info_t *rinfo)
 	else
 	{
 		//_PageFree((PVOID)free_ptr, 0);
-		vxd_hfree((PVOID)free_ptr);
+		if(rinfo->alloctype == SVGA_REGION_ALLOC)
+		{
+			vxd_hfree((PVOID)free_ptr);
+		}
 	}
-		
+	
+	if(rinfo->alloctype == SVGA_REGION_ALLOC)
+	{
+		rinfo->address = NULL;
+	}
+	else if(rinfo->alloctype == SVGA_REGION_USE_USERMEM)
+	{
+		_LinPageUnLock(_PAGE((DWORD)(rinfo->address)), RoundToPages(rinfo->size), 0);
+	}
+
 	//dbg_printf(dbg_pagefree_end, rinfo->region_id, rinfo->size, saved_in_cache);
 	Signal_Semaphore(mem_sem);
 	
-	rinfo->address        = NULL;
 	rinfo->region_address = NULL;
 	rinfo->mob_address    = NULL;
 	rinfo->region_ppn     = 0;
 	rinfo->mob_ppn        = 0;
 	rinfo->mob_pt_depth   = 0;
 }
+
+#define TMP_GMR_STARTID 1
+#define TMP_GMR_CNT 3
+
+typedef struct _tmp_gmr_t
+{
+	ULONG flat;
+	DWORD w;
+	DWORD h;
+	DWORD bpp;
+} tmp_gmr_t;
+
+static tmp_gmr_t tmp_gmr[TMP_GMR_CNT] = {{0}, {0}, {0}};
+
+static int tmp_gmr_cur = 0;
+
+/**
+ * Point temporary regions (1-3) to user memory.
+ * @param mem: linear address, it is required that point to system RAM and
+ *             is align to page boundary
+ *
+ * return: GMR ID (1-3) on success or -1 on failure
+ *
+ **/
+int SVGA_region_focus(void FBPTR mem, DWORD w, DWORD h, DWORD bpp)
+{
+	ULONG flat = (ULONG)mem;
+	int i;
+	tmp_gmr_t *gmr;
+	SVGA_region_info_t *rinfo;
+	
+	if((flat % P_SIZE) != 0) return -1;
+	for(i = 0; i < TMP_GMR_CNT; i++)	
+	{
+		if(tmp_gmr[i].flat == flat)
+		{
+			if(tmp_gmr[i].w == w && tmp_gmr[i].h == h && tmp_gmr[i].bpp == bpp)
+			{
+				return TMP_GMR_STARTID+i;
+			}
+			break;
+		}
+	}
+	
+	if(i == TMP_GMR_CNT)
+	{
+		i = tmp_gmr_cur;
+		tmp_gmr_cur = (tmp_gmr_cur + 1) % TMP_GMR_CNT;
+	}
+	
+	gmr = tmp_gmr+i;
+	rinfo = &svga_db->regions[TMP_GMR_STARTID+i-1].info;
+	
+	if(gmr->flat != 0)
+	{
+		SVGA_region_free(rinfo);
+	}
+	
+	rinfo->region_id = TMP_GMR_STARTID+i;
+	rinfo->size = SVGA_pitch(w, bpp)*h;
+	rinfo->address = mem;
+	rinfo->alloctype = SVGA_REGION_USE_FIXEDMEM; // FIXME: check user mem!
+	
+	if(SVGA_region_create(rinfo))
+	{
+		return TMP_GMR_STARTID+i;
+	}
+	
+	return -1;
+}
+

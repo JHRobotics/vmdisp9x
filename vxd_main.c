@@ -946,9 +946,10 @@ DWORD __stdcall Device_IO_Control_proc(DWORD vmhandle, struct DIOCParams *params
 			{
 				memcpy(outio, inio, sizeof(SVGA_region_info_t));
 			}
-			outio->address = NULL;
+			//outio->address = NULL;
 			if(!SVGA_region_create(outio))
 			{
+				outio->address = NULL;
 				//SVGA_flushcache();
 				//SVGA_region_create(outio);
 				// FIXME: return 1?

@@ -188,11 +188,13 @@ static void buildPixelFormat(LPDDHALMODEINFO lpMode, LPDDPIXELFORMAT lpddpf)
  */
 static void buildDDHALInfo(VMDAHAL_t __far *hal, int modeidx)
 {
+#if 0
 	static DWORD        AlignTbl [ 9 ] = {
 		FBHDA_ROW_ALIGN, FBHDA_ROW_ALIGN, FBHDA_ROW_ALIGN,
 		FBHDA_ROW_ALIGN, FBHDA_ROW_ALIGN, FBHDA_ROW_ALIGN,
 		FBHDA_ROW_ALIGN, FBHDA_ROW_ALIGN, FBHDA_ROW_ALIGN
 	}; /* reduced to 8 to work correctly with glPixelStorei */
+#endif
 	
 	int                 ii;
 	BOOL                can_flip;
@@ -352,10 +354,11 @@ static void buildDDHALInfo(VMDAHAL_t __far *hal, int modeidx)
 	/*
 	 * required alignments of the scan lines for each kind of memory
 	 */
-	hal->ddHALInfo.vmiData.dwOffscreenAlign = AlignTbl[ hda->bpp >> 2 ];
-	hal->ddHALInfo.vmiData.dwOverlayAlign = 8;
-	hal->ddHALInfo.vmiData.dwTextureAlign = 8;
-	hal->ddHALInfo.vmiData.dwZBufferAlign = 8;
+	hal->ddHALInfo.vmiData.dwOffscreenAlign = FBHDA_ROW_ALIGN;
+	// ^ align offscreen surface to pages
+	hal->ddHALInfo.vmiData.dwOverlayAlign = FBHDA_ROW_ALIGN;
+	hal->ddHALInfo.vmiData.dwTextureAlign = FBHDA_ROW_ALIGN;
+	hal->ddHALInfo.vmiData.dwZBufferAlign = FBHDA_ROW_ALIGN;
 
 	/*
 	 * callback functions

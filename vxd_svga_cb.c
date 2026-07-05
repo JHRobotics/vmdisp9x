@@ -80,7 +80,7 @@ extern BOOL gb_support;
 extern BOOL cb_support;
 extern BOOL cb_context0;
 
-extern BOOL surface_dirty;
+//extern BOOL surface_dirty;
 
 //extern DWORD present_fence;
 //extern BOOL ST_FB_invalid;
@@ -505,7 +505,7 @@ void SVGA_CMB_submit(DWORD FBPTR cmb, DWORD cmb_size, SVGA_CMB_status_t FBPTR st
 	
 	if(flags & SVGA_CB_DIRTY_SURFACE)
 	{
-		surface_dirty = TRUE;
+		//surface_dirty = TRUE;
 	}
 
 	if(proc_by_cb)

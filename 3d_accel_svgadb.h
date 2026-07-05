@@ -21,18 +21,46 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 *****************************************************************************/
+#ifndef __3D_ACCEL_SVGADB_H__INCLUDED__
+#define __3D_ACCEL_SVGADB_H__INCLUDED__
 
-#ifndef __ASYNC_H__INCLUDED__
-#define __ASYNC_H__INCLUDED__
+#define BSTEP (sizeof(DWORD)*8)
 
-typedef void (*draw_callback_h)(blit_t *blit);
+static inline DWORD map_lookup_and_set(DWORD *bitmap, DWORD start, DWORD max)
+{
+	DWORD i = start / BSTEP;
+	DWORD ii = start % BSTEP;
+	
+	bitmap += i;
+	
+	for(; i < max; i += BSTEP)
+	{
+		DWORD tmp = *bitmap;
+		if(tmp != 0) /* skip all-occupied double words */
+		{
+			for(; ii < BSTEP; ii++)
+			{
+				if(((tmp >> ii) & 0x1) != 0)
+				{
+					*bitmap &= ~((DWORD)1 << ii); /* set the bit in bitmap (to zero) */
+					return i+ii;
+				}
+			}
+			ii = 0;
+		}
+		bitmap++;
+	}
+	
+	return max;
+}
 
-BOOL async_blit_init(blit_t *blitptr, draw_callback_h cbptr);
-void async_blit_settime(DWORD delay);
-BOOL async_watchdog();
+static inline void map_reset(DWORD *bitmap, DWORD id)
+{
+	DWORD i = id / BSTEP;
+	DWORD ii = id % BSTEP;
+	
+	bitmap += i;
+	*bitmap |= ((DWORD)1 << ii);
+}
 
-#define ASYNC_DEFAULT 16
-#define ASYNC_MIN 4
-#define ASYNC_WATCHDOG_INTERVALS 4
-
-#endif /* __ASYNC_H__INCLUDED__ */
+#endif /* __3D_ACCEL_SVGADB_H__INCLUDED__ */

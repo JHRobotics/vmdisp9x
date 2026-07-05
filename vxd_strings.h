@@ -50,8 +50,6 @@ DSTR(dbg_cb_ena, "CB context 0 enabled\n");
 DSTR(dbg_region_info_1, "Region id = %d\n");
 DSTR(dbg_region_info_2,"Region address = %lX, PPN = %lX, GMRBLK = %lX\n");
 
-DSTR(dbg_mapping, "Memory mapping:\n");
-DSTR(dbg_mapping_map, "  %X -> %X\n");
 DSTR(dbg_destroy, "Driver destroyed\n");
 
 DSTR(dbg_siz, "Size of gSVGA(2) = %d %d\n");

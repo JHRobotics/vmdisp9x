@@ -1,0 +1,22 @@
+1: GMR_A[wram,ptr1] -> Surface 1
+2: GMR_B[wram,ptr2] -> Surface 2
+3: GMR_C[wram,ptr3] -> Surface 3
+4: FBGMR            -> Surface 4
+
+int SVGA_focus(wram_ptr, w, h, bpp); -> GMR id, surface id
+
+
+
+3D:
+	SID = focus(dst_surface);
+	render -> surface SID
+
+Flip or update:
+	SID = focus(wram_ptr)
+	SVGA3dCmdSurfaceCopy: SID -> 4
+	(if cursor && sw cursor) wait
+	                         sw blit vram
+	                         cmd update
+
+256 or gamma:
+	sw blit + cmd update

@@ -39,12 +39,16 @@ static DWORD screen_time = ASYNC_DEFAULT; // 60 Hz
 static blit_t *blit = NULL;
 static draw_callback_h draw_callback = NULL;
 volatile DWORD *curtime = NULL;
+static DWORD last_update = 0;
+static DWORD tm_handle = 0;
 
 extern LONG fb_lock_cnt;
 extern FBHDA_t *hda;
 extern void *DeviceCTX;
 
 #define TIME_MIN_PLAN 4
+
+#define Set_Timeout Set_Global_Time_Out
 
 DWORD calc_delta(DWORD draw_time)
 {
@@ -77,23 +81,25 @@ void __stdcall async_timeout(DWORD tardiness, DWORD refdata)
 	
 	//dbg_printf("async_timeout %d ...", refdata);
 	
-	if(FBHDA_lock())
+	last_update = act;
+	
+	//if(FBHDA_lock())
 	{
 		if(fb_lock_cnt == 0) /* FIXME: check if locking surface is visible surface */
 		{
 			draw_callback(blit);
 			hda->onflip = 0;
 		}
-		FBHDA_unlock();
+		//FBHDA_unlock();
 	}
 	
 	burned = *curtime - act;
 	
 	delta = calc_delta(burned);
-	if(!Set_Async_Time_Out(delta, refdata+1, async_timeout_proc))
+	if(!Set_Timeout(delta, refdata+1, async_timeout_proc))
 	{
 		delta = calc_delta(0);
-		Set_Async_Time_Out(delta, refdata+1, async_timeout_proc);		
+		Set_Timeout(delta, refdata+1, async_timeout_proc);		
 	}
 	//_ContextSwitch(curctx);
 	//dbg_printf("... set (%d)!\n", delta);
@@ -122,13 +128,13 @@ BOOL async_blit_init(blit_t *blitptr, draw_callback_h cbptr)
 		curtime = Get_System_Time_Address();
 		dbg_printf("curtime = %X\n", curtime);
 		
-		if(Set_Async_Time_Out(calc_delta(0), 0, async_timeout_proc) != 0)
+		if(Set_Timeout(calc_delta(0), 0, async_timeout_proc) != 0)
 		{
 			return TRUE;
 		}
 		else
 		{
-			dbg_printf("Set_Async_Time_Out FAILED!\n");
+			dbg_printf("Set_Timeout FAILED!\n");
 		}
 	}
 	
@@ -141,4 +147,21 @@ void async_blit_settime(DWORD delay)
 	{
 		screen_time = delay;
 	}
+}
+
+BOOL async_watchdog()
+{
+	DWORD test;
+	
+	test = (*curtime) - last_update;
+	if(test > screen_time*ASYNC_WATCHDOG_INTERVALS)
+	{
+		dbg_printf("HAF!\n");
+		if(Set_Timeout(calc_delta(0), 0, async_timeout_proc) == 0)
+		{
+			dbg_printf("WHOOOO!\n");
+			return FALSE;
+		}
+	}
+	return TRUE;
 }

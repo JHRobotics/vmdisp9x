@@ -39,7 +39,7 @@ FIXLINK_CC  = wcl386 -q fixlink\fixlink.c -fe=$(FIXLINK_EXE)
 #FLAGS += -DHWBLT
 
 # Set DBGPRINT to add debug printf logging.
-#DBGPRINT = 1
+DBGPRINT = 1
 
 # Generate code for i486, otherwise is code generated for Pentium Pro
 #I486 = 1

@@ -120,7 +120,7 @@ void *memmove(void *destination, const void *source, unsigned int num)
 		src += num;
 		while(num--)
 		{
-			*dst-- = *src--;
+			*--dst = *--src;
 		}
 	}
 	return destination;
@@ -643,20 +643,24 @@ BOOL VPICD_Virtualize_IRQ(struct _VPICD_IRQ_Descriptor *vid)
 
 void Hook_V86_Int_Chain(DWORD int_num, DWORD HookProc)
 {
+	_asm push esi
 	_asm mov eax, [int_num]
 	_asm mov esi, [HookProc]
 	VMMCall(Hook_V86_Int_Chain)
+	_asm pop esi
 }
 
 DWORD Set_Async_Time_Out(DWORD delayms, DWORD refdata, void *callback)
 {
 	volatile DWORD handle = 0;
 	
+	_asm push esi
 	_asm mov eax, [delayms]
 	_asm mov edx, [refdata]
 	_asm mov esi, [callback]
 	VMMCall(Set_Async_Time_Out)
 	_asm mov [handle], esi
+	_asm pop esi
 	
 	return handle;
 }
@@ -666,6 +670,30 @@ DWORD Set_Async_Time_Out(DWORD delayms, DWORD refdata, void *callback)
 		ecx = tardiness (number of extra milliseconds that have elapsed)
 		edx = refdata
 */
+
+
+DWORD Set_Global_Time_Out(DWORD delayms, DWORD refdata, void *callback)
+{
+	volatile DWORD handle = 0;
+	
+	_asm push esi
+	_asm mov eax, [delayms]
+	_asm mov edx, [refdata]
+	_asm mov esi, [callback]
+	VMMCall(Set_Global_Time_Out)
+	_asm mov [handle], esi
+	_asm pop esi
+	
+	return handle;
+}
+
+void Cancel_Time_Out(DWORD handle)
+{
+	_asm push esi
+	_asm mov esi, [handle]
+	VMMCall(Cancel_Time_Out)
+	_asm pop esi
+}
 
 DWORD Get_System_Time()
 {

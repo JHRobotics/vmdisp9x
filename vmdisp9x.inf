@@ -39,6 +39,7 @@ qxlmini.vxd=1
 vesamini.drv=1
 vesamini.vxd=1
 ;mesa:mesa3d.dll=1
+;mesa:mesasmp.dll=1
 ;mesa:vmwsgl32.dll=1
 ;openglide:glide2x.dll=1
 ;openglide:glide3x.dll=1
@@ -105,6 +106,7 @@ AddReg=VESA.AddReg,VM.AddReg,DX.addReg,VM.regextra
 boxvmini.drv,,,0x00000004
 boxvmini.vxd,,,0x00000004
 ;mesa:mesa3d.dll,,,0x00000004
+;mesa:mesasmp.dll,,,0x00000004
 ;vmhal:vmhal9x.dll,,,0x00000004
 ;vmhal:vmhal3d.dll,,,0x00000004
 ;vmhal:vmdisp9x.dll,,,0x00000004
@@ -114,6 +116,7 @@ boxvmini.vxd,,,0x00000004
 qemumini.drv,,,0x00000004
 qemumini.vxd,,,0x00000004
 ;mesa:mesa3d.dll,,,0x00000004
+;mesa:mesasmp.dll,,,0x00000004
 ;vmhal:vmhal9x.dll,,,0x00000004
 ;vmhal:vmhal3d.dll,,,0x00000004
 ;vmhal:vmdisp9x.dll,,,0x00000004
@@ -123,6 +126,7 @@ qemumini.vxd,,,0x00000004
 qxlmini.drv,,,0x00000004
 qxlmini.vxd,,,0x00000004
 ;mesa:mesa3d.dll,,,0x00000004
+;mesa:mesasmp.dll,,,0x00000004
 ;vmhal:vmhal9x.dll,,,0x00000004
 ;vmhal:vmhal3d.dll,,,0x00000004
 ;vmhal:vmdisp9x.dll,,,0x00000004
@@ -133,6 +137,7 @@ vmwsmini.drv,,,0x00000004
 vmwsmini.vxd,,,0x00000004
 ;mesa:vmwsgl32.dll,,,0x00000004
 ;mesa:mesa3d.dll,,,0x00000004
+;mesa:mesasmp.dll,,,0x00000004
 ;vmhal:vmhal9x.dll,,,0x00000004
 ;vmhal:vmhal3d.dll,,,0x00000004
 ;vmhal:vmdisp9x.dll,,,0x00000004
@@ -142,6 +147,7 @@ vmwsmini.vxd,,,0x00000004
 vesamini.drv,,,0x00000004
 vesamini.vxd,,,0x00000004
 ;mesa:mesa3d.dll,,,0x00000004
+;mesa:mesasmp.dll,,,0x00000004
 ;vmhal:vmhal9x.dll,,,0x00000004
 ;vmhal:vmhal3d.dll,,,0x00000004
 ;vmhal:vmdisp9x.dll,,,0x00000004
