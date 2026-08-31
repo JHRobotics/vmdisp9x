@@ -32,6 +32,7 @@ THE SOFTWARE.
 #include "ddrawi.h"
 #include <wchar.h> /* wchar_t */
 #include <string.h> /* _fmemset */
+#include <stdint.h> /* uint32_t */
 
 #include "tvout.h" /* VIDEOPARAMETERS */
 

@@ -14,6 +14,9 @@ OBJS += &
   vxd_wram.obj vxd_async.obj vxd_gtf.obj vxd_fbhda_dd.obj vxd_terror.obj
 
 INCS = -I$(%WATCOM)\h\win -Iddk -Ivmware
+!ifneq %OS Windows_NT
+INCS = -I$(%WATCOM)/h/win -Iddk -Ivmware -I$(%WATCOM)/h
+!endif
 
 VER_BUILD = 124
 
@@ -33,7 +36,7 @@ FLAGS = -DDRV_VER_BUILD=$(VER_BUILD)
 FIXLINK_EXE = fixlink.exe
 # command line to produce executable
 FIXLINK_CC  = wcl386 -q fixlink\fixlink.c -fe=$(FIXLINK_EXE)
-# FIXLINK_CC = gcc fixlink/fixlink.c -o fixlink
+# FIXLINK_CC = gcc -Dstricmp=strcasecmp fixlink/fixlink.c -o ./fixlink.bin
 
 # Define HWBLT if BitBlt can be accelerated.
 #FLAGS += -DHWBLT
@@ -54,8 +57,8 @@ DBGFILE32 = file dbgprint32.obj
 DBGFILE =
 DBGFILE32 =
 !endif
-CFLAGS = -q -wx -s -zu -zls
-CFLAGS32 = -q -wx -s -zls -mf -DVXD32 -fpi87 -ei -oeatxhn 
+CFLAGS = -q -wx -s -zu -zls -fo=.obj
+CFLAGS32 = -q -wx -s -zls -mf -DVXD32 -fpi87 -ei -oeatxhn -fo=.obj 
 CC = wcc
 CC32 = wcc386
 
@@ -103,7 +106,7 @@ dibcall.obj : dibcall.c .autodepend
 	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
 
 dibthunk.obj : dibthunk.asm
-	wasm -q $(FLAGS) $<
+	wasm -q -fo=$@ $(FLAGS) $<
 
 dddrv.obj : dddrv.c .autodepend
 	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
@@ -136,7 +139,7 @@ palette.obj : palette.c .autodepend
 	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
 	
 sswhook.obj : sswhook.asm
-	wasm -q $(FLAGS) $<
+	wasm -q -fo=$@ $(FLAGS) $<
 
 modes.obj : modes.c .autodepend
 	$(CC) $(CFLAGS) -zW $(INCS) $(FLAGS) $<
@@ -259,19 +262,19 @@ vesamini.res : res/vesamini.rc res/colortab.bin res/config.bin res/fonts.bin res
 	wrc -q -r -ad -bt=windows -fo=$@ -Ires -I$(%WATCOM)/h/win $(FLAGS) res/vesamini.rc
 
 res/colortab.bin : res/colortab.c
-	wcc -q $(INCS) $<
+	wcc -q -fo=.obj $(INCS) $<
 	wlink op quiet disable 1014, 1023 name $@ sys dos output raw file colortab.obj
 
 res/config.bin : res/config.c
-	wcc -q $(INCS) $<
+	wcc -q -fo=.obj $(INCS) $<
 	wlink op quiet disable 1014, 1023 name $@ sys dos output raw file config.obj
 
 res/fonts.bin : res/fonts.c .autodepend
-	wcc -q $(INCS) $<
+	wcc -q -fo=.obj $(INCS) $<
 	wlink op quiet disable 1014, 1023 name $@ sys dos output raw file fonts.obj
 
 res/fonts120.bin : res/fonts120.c .autodepend
-	wcc -q $(INCS) $<
+	wcc -q -fo=.obj $(INCS) $<
 	wlink op quiet disable 1014, 1023 name $@ sys dos output raw file fonts120.obj
 
 # Libraries
