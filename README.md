@@ -55,8 +55,7 @@ VMware workstation is supported in current version (17.5.x). In theory, this dri
 
 
 ## QEMU
-QEMU is supported since **v1.2023.0.10**. Supported adapters are `-vga std` which using modified VBE driver (`qemumini.drv`) and `-vga vmware` where VMware driver now works but is limited to 32bpp colours only. I plan to support *VirGL* in future, but currently no 3D acceleration isn't available in vanilla QEMU (but HW acceleration is possible with [QEMU-3DFX](https://github.com/kjliew/qemu-3dfx).
-
+QEMU is supported since **v1.2023.0.10**. Supported adapters are `-vga std` which using modified VBE driver (`qemumini.drv`) and `-vga vmware` where VMware driver now works but is limited to 32bpp colours only. I plan to support *VirGL* in future, but currently no 3D acceleration isn't available in vanilla QEMU (but HW acceleration is possible with [QEMU-3DFX](https://github.com/kjliew/qemu-3dfx) or [QEMU-VMVGA](https://github.com/qemus/qemu-vmvga)).
 
 ## VESA BIOS extension
 
