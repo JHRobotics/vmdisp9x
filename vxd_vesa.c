@@ -48,6 +48,8 @@ THE SOFTWARE.
 
 #include "code32.h"
 
+//#define CHOOSE_SCREEN_FREQ
+
 #define ISA_LFB 0xE0000000UL
 
 extern FBHDA_t *hda;
@@ -181,7 +183,9 @@ static DWORD conf_mtrr = 1;
 #define CRTC_OFFSET 2048
 #define PAL_OFFSET  3072 // pal size = 4*256
 
+#ifdef CHOOSE_SCREEN_FREQ
 static DWORD clock_to_test[] = {120, 110, 100, 85, 75, 70, 60, 50, 30, 25, 0};
+#endif
 
 #define V86_SEG(_lin) ((_lin) >> 4)
 #define V86_OFF(_lin) ((_lin) & 0xF)
@@ -213,6 +217,7 @@ static DWORD VESA_pitch(DWORD width, DWORD bpp)
 
 #define DSWAP(_a, _i, _j) {WORD tmp = _a[_i]; _a[_i] = _a[_j]; _a[_j] = tmp;}
 
+#ifdef CHOOSE_SCREEN_FREQ
 /* begin mode list with 60 Hz, 50 Hz and the higher freqs */
 static void mode_sort_freqs(int m)
 {
@@ -240,6 +245,7 @@ static void mode_sort_freqs(int m)
 		k++;
 	}
 }
+#endif
 
 DWORD vram_phy = 0;
 
@@ -375,7 +381,7 @@ BOOL VESA_init_hw()
 							dbg_printf("Mode 0x%X = (%ld x %ld x %ld) = phy:%lX\n",
 								m->mode_id, m->width, m->height, m->bpp, m->phy);
 
-#if 0
+#ifdef CHOOSE_SCREEN_FREQ
 							if(info->VESAVersion >= VESA_VBE_3_0)
 							{
 								vesa_crtc_info_t crtc_test;

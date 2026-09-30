@@ -40,7 +40,6 @@ static blit_t *blit = NULL;
 static draw_callback_h draw_callback = NULL;
 volatile DWORD *curtime = NULL;
 static DWORD last_update = 0;
-static DWORD tm_handle = 0;
 
 extern LONG fb_lock_cnt;
 extern FBHDA_t *hda;

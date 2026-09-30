@@ -18,7 +18,7 @@ INCS = -I$(%WATCOM)\h\win -Iddk -Ivmware
 INCS = -I$(%WATCOM)/h/win -Iddk -Ivmware -I$(%WATCOM)/h
 !endif
 
-VER_BUILD = 124
+VER_BUILD = 130
 
 FLAGS = -DDRV_VER_BUILD=$(VER_BUILD)
 
@@ -42,7 +42,7 @@ FIXLINK_CC  = wcl386 -q fixlink\fixlink.c -fe=$(FIXLINK_EXE)
 #FLAGS += -DHWBLT
 
 # Set DBGPRINT to add debug printf logging.
-DBGPRINT = 1
+#DBGPRINT = 1
 
 # Generate code for i486, otherwise is code generated for Pentium Pro
 #I486 = 1

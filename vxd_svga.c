@@ -693,13 +693,6 @@ DWORD SVGA_pitch(DWORD width, DWORD bpp)
 	return (bp * width + (FBHDA_ROW_ALIGN-1)) & (~((DWORD)FBHDA_ROW_ALIGN-1));
 }
 
-static DWORD SVGA_DT_stride(DWORD w, DWORD h)
-{
-	DWORD stride = SVGA_pitch(w, 32) * h;
-	
-	return (stride + 65535) & 0xFFFF0000UL;
-}
-
 /**
  *
  * @return: screen offset to VRAM
