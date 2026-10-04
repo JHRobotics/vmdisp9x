@@ -1,3 +1,4 @@
 [submodule "fixlink"]
 	path = fixlink
 	url = https://github.com/JHRobotics/fixlink
+	branch = main

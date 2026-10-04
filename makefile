@@ -32,11 +32,18 @@ FLAGS = -DDRV_VER_BUILD=$(VER_BUILD)
 # (new executable) flags. Also this utility is needed to fix Watcom VXD
 # by wlink. If yout HOST machine isn't Windows, you've to adjust these
 # 2 variables:
-# executable file name
+# FIXLINK_EXE = executable file name
+# FIXLINK_CC = command to produce whis executable
+!ifdef __NT__
 FIXLINK_EXE = fixlink.exe
-# command line to produce executable
 FIXLINK_CC  = wcl386 -q fixlink\fixlink.c -fe=$(FIXLINK_EXE)
-# FIXLINK_CC = gcc -Dstricmp=strcasecmp fixlink/fixlink.c -o ./fixlink.bin
+!else ifdef __MSDOS__
+FIXLINK_EXE = fixlink.exe
+FIXLINK_CC  = wcl -q fixlink\fixlink.c -fe=$(FIXLINK_EXE)
+!else
+FIXLINK_EXE = ./fixlink.bin
+FIXLINK_CC = gcc fixlink/fixlink.c -o ./fixlink.bin
+!endif
 
 # Define HWBLT if BitBlt can be accelerated.
 #FLAGS += -DHWBLT
@@ -57,8 +64,9 @@ DBGFILE32 = file dbgprint32.obj
 DBGFILE =
 DBGFILE32 =
 !endif
-CFLAGS = -q -wx -s -zu -zls -fo=.obj
-CFLAGS32 = -q -wx -s -zls -mf -DVXD32 -fpi87 -ei -oeatxhn -fo=.obj 
+
+CFLAGS = -q -wx -s -zu -zls -fo=.obj -wcd=303
+CFLAGS32 = -q -wx -s -zls -mf -DVXD32 -fpi87 -ei -oeatxhn -fo=.obj -wcd=303
 CC = wcc
 CC32 = wcc386
 
