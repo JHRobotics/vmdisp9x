@@ -21,7 +21,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 *****************************************************************************/
-
+#ifndef __VXD_LIB_H__INCLUDED__
+#define __VXD_LIB_H__INCLUDED__
 /* 32 bit RING-0 system calls and CRT function */
 
 void memset(void *dst, int c, unsigned int size);
@@ -140,3 +141,14 @@ void FBHDA_unlock();
 /* critical sections */
 void critical_section_enter();
 void critical_section_leave();
+
+void __cdecl Time_Slice_Sleep(DWORD timeoutMS);
+
+/* VWIN32 */
+DWORD __cdecl VWIN32_CreateRing0Thread(DWORD stack_size, DWORD data, void *entry, void *fail_callback_async, DWORD *pR0Handle);
+DWORD __cdecl VWIN32_QueueUserApc(DWORD prnRing3APC, DWORD dwParam, DWORD ptcb);
+
+/* SHELL */
+DWORD __cdecl SHELL_CallAtAppyTime(void *pfnCallback, DWORD dwRefData, DWORD dwFlags, DWORD dwTimeout);
+
+#endif /* __VXD_LIB_H__INCLUDED__ */

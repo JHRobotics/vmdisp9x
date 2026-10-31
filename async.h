@@ -27,6 +27,7 @@ THE SOFTWARE.
 
 typedef void (*draw_callback_h)(blit_t *blit);
 
+void async_init();
 BOOL async_blit_init(blit_t *blitptr, draw_callback_h cbptr);
 void async_blit_settime(DWORD delay);
 BOOL async_watchdog();

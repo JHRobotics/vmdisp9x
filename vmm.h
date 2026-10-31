@@ -1199,8 +1199,49 @@ typedef struct tagVxD_Desc_Block
 
 #define VMM___GetPhysPageInfo 349
 
+/*
+ *  Return values for _GetPhysPageInfo
+ */
+#define PHYSINFO_NONE	0	/* no pages in the specified range exist */
+#define PHYSINFO_SOME	1	/* some pages in the specified range exist */
+#define PHYSINFO_ALL	2	/* all pages in the specified range exist */
+
 #define VMM___RegQueryInfoKey 350
 #define VMM__MemArb_Reserve_Pages 351
+
+#define VMM__Time_Slice_Sys_VM_Idle 352
+#define VMM__Time_Slice_Sleep 353
+#define VMM__Boost_With_Decay 354
+#define VMM__Set_Inversion_Pri 355
+#define VMM__Reset_Inversion_Pri 356
+#define VMM__Release_Inversion_Pri 357
+#define VMM__Get_Thread_Win32_Pri 358
+#define VMM__Set_Thread_Win32_Pri 359
+#define VMM__Set_Thread_Static_Boost 360
+#define VMM__Set_VM_Static_Boost 361
+#define VMM__Release_Inversion_Pri_ID 362
+#define VMM__Attach_Thread_To_Group 363
+#define VMM__Detach_Thread_From_Group 364
+#define VMM__Set_Group_Static_Boost 365
+
+#define VMM___GetRegistryPath 366
+#define VMM___GetRegistryKey 367
+
+#define REGTYPE_ENUM	0
+#define REGTYPE_CLASS	1
+#define REGTYPE_VXD	2
+
+/* Flag definitions for _GetRegistryKey */
+#define REGKEY_OPEN		    0
+#define REGKEY_CREATE_IFNOTEXIST    1
+
+/* Flag definitions for _Assert_Range */
+#define ASSERT_RANGE_NULL_BAD	      0x00000000
+#define ASSERT_RANGE_NULL_OK	      0x00000001
+#define ASSERT_RANGE_IS_ASCIIZ	    0x00000002
+#define ASSERT_RANGE_IS_NOT_ASCIIZ  0x00000000
+#define ASSERT_RANGE_NO_DEBUG	      0x80000000
+#define ASSERT_RANGE_BITS	          0x80000003
 
 #pragma pack(push)
 #pragma pack(1)
@@ -1248,6 +1289,9 @@ typedef struct tagCRS_32
    WORD   wReserved_13 ;          // (padding)
 
 } CRS_32, *PCRS_32;
+/* MSDN: Client_Reg_Struc */
+
+#define CRS_32_EFECTIVE_SIZE 0x48
 
 typedef struct VMCB
 {
@@ -1260,6 +1304,65 @@ typedef struct VMCB
 /* also as CB_S */
 
 #define VMCB_ID 0x62634D56	/* VMcb */
+
+typedef struct tcb_s
+{
+	DWORD TCB_Flags;            // thread status flags; see below
+	DWORD TCB_Reserved1;        // reserved for use by VMM
+	DWORD TCB_Reserved2;        // reserved for use by VMM
+	DWORD TCB_Signature;        // SCHED_OBJ_THREAD_ID
+	PCRS_32 TCB_ClientPtr;      // address of client registers
+	DWORD TCB_VMHandle;         // VM to which this thread belongs
+	WORD  TCB_ThreadId;         // thread ID 
+	WORD  TCB_PMLockOrigSS;     // client SS at Begin_Use_Locked_PM_Stack
+	DWORD TCB_PMLockOrigESP;    // client ESP at Begin_Use_Locked_PM_Stack
+	DWORD TCB_PMLockOrigEIP;    // client EIP at Begin_Use_Locked_PM_Stack
+	DWORD TCB_PMLockStackCount; // number of outstanding 
+  /* Begin_Use_Locked_PM_Stack calls */
+	WORD  TCB_PMLockOrigCS;     // client CS at Begin_Use_Locked_PM_Stack
+	WORD  TCB_PMPSPSelector;    // used by Vwin32
+	DWORD TCB_ThreadType;       // used by Vwin32
+	BYTE  TCB_pad1;             // padding
+	BYTE  TCB_pad2;             // padding
+	WORD  TCB_extErrLocus;      // used by Vwin32
+	BYTE  TCB_extErrAction;     // used by Vwin32
+	BYTE  TCB_extErrClass;      // used by Vwin32
+	DWORD TCB_extErrPtr;        // used by Vwin32
+} TCB_t;
+/* MSDN: tcb_s */
+
+#define SCHED_OBJ_ID_THREAD         0x42434854    // THCB in ASCII
+
+/*
+ *  Thread status indicates globally interesting thread states.
+ *  Flags are for information only and must not be modified.
+ */
+
+#define THFLAG_SUSPENDED_BIT        0x03   // Thread not scheduled
+#define THFLAG_SUSPENDED                   (1L << THFLAG_SUSPENDED_BIT)
+#define THFLAG_NOT_EXECUTEABLE_BIT  0x04   // Thread partially destroyed
+#define THFLAG_NOT_EXECUTEABLE             (1L << THFLAG_NOT_EXECUTEABLE_BIT)
+#define THFLAG_THREAD_CREATION_BIT  0x08   // Thread in status nascendi
+#define THFLAG_THREAD_CREATION             (1L << THFLAG_THREAD_CREATION_BIT)
+#define THFLAG_THREAD_BLOCKED_BIT   0x0A   // Blocked on semaphore
+#define THFLAG_THREAD_BLOCKED              (1L << THFLAG_THREAD_BLOCKED_BIT)
+#define THFLAG_RING0_THREAD_BIT     0x1C   // thread runs only at ring 0
+#define THFLAG_RING0_THREAD	           (1L << THFLAG_RING0_THREAD_BIT)
+#define THFLAG_CHARSET_BITS     0x10   // Default character set
+#define THFLAG_CHARSET_MASK        (3L << THFLAG_CHARSET_BITS)
+#define THFLAG_ANSI            (0L << THFLAG_CHARSET_BITS)
+#define THFLAG_OEM             (1L << THFLAG_CHARSET_BITS)
+#define THFLAG_UNICODE             (2L << THFLAG_CHARSET_BITS)
+#define THFLAG_RESERVED            (3L << THFLAG_CHARSET_BITS)
+#define THFLAG_EXTENDED_HANDLES_BIT 0x12   // Thread uses extended file handles
+#define THFLAG_EXTENDED_HANDLES            (1L << THFLAG_EXTENDED_HANDLES_BIT)
+/* the win32 loader opens win32 exes with this bit set to notify IFS
+ * so a defragger won't move these files
+ * the bit is turned off once the open completes.  
+ * file open flags are overloaded which is why this is here
+ */
+#define THFLAG_OPEN_AS_IMMOVABLE_FILE_BIT 0x13   // File thus opened not moved
+#define THFLAG_OPEN_AS_IMMOVABLE_FILE            (1L << THFLAG_OPEN_AS_IMMOVABLE_FILE_BIT)
 
 #pragma pack(pop)
 
@@ -1493,5 +1596,112 @@ struct pmcb_s {
 #define BLOCK_THREAD_IDLE		         (1 << BLOCK_THREAD_IDLE_BIT)
 #define BLOCK_FORCE_SVC_INTS_BIT      5
 #define BLOCK_FORCE_SVC_INTS         (1 << BLOCK_FORCE_SVC_INTS_BIT)
+
+#define VMCPD__Get_Version      0
+#define VMCPD__Get_Virt_State   1
+#define VMCPD__Set_Virt_State   2
+#define VMCPD__Get_CR0_State    3
+#define VMCPD__Set_CR0_State    4
+#define VMCPD__Get_Thread_State 5
+#define VMCPD__Set_Thread_State 6
+#define VMCPD__Get_FP_Instruction_Size 7
+#define VMCPD__Set_Thread_Precision 8
+#define VMCPD__Init_FP          9
+#define VMCPD___KeSaveFloatingPointState 10
+#define VMCPD___KeRestoreFloatingPointState 11
+#define VMCPD__Init_FP_State 12
+
+#define VWIN32__VWIN32_Get_Version           0
+#define VWIN32__VWIN32_DIOCCompletionRoutine 1
+#define VWIN32___VWIN32_QueueUserApc         2
+#define VWIN32___VWIN32_Get_Thread_Context   3
+#define VWIN32___VWIN32_Set_Thread_Context   4
+#define VWIN32___VWIN32_CopyMem              5
+#define VWIN32___VWIN32_Npx_Exception        6
+#define VWIN32___VWIN32_Emulate_Npx          7
+#define VWIN32___VWIN32_CheckDelayedNpxTrap  8
+#define VWIN32__VWIN32_EnterCrstR0           9
+#define VWIN32__VWIN32_LeaveCrstR0           10
+#define VWIN32___VWIN32_FaultPopup           11
+#define VWIN32__VWIN32_GetContextHandle      12
+#define VWIN32__VWIN32_GetCurrentProcessHandle      13
+#define VWIN32___VWIN32_SetWin32Event        14
+#define VWIN32___VWIN32_PulseWin32Event      15
+#define VWIN32___VWIN32_ResetWin32Event      16
+#define VWIN32___VWIN32_WaitSingleObject     17
+#define VWIN32___VWIN32_WaitMultipleObjects  18
+#define VWIN32___VWIN32_CreateRing0Thread    19
+#define VWIN32___VWIN32_CloseVxDHandle       20
+#define VWIN32__VWIN32_ActiveTimeBiasSet     21
+#define VWIN32__VWIN32_GetCurrentDirectory   22
+#define VWIN32__VWIN32_BlueScreenPopup       23
+#define VWIN32__VWIN32_TerminateApp          24
+#define VWIN32___VWIN32_QueueKernelAPC       25
+#define VWIN32__VWIN32_SysErrorBox           26
+#define VWIN32___VWIN32_IsClientWin32        27
+#define VWIN32__VWIN32_IFSRIPWhenLev2Taken   28
+#define VWIN32___VWIN32_InitWin32Event       29
+#define VWIN32___VWIN32_InitWin32Mutex       30
+#define VWIN32___VWIN32_ReleaseWin32Mutex    31
+#define VWIN32___VWIN32_BlockThreadEx        32
+#define VWIN32__VWIN32_GetProcessHandle      33
+#define VWIN32___VWIN32_InitWin32Semaphore   34
+#define VWIN32___VWIN32_SignalWin32Sem       35
+#define VWIN32___VWIN32_QueueUserApcEx       36
+#define VWIN32___VWIN32_OpenVxDHandle        37
+#define VWIN32___VWIN32_CloseWin32Handle     38
+#define VWIN32___VWIN32_AllocExternalHandle  39
+#define VWIN32___VWIN32_UseExternalHandle    40
+#define VWIN32___VWIN32_UnuseExternalHandle  41
+#define VWIN32__KeInitializeTimer            42
+#define VWIN32__KeSetTimer                   43
+#define VWIN32__KeCancelTimer                44
+#define VWIN32__KeReadStateTimer             45
+#define VWIN32___VWIN32_ReferenceObject      46
+#define VWIN32___VWIN32_GetExternalHandle    47
+#define VWIN32__VWIN32_ConvertNtTimeout      48
+#define VWIN32___VWIN32_SetWin32EventBoostPriority  49
+#define VWIN32___VWIN32_GetRing3Flat32Selectors     50
+#define VWIN32___VWIN32_GetCurThreadCondition       51
+#define VWIN32__VWIN32_Init_FP                      52
+#define VWIN32__R0SetWaitableTimer                  53
+
+#define SHELL__SHELL_Get_Version             0
+#define SHELL__SHELL_Resolve_Contention      1
+#define SHELL__SHELL_Event                   2
+#define SHELL__SHELL_SYSMODAL_Message        3
+#define SHELL__SHELL_Message                 4
+#define SHELL__SHELL_GetVMInfo               5
+#define SHELL___SHELL_PostMessage            6
+#define SHELL___SHELL_ShellExecute           7
+#define SHELL___SHELL_PostShellMessage       8
+#define SHELL__SHELL_DispatchRing0AppyEvents 9
+#define SHELL__SHELL_Hook_Properties         10
+#define SHELL__SHELL_Unhook_Properties       11
+#define SHELL__SHELL_Update_User_Activity    12
+#define SHELL___SHELL_QueryAppyTimeAvailable 13
+#define SHELL___SHELL_CallAtAppyTime         14
+#define SHELL___SHELL_CancelAppyTimeEvent    15
+#define SHELL___SHELL_BroadcastSystemMessage 16
+#define SHELL___SHELL_HookSystemBroadcast    17
+#define SHELL___SHELL_UnhookSystemBroadcast  18
+#define SHELL___SHELL_LocalAllocEx           19
+#define SHELL___SHELL_LocalFree              20
+#define SHELL___SHELL_LoadLibrary            21
+#define SHELL___SHELL_FreeLibrary            22
+#define SHELL___SHELL_GetProcAddress         23
+#define SHELL___SHELL_CallDll                24
+#define SHELL___SHELL_SuggestSingleMSDOSMode 25
+#define SHELL__SHELL_CheckHotkeyAllowed      26
+#define SHELL___SHELL_GetDOSAppInfo          27
+#define SHELL___SHELL_Update_User_Activity_Ex 28
+
+/* Flags returned by SHELL_QueryAppyTimeAvailable */
+#define QAAFL_APPYAVAIL	0x00000001	/* 'Appy-time server exists */
+#define QAAFL_APPYNOW	0x00000002	/* It is now 'Appy-time */
+
+/* Flags for SHELL_CallAtAppyTime */
+#define CAAFL_RING0     0x00000001 /* Does not require GUI services */
+#define CAAFL_TIMEOUT   0x00000002 /* Time out the event */
 
 #endif /* __VMM_H__INCLUDED__ */

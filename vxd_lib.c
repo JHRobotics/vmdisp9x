@@ -790,3 +790,53 @@ ULONG __declspec(naked) __cdecl _PageAttach(ULONG page, PVOID hcontextsrc, ULONG
 {
 	VMMJmp(_PageAttach);
 }
+
+/* when success return RING3 handle of thread, when fail_callback_async isn't NULL, function operate asynchronously 
+ */
+DWORD __cdecl VWIN32_CreateRing0Thread(DWORD stack_size, DWORD data, void *entry, void *fail_callback_async, DWORD *pR0Handle)
+{
+	DWORD r3h = 0;
+	DWORD r0h = 0;
+	
+	_asm
+	{
+		push esi
+		push edi
+		push ebx
+		mov ecx, [stack_size]
+		mov edx, [data]
+		mov esi, [fail_callback_async]
+		mov ebx, [entry]
+	};
+	VxDCall(VWIN32, _VWIN32_CreateRing0Thread);
+	_asm
+	{
+		pop ebx
+		pop edi
+		pop esi
+		mov [r3h], eax
+		mov [r0h], edx
+	};
+	
+	if(pR0Handle != NULL)
+	{
+		*pR0Handle = r0h;
+	}	
+	return r3h;
+}
+
+DWORD __declspec(naked) __cdecl VWIN32_QueueUserApc(DWORD prnRing3APC, DWORD dwParam, DWORD ptcb)
+{
+	VxDJmp(VWIN32, _VWIN32_QueueUserApc);
+}
+
+DWORD __declspec(naked) __cdecl SHELL_CallAtAppyTime(void *pfnCallback, DWORD dwRefData, DWORD dwFlags, DWORD dwTimeout)
+{
+	VxDJmp(SHELL, _SHELL_CallAtAppyTime);
+}
+
+void __cdecl Time_Slice_Sleep(DWORD timeoutMS)
+{
+	_asm mov eax, [timeoutMS];
+	VMMCall(Time_Slice_Sleep);
+}

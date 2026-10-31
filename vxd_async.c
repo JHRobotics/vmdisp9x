@@ -39,104 +39,31 @@ static DWORD screen_time = ASYNC_DEFAULT; // 60 Hz
 static blit_t *blit = NULL;
 static draw_callback_h draw_callback = NULL;
 volatile DWORD *curtime = NULL;
-static DWORD last_update = 0;
+static DWORD target_time = 0;
 
 extern LONG fb_lock_cnt;
 extern FBHDA_t *hda;
-extern void *DeviceCTX;
+
+DWORD thread_handle = NULL;
+
+static BOOL thead_init = FALSE;
 
 #define TIME_MIN_PLAN 4
 
-#define Set_Timeout Set_Global_Time_Out
-
-DWORD calc_delta(DWORD draw_time)
-{
-	DWORD m = (*curtime) % screen_time;
-	DWORD delta = screen_time - m;
-	if(delta < TIME_MIN_PLAN)
-	{
-		delta += screen_time;
-	}
-
-	if(draw_time)
-	{
-		DWORD s = draw_time/screen_time;
-		delta += s*screen_time;
-	}
-	return delta;
-}
-
-void __declspec(naked) async_timeout_proc();
-
-void __stdcall async_timeout(DWORD tardiness, DWORD refdata)
-{
-	DWORD burned;
-	DWORD act = *curtime;
-	DWORD delta;
-	
-	//void *curctx = _GetCurrentContext();
-	//dbg_printf("CTX: %lX, device CTX: %lX\n", curctx, DeviceCTX);
-	//_ContextSwitch(DeviceCTX);
-	
-	//dbg_printf("async_timeout %d ...", refdata);
-	
-	last_update = act;
-	
-	//if(FBHDA_lock())
-	{
-		if(fb_lock_cnt == 0) /* FIXME: check if locking surface is visible surface */
-		{
-			draw_callback(blit);
-			hda->onflip = 0;
-		}
-		//FBHDA_unlock();
-	}
-	
-	burned = *curtime - act;
-	
-	delta = calc_delta(burned);
-	if(!Set_Timeout(delta, refdata+1, async_timeout_proc))
-	{
-		delta = calc_delta(0);
-		Set_Timeout(delta, refdata+1, async_timeout_proc);		
-	}
-	//_ContextSwitch(curctx);
-	//dbg_printf("... set (%d)!\n", delta);
-}
-
-void __declspec(naked) async_timeout_proc()
-{
-	//ecx = tardiness (number of extra milliseconds that have elapsed)
-	//edx = refdata
-	_asm
-	{
-		push edx
-		push ecx
-		call async_timeout
-		retn
-	};
-}
-
 BOOL async_blit_init(blit_t *blitptr, draw_callback_h cbptr)
 {
+	if(!thead_init)
+	{
+		async_init();
+		thead_init = TRUE;
+	}
+	
 	if(blitptr != NULL && cbptr != NULL)
 	{
 		blit = blitptr;
 		draw_callback = cbptr;
-		dbg_printf("Get_System_Time_Address...\n");
-		curtime = Get_System_Time_Address();
-		dbg_printf("curtime = %X\n", curtime);
-		
-		if(Set_Timeout(calc_delta(0), 0, async_timeout_proc) != 0)
-		{
-			return TRUE;
-		}
-		else
-		{
-			dbg_printf("Set_Timeout FAILED!\n");
-		}
+		return TRUE;
 	}
-	
 	return FALSE;
 }
 
@@ -150,17 +77,56 @@ void async_blit_settime(DWORD delay)
 
 BOOL async_watchdog()
 {
-	DWORD test;
-	
-	test = (*curtime) - last_update;
-	if(test > screen_time*ASYNC_WATCHDOG_INTERVALS)
-	{
-		dbg_printf("HAF!\n");
-		if(Set_Timeout(calc_delta(0), 0, async_timeout_proc) == 0)
-		{
-			dbg_printf("WHOOOO!\n");
-			return FALSE;
-		}
-	}
+	// ...
 	return TRUE;
+}
+
+void __stdcall async_thread_main(DWORD dwStartParam)
+{
+	dbg_printf("async_thread_main\n");
+	for(;;)
+	{
+		DWORD wait_time = 0;
+		if((*curtime) > target_time)
+		{
+			target_time = (*curtime) + screen_time;
+			if(draw_callback)
+			{
+				if(fb_lock_cnt == 0) /* FIXME: check if locking surface is visible surface */
+				{
+					draw_callback(blit);
+					hda->onflip = 0;
+				}
+			}
+		}
+		wait_time = target_time - (*curtime);
+		if(wait_time > screen_time) /* on overflow for example */
+		{
+			wait_time = screen_time;
+		}
+
+		/* task switch */
+		Time_Slice_Sleep(wait_time);
+	}
+}
+
+/*
+	Create Extra RING0 thread
+	
+	IMPORTANT: VWIN32_CreateRing0Thread MUST be called at APPY time, so don't call this
+	directly but as callback from SHELL_CallAtAppyTime
+ */
+static void __cdecl create_thread(DWORD dwRefData, DWORD dwFlags)
+{
+	dbg_printf("create_thread\n");
+	VWIN32_CreateRing0Thread(4096, 0, async_thread_main, NULL, &thread_handle);
+	dbg_printf("create_thread DONE\n");
+}
+
+void async_init()
+{
+	dbg_printf("async_init\n");
+	curtime = Get_System_Time_Address();
+	SHELL_CallAtAppyTime(create_thread, 0, /*CAAFL_RING0*/0, 0);
+	dbg_printf("async_init DONE\n");
 }
