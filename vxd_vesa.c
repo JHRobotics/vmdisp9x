@@ -48,7 +48,7 @@ THE SOFTWARE.
 
 #include "code32.h"
 
-//#define CHOOSE_SCREEN_FREQ
+#define CHOOSE_SCREEN_FREQ
 
 #define ISA_LFB 0xE0000000UL
 
@@ -71,6 +71,7 @@ typedef struct vesa_mode
 	WORD  mode_id;
 	WORD  flags;
 	WORD  freqs[VESA_MODE_MAX_FREQS];
+	DWORD pclks[VESA_MODE_MAX_FREQS];
 } vesa_mode_t;
 
 static vesa_mode_t *vesa_modes = NULL;
@@ -90,6 +91,7 @@ static void VESA_draw(blit_t *blit);
 
 /* from gtf.c */
 void gtf_calc(DWORD w, DWORD h, DWORD freq, vesa_crtc_info_t *crtc_info);
+void gtf_update_pclk(vesa_crtc_info_t *crtc_info, long pclk);
 
 /* vxd_mouse.vxd */
 BOOL mouse_get_rect(DWORD *ptr_left, DWORD *ptr_top,
@@ -102,6 +104,8 @@ void vesa_bios_V86(CRS_32 *V86regs)
 	CRS_32 *pstate = &reg_state;
 	
 	_asm    push      ebx
+	_asm    push      edi
+	_asm    push      esi
 	// sizeof(CRS_32) = 108
 	_asm    mov       ebx, [ThisVM]
 	_asm    mov       ecx, [V86regs]
@@ -125,6 +129,8 @@ void vesa_bios_V86(CRS_32 *V86regs)
 	//_asm    mov       esi, esp
 	_asm   mov       esi, [pstate]
 	VMMCall(Restore_Client_State)
+	_asm   pop       esi
+	_asm   pop       edi
 	_asm   pop       ebx
 	//_asm    add       esp, 128
 }
@@ -184,7 +190,7 @@ static DWORD conf_mtrr = 1;
 #define PAL_OFFSET  3072 // pal size = 4*256
 
 #ifdef CHOOSE_SCREEN_FREQ
-static DWORD clock_to_test[] = {120, 110, 100, 85, 75, 70, 60, 50, 30, 25, 0};
+static DWORD clock_to_test[] = {120, 110, 100, 85, 75, 70, 60, 50, 0}; // 30 and 25 not usable by GTF
 #endif
 
 #define V86_SEG(_lin) ((_lin) >> 4)
@@ -236,12 +242,14 @@ static void mode_sort_freqs(int m)
 	if(f60 >= 0)
 	{
 		DSWAP(vesa_modes[m].freqs, k, f60);
+		DSWAP(vesa_modes[m].pclks, k, f60);
 		k++;
 	}
 	
 	if(f50 >= 0)
 	{
 		DSWAP(vesa_modes[m].freqs, k, f50);
+		DSWAP(vesa_modes[m].pclks, k, f50);
 		k++;
 	}
 }
@@ -368,8 +376,6 @@ BOOL VESA_init_hw()
 								}
 							}
 
-							vesa_modes_cnt++;
-
 							if(m->phy)
 							{
 								if(m->phy < fb_phy)
@@ -389,7 +395,6 @@ BOOL VESA_init_hw()
 								DWORD *pfreq = clock_to_test;
 								while(*pfreq != 0)
 								{
-									DWORD last_freq = 0;
 									gtf_calc(m->width, m->height, *pfreq, &crtc_test);
 									if(crtc_test.PixelClock <= modeinfo->MaxPixelClock)
 									{
@@ -400,34 +405,31 @@ BOOL VESA_init_hw()
 										vesa_bios(&regs);
 										if(VESA_SUCC(regs))
 										{
-											if(k > 0)
-											{
-												if(last_freq > regs.Client_ECX)
-												{
-													m->freqs[k] = *pfreq;
-													k++;
-												}
-											}
-											else
+											if(regs.Client_ECX > 10000000) /* under 10 MHz is probably some junk  */
 											{
 												m->freqs[k] = *pfreq;
+												m->pclks[k] = regs.Client_ECX;
 												k++;
 											}
-											last_freq = regs.Client_ECX;
 											dbg_printf("  freq=%d pixclk=%ld\n", *pfreq, last_freq);
 										}
 									}
+									pfreq++;
 								}
 								m->freqs[k] = 0;
-								mode_sort_freqs(i);
+								m->pclks[k] = 0;
+								mode_sort_freqs(vesa_modes_cnt);
 							}
 							else
 #endif
 							{
 								m->freqs[0] = 0;
+								m->pclks[0] = 0;
 							}
-						}						
-					}
+							
+							vesa_modes_cnt++;
+						}	// mode OK
+					} // VESA succ
 				} // for
 
 				if(vesa_modes_cnt == 0)
@@ -435,6 +437,23 @@ BOOL VESA_init_hw()
 					terrorf("No VESA modes found, bad VBIOS?\n");
 					tpause();
 				}
+
+#if 0
+				/* dump modes */
+				for(i = 0; i < vesa_modes_cnt; i++)
+				{
+					int k;
+					terrorf("M: %d %d %d: ", vesa_modes[i].width, vesa_modes[i].height, vesa_modes[i].bpp);
+					for(k = 0 ;; k++)
+					{
+						terrorf("%d/%d ", vesa_modes[i].freqs[k], vesa_modes[i].pclks[k]);
+						if(vesa_modes[i].freqs[k] == 0)
+							break;
+					}
+					terrorf("\n");
+				}
+				tpause();
+#endif
 
 				vesa_version = info->VESAVersion;
 				vesa_caps = info->Capabilities;
@@ -480,11 +499,12 @@ BOOL VESA_init_hw()
 				dbg_printf("vram_phy=%lX vram_phylin=%lX\n", vram_phy, hda->vram_phylin);
 
 				hda->flags |= FB_SUPPORT_FLIPING | FB_VESA_MODES;
+#ifdef CHOOSE_SCREEN_FREQ
 				if(vesa_version >= VESA_VBE_3_0)
 				{
-					//hda->flags |= FB_SUPPORT_CLOCK;
+					hda->flags |= FB_SUPPORT_CLOCK;
 				}
-
+#endif
 				vesa_pal = (vesa_palette_entry_t*)(((BYTE*)vesa_buf)+PAL_OFFSET);
 
 				vesa_valid  = TRUE;
@@ -713,7 +733,7 @@ static int VESA_modechoice(DWORD w, DWORD h, DWORD bpp)
 	return vesa_modes_cnt;
 }
 
-static DWORD VESA_freqchoice(int mode, DWORD rr_min, DWORD rr_max)
+static BOOL VESA_freqchoice(int mode, DWORD rr_min, DWORD rr_max, DWORD *freq, DWORD *pclk)
 {
 	int k;
 	for(k = 0; k < VESA_MODE_MAX_FREQS; k++)
@@ -721,15 +741,17 @@ static DWORD VESA_freqchoice(int mode, DWORD rr_min, DWORD rr_max)
 		DWORD f = vesa_modes[mode].freqs[k];
 		if(f == 0)
 		{
-			return 0; /* default */
+			return FALSE; /* default */
 		}
 		
 		if(f >= rr_min && f <= rr_max)
 		{
-			return f;
+			*freq = vesa_modes[mode].freqs[k];
+			*pclk = vesa_modes[mode].pclks[k];
+			return TRUE;
 		}
 	}
-	return 0;
+	return FALSE;
 }
 
 BOOL VESA_validmode(DWORD w, DWORD h, DWORD bpp)
@@ -750,7 +772,8 @@ BOOL VESA_setmode_phy(DWORD w, DWORD h, DWORD bpp, DWORD rr_min, DWORD rr_max)
 	DWORD mode = 0;
 	DWORD num_buffers = 0;
 	DWORD video_stride;
-	DWORD freq;
+	DWORD freq = 0;
+	DWORD pclk = 0;
 	CRS_32 regs;
 	vesa_crtc_info_t *crtc_info = NULL;
 	DWORD refresh = ASYNC_DEFAULT;
@@ -759,15 +782,12 @@ BOOL VESA_setmode_phy(DWORD w, DWORD h, DWORD bpp, DWORD rr_min, DWORD rr_max)
 
 	mode = VESA_modechoice(w, h, bpp);
 	if(mode >= vesa_modes_cnt) return FALSE;
-		
-	freq = VESA_freqchoice(mode, rr_min, rr_max);
-	
-	if(freq != 0)
+	if(VESA_freqchoice(mode, rr_min, rr_max, &freq, &pclk))
 	{
 		crtc_info = (vesa_crtc_info_t*)((char*)vesa_buf + CRTC_OFFSET);
 		gtf_calc(vesa_modes[mode].width, vesa_modes[mode].height, freq, crtc_info);
+		gtf_update_pclk(crtc_info, pclk);
 	}
-
 	load_client_state(&regs);
 
 	// set mode
