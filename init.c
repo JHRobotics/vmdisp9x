@@ -124,22 +124,26 @@ void ReadDisplayConfig( void )
             wBpp = DispInfo.diBpp;
 
             dbg_printf( "Registry: %ux%u %ubpp %udpi\n", DispInfo.diXRes, DispInfo.diYRes, DispInfo.diBpp, DispInfo.diDPI );
-            
-            if((DispInfo.diInfoFlags & (MONITOR_INFO_NOT_VALID | MONITOR_INFO_DISABLED_BY_USER)) == 0)
+
+
+            if((DispInfo.diInfoFlags & REFRESH_RATE_MAX_ONLY) != 0)
             {
-            	if((DispInfo.diInfoFlags & REFRESH_RATE_MAX_ONLY) != 0)
+            	wFreqMax = DispInfo.diRefreshRateMax;
+            	if(wFreqMax > 0)
             	{
-            		wFreqMax = DispInfo.diRefreshRateMax;
-            		if(wFreqMax > 0)
-            		{
-            			wFreqMin = wFreqMax-1;
-            		}
+            		wFreqMin = wFreqMax;
             	}
-            	else
-            	{
-            		wFreqMax = DispInfo.diRefreshRateMax;
-            		wFreqMin = DispInfo.diRefreshRateMin;
-            	}
+            	dbg_printf("          wFreqMax=%d\n", wFreqMax);
+            }
+            else if((DispInfo.diInfoFlags & (MONITOR_INFO_NOT_VALID | MONITOR_INFO_DISABLED_BY_USER)) == 0)
+            {
+            	wFreqMax = DispInfo.diRefreshRateMax;
+            	wFreqMin = DispInfo.diRefreshRateMin;
+            	dbg_printf("          wFreqMax=%d, wFreqMax=%d\n", wFreqMax, wFreqMin);
+            }
+            else
+            {
+            	dbg_printf("          DispInfo.diInfoFlags=%X\n", DispInfo.diInfoFlags);
             }
 
             /* DPI might not be set, careful. */

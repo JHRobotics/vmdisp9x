@@ -51,6 +51,7 @@ THE SOFTWARE.
 #define CHOOSE_SCREEN_FREQ
 
 #define ISA_LFB 0xE0000000UL
+#define V86_PAGE 0xB0 /* Is this OK? Any collisions? */
 
 extern FBHDA_t *hda;
 extern LONG fb_lock_cnt;
@@ -71,7 +72,6 @@ typedef struct vesa_mode
 	WORD  mode_id;
 	WORD  flags;
 	WORD  freqs[VESA_MODE_MAX_FREQS];
-	DWORD pclks[VESA_MODE_MAX_FREQS];
 } vesa_mode_t;
 
 static vesa_mode_t *vesa_modes = NULL;
@@ -99,6 +99,7 @@ BOOL mouse_get_rect(DWORD *ptr_left, DWORD *ptr_top,
 
 static CRS_32 reg_state;
 
+/* Call VBIOS in V86 mode */
 void vesa_bios_V86(CRS_32 *V86regs)
 {
 	CRS_32 *pstate = &reg_state;
@@ -135,6 +136,7 @@ void vesa_bios_V86(CRS_32 *V86regs)
 	//_asm    add       esp, 128
 }
 
+/* Call VBIOS in PM16 mode, but without ability of change segment  */
 void vesa_bios(CRS_32 *V86regs)
 {
 	_asm
@@ -168,9 +170,24 @@ void load_client_state(CRS_32 *V86regs)
 {
 //	_asm   mov       edi, [V86regs]
 //	VMMCall(Save_Client_State);
-	VMCB_t *vm = (VMCB_t*)ThisVM;
+
+//	VMCB_t *vm = (VMCB_t*)ThisVM;
+//	memcpy(V86regs, vm->CB_Client_Pointer, sizeof(CRS_32));
+//	V86regs->Client_EBP = ThisVM;
+/*
+ * DDK: Note: If the mini-VDD needs to make calls to Exec_Int or Exec_VxD_Int
+ * in order to set the hardware from hi-res mode back to VGA mode during
+ * a PRE_HIRES_TO_VGA call, it should make sure that EBP points to client
+ * registers for the Current VM. The Main VDD does not guarantee this when
+ * it calls the mini-VDD. Since all calls to Exec_Int and Exec_VxD_Int happen
+ * in the context of the current VM, you must make the call to the function
+ * Get_Cur_VM_Handle and then establish EBP to point to the client registers
+ * for that VM before making any calls to the BIOS. 
+ */
+ 
+	VMCB_t *vm = (VMCB_t*)Get_Cur_VM_Handle();
 	memcpy(V86regs, vm->CB_Client_Pointer, sizeof(CRS_32));
-	V86regs->Client_EBP = ThisVM;
+	V86regs->Client_EBP = (DWORD)vm;
 }
 
 static DWORD vesa_buf_v86;
@@ -178,6 +195,8 @@ static void *vesa_buf;
 static DWORD vesa_buf_phy;
 static vesa_palette_entry_t *vesa_pal;
 static int vesa_pal_bits = 6;
+
+//static DWORD vesa_buf_pm16 = 0;
 
 static BOOL vesa_valid = FALSE;
 
@@ -190,7 +209,7 @@ static DWORD conf_mtrr = 1;
 #define PAL_OFFSET  3072 // pal size = 4*256
 
 #ifdef CHOOSE_SCREEN_FREQ
-static DWORD clock_to_test[] = {120, 110, 100, 85, 75, 70, 60, 50, 0}; // 30 and 25 not usable by GTF
+static DWORD clock_to_test[] = {120, 110, 100, 85, 75, 72, 70, 60, 50, 0}; // 30 and 25 not usable by GTF
 #endif
 
 #define V86_SEG(_lin) ((_lin) >> 4)
@@ -242,23 +261,23 @@ static void mode_sort_freqs(int m)
 	if(f60 >= 0)
 	{
 		DSWAP(vesa_modes[m].freqs, k, f60);
-		DSWAP(vesa_modes[m].pclks, k, f60);
 		k++;
 	}
 	
 	if(f50 >= 0)
 	{
 		DSWAP(vesa_modes[m].freqs, k, f50);
-		DSWAP(vesa_modes[m].pclks, k, f50);
 		k++;
 	}
 }
+
 #endif
 
 DWORD vram_phy = 0;
 
 extern const char reg_path[];
 static const char VESA_conf_path[] = "Software\\vmdisp9x\\vesa";
+static BYTE *first_mb;
 
 void VESA_load_vbios_pm();
 
@@ -287,11 +306,12 @@ BOOL VESA_init_hw()
 	if(vesa_buf)
 	{
 		DWORD modes_count = 0;
-		DWORD v86_page = 0xB0; /* Is this OK? Any collisions? */
+		
+		//vesa_buf_pm16 = map_pm16(ThisVM, flat, P_SIZE);
 
-		if(_PhysIntoV86(vesa_buf_phy >> 12, ThisVM, v86_page, 1, 0))
+		if(_PhysIntoV86(vesa_buf_phy >> 12, ThisVM, V86_PAGE, 1, 0))
 		{
-			vesa_buf_v86 = v86_page*4096;
+			vesa_buf_v86 = V86_PAGE*4096;
 		}
 		dbg_printf("VESA V86 addr=0x%lX, phy=0x%lX\n", vesa_buf_v86, vesa_buf_phy);
 
@@ -398,33 +418,24 @@ BOOL VESA_init_hw()
 									gtf_calc(m->width, m->height, *pfreq, &crtc_test);
 									if(crtc_test.PixelClock <= modeinfo->MaxPixelClock)
 									{
-										regs.Client_EAX = VESA_CMD_PIXEL_CLOCK;
-										regs.Client_EBX = 0;
-										regs.Client_EDX = m->mode_id;
-										regs.Client_ECX = crtc_test.PixelClock;
-										vesa_bios(&regs);
-										if(VESA_SUCC(regs))
-										{
-											if(regs.Client_ECX > 10000000) /* under 10 MHz is probably some junk  */
-											{
-												m->freqs[k] = *pfreq;
-												m->pclks[k] = regs.Client_ECX;
-												k++;
-											}
-											dbg_printf("  freq=%d pixclk=%ld\n", *pfreq, last_freq);
-										}
+										m->freqs[k] = *pfreq;
+										k++;
 									}
+									else
+									{
+										dbg_printf("\t@%ld = ", *pfreq);
+										dbg_printf("above max clock %ld > %ld\n", crtc_test.PixelClock, modeinfo->MaxPixelClock);
+									}
+									
 									pfreq++;
 								}
 								m->freqs[k] = 0;
-								m->pclks[k] = 0;
 								mode_sort_freqs(vesa_modes_cnt);
 							}
 							else
 #endif
 							{
 								m->freqs[0] = 0;
-								m->pclks[0] = 0;
 							}
 							
 							vesa_modes_cnt++;
@@ -437,23 +448,6 @@ BOOL VESA_init_hw()
 					terrorf("No VESA modes found, bad VBIOS?\n");
 					tpause();
 				}
-
-#if 0
-				/* dump modes */
-				for(i = 0; i < vesa_modes_cnt; i++)
-				{
-					int k;
-					terrorf("M: %d %d %d: ", vesa_modes[i].width, vesa_modes[i].height, vesa_modes[i].bpp);
-					for(k = 0 ;; k++)
-					{
-						terrorf("%d/%d ", vesa_modes[i].freqs[k], vesa_modes[i].pclks[k]);
-						if(vesa_modes[i].freqs[k] == 0)
-							break;
-					}
-					terrorf("\n");
-				}
-				tpause();
-#endif
 
 				vesa_version = info->VESAVersion;
 				vesa_caps = info->Capabilities;
@@ -517,6 +511,22 @@ BOOL VESA_init_hw()
 
 				dbg_printf("VESA_init_hw(vram_size=%ld, wram_size=%ld, real_memory=%ld) = TRUE\n",
 					hda->vram_size, hda->vram_size_virt, hda->vram_size_bar);
+					
+				first_mb = (BYTE*)_MapPhysToLinear(0, 1048576, 0);
+				if(first_mb)
+				{
+					DWORD i;
+					for(i = 0; i < 1048576-3; i++)
+					{
+						if(first_mb[i] == 'P' &&
+						 first_mb[i+1] == 'M' &&
+						 first_mb[i+2] == 'I' &&
+						 first_mb[i+3] == 'D')
+						{
+							dbg_printf("PMID @ %lu\n", i);
+						}
+					}
+				}
 
 				return TRUE;
 			}
@@ -626,7 +636,7 @@ void VESA_load_vbios_pm()
 				
 				while(*ports != 0xFFFF)
 				{
-					dbg_printf("port: %04X\n", *ports);
+					//dbg_printf("port: %04X\n", *ports);
 					//terrorf("port: = %X\n", *ports);
 					ports++;
 				}
@@ -647,7 +657,7 @@ void VESA_load_vbios_pm()
 						_BuildDescriptorDWORDs(mem_adr, RoundToPages(mem_adr), 0x92, 0x80, 0, &hi, &low);
 	
 						_Allocate_GDT_Selector(hi, low, 0, &selector, NULL);
-						vbios32_sel = selector << 16;
+						vbios32_sel = selector & 0xFFFF; // << 16;
 					}
 					
 					dbg_printf("VESA PM need memory addr=0x%8X (size=%d)\n", mem_adr, mem_size);
@@ -733,12 +743,15 @@ static int VESA_modechoice(DWORD w, DWORD h, DWORD bpp)
 	return vesa_modes_cnt;
 }
 
-static BOOL VESA_freqchoice(int mode, DWORD rr_min, DWORD rr_max, DWORD *freq, DWORD *pclk)
+static BOOL VESA_freqchoice(int mode, DWORD rr_min, DWORD rr_max, DWORD *freq)
 {
 	int k;
+	dbg_printf("want: rr_min=%d rr_max=%d\n", rr_min, rr_max);
 	for(k = 0; k < VESA_MODE_MAX_FREQS; k++)
 	{
 		DWORD f = vesa_modes[mode].freqs[k];
+		dbg_printf(" valid=%d\n", f);
+		
 		if(f == 0)
 		{
 			return FALSE; /* default */
@@ -747,11 +760,41 @@ static BOOL VESA_freqchoice(int mode, DWORD rr_min, DWORD rr_max, DWORD *freq, D
 		if(f >= rr_min && f <= rr_max)
 		{
 			*freq = vesa_modes[mode].freqs[k];
-			*pclk = vesa_modes[mode].pclks[k];
 			return TRUE;
 		}
 	}
 	return FALSE;
+}
+
+static DWORD VESA_get_pixel_clock(CRS_32 *regs, DWORD mode_id, DWORD pixel_clock)
+{
+	DWORD rc = 0;
+	
+	regs->Client_EAX = VESA_CMD_PIXEL_CLOCK;
+	regs->Client_EBX = 0;
+	regs->Client_EDX = mode_id;
+	regs->Client_ECX = pixel_clock;
+	vesa_bios(regs);
+	if(VESA_SUCC(*regs))
+	{
+		if(regs->Client_ECX >= 4000000) /* under 4 MHz is probably some junk  */
+		{
+			DWORD diff;
+			rc = regs->Client_ECX;
+			
+			/* check if difference is less than 10%, if yes, there is something wrong and not use result */
+			if(pixel_clock > rc)
+				diff = pixel_clock - rc;
+			else
+				diff = rc - pixel_clock;
+			
+			if(diff > (pixel_clock/10)) 
+			{
+				rc = 0;
+			}
+		}
+	}
+	return rc;
 }
 
 BOOL VESA_validmode(DWORD w, DWORD h, DWORD bpp)
@@ -766,13 +809,12 @@ BOOL VESA_validmode(DWORD w, DWORD h, DWORD bpp)
 	return FALSE;
 }
 
-
-BOOL VESA_setmode_phy(DWORD w, DWORD h, DWORD bpp, DWORD rr_min, DWORD rr_max)
+static BOOL VESA_setmode_phy(DWORD w, DWORD h, DWORD bpp, DWORD rr_min, DWORD rr_max)
 {
 	DWORD mode = 0;
 	DWORD num_buffers = 0;
 	DWORD video_stride;
-	DWORD freq = 0;
+	DWORD rr = 0;
 	DWORD pclk = 0;
 	CRS_32 regs;
 	vesa_crtc_info_t *crtc_info = NULL;
@@ -780,40 +822,72 @@ BOOL VESA_setmode_phy(DWORD w, DWORD h, DWORD bpp, DWORD rr_min, DWORD rr_max)
 
 	VESA_HIRES_enable();	
 
+	load_client_state(&regs);
 	mode = VESA_modechoice(w, h, bpp);
 	if(mode >= vesa_modes_cnt) return FALSE;
-	if(VESA_freqchoice(mode, rr_min, rr_max, &freq, &pclk))
+	if(VESA_freqchoice(mode, rr_min, rr_max, &rr))
 	{
-		crtc_info = (vesa_crtc_info_t*)((char*)vesa_buf + CRTC_OFFSET);
-		gtf_calc(vesa_modes[mode].width, vesa_modes[mode].height, freq, crtc_info);
-		gtf_update_pclk(crtc_info, pclk);
+		dbg_printf("Get pixel clock for r=%d\n", rr);
+		crtc_info = (vesa_crtc_info_t*)(((BYTE*)vesa_buf) + CRTC_OFFSET);
+		memset(crtc_info, 0, sizeof(vesa_crtc_info_t));
+		gtf_calc(vesa_modes[mode].width, vesa_modes[mode].height, rr, crtc_info);
+		pclk = VESA_get_pixel_clock(&regs, vesa_modes[mode].mode_id, crtc_info->PixelClock);
+		if(pclk)
+		{
+			dbg_printf("New pclk=%ld\n", pclk);
+			gtf_update_pclk(crtc_info, pclk);
+			dbg_printf("CRTC: htotal=%d hss=%d hse=%d\n", crtc_info->HorizontalTotal, crtc_info->HorizontalSyncStart, crtc_info->HorizontalSyncEnd);
+			dbg_printf("      vtotal=%d vss=%d vse=%d\n", crtc_info->VerticalTotal,   crtc_info->VerticalSyncStart,   crtc_info->VerticalSyncEnd);
+			dbg_printf("      flags=0x%X, pclk=%ld, refresh=%d\n", crtc_info->Flags, crtc_info->PixelClock, crtc_info->RefreshRate);
+		}
+		else
+		{
+			crtc_info = NULL;
+			dbg_printf("VESA_CMD_PIXEL_CLOCK failed for r=%d\n", rr);
+		}
 	}
-	load_client_state(&regs);
 
 	// set mode
 	regs.Client_EAX = VESA_CMD_MODE_SET;
 	regs.Client_EBX = vesa_modes[mode].mode_id | VESA_SETMODE_LFB | VESA_SETMODE_NOCLEAR;
+#if 0 /* not now yet */
 	if(crtc_info)
 	{
-		regs.Client_ES  = V86_SEG(vesa_buf_v86+CRTC_OFFSET);
-		regs.Client_EDI = V86_OFF(vesa_buf_v86+CRTC_OFFSET);
-		
-		vesa_bios(&regs);
-		if(!VESA_SUCC(regs))
+		//memset(crtc_info, 0, sizeof(vesa_crtc_info_t));
+		if(_PhysIntoV86(vesa_buf_phy >> 12, (DWORD)Get_Cur_VM_Handle(), V86_PAGE, 1, 0))
 		{
-			/* fail to set mode, try with default frequency */
-			regs.Client_ES = 0;
-			regs.Client_EDI = 0;
-			dbg_printf("freq=%d failed, try default\n", freq);
-			vesa_bios(&regs);
+			regs.Client_ES   = V86_PAGE;
+			regs.Client_EDI  = CRTC_OFFSET;
+			regs.Client_EBX |= VESA_SETMODE_CRTC;
+			
+			dbg_printf("VBIOS for VM=%lX, ThisVM=%lX\n", Get_Cur_VM_Handle(), ThisVM);
+			vesa_bios_V86(&regs);
+			if(!VESA_SUCC(regs))
+			{
+				/* fail to set mode, try with default frequency */
+				regs.Client_ES   = 0;
+				regs.Client_EDI  = 0;
+				regs.Client_EBX ^= VESA_SETMODE_CRTC;
+				dbg_printf("freq=%ld failed, try default\n", rr);
+				vesa_bios(&regs);
+			}
+			else
+			{
+				refresh = 1000 / rr;
+			}
 		}
 		else
 		{
-			refresh = 1000 / freq;
+			dbg_printf("_PhysIntoV86 failed\n", rr);
+			regs.Client_ES = 0;
+			regs.Client_EDI = 0;
+			vesa_bios(&regs);
 		}
 	}
 	else
+#endif
 	{
+		dbg_printf("CRTC not present (r=%d)\n", rr);
 		regs.Client_ES = 0;
 		regs.Client_EDI = 0;
 		vesa_bios(&regs);
@@ -1006,7 +1080,7 @@ BOOL VESA_setmode_phy(DWORD w, DWORD h, DWORD bpp, DWORD rr_min, DWORD rr_max)
 				}
 			}
 		}
-		
+
 		async_blit_settime(refresh);
 
 		dbg_printf("mode set, mode_id=%d, i=%d, pitch=%d, buffers=%d\n", vesa_modes[mode].mode_id, mode, wram->regs.s.pitch, num_buffers);

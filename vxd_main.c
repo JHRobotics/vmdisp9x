@@ -649,7 +649,7 @@ static void configure_FBHDA()
 				fbhda->overlays[i].ptr = 0;
 			}
 			
-			dbg_printf("Overlay #%ld: %ld\n", i, fbhda->overlays[i].size);			
+			//dbg_printf("Overlay #%ld: %ld\n", i, fbhda->overlays[i].size);			
 		}
 		
 		if(force_sw)

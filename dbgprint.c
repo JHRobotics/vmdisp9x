@@ -73,7 +73,7 @@ static void init_serial() {
    outp(INFO_PORT + 1, 0x00);    //                  (hi byte)
    outp(INFO_PORT + 3, 0x03);    // 8 bits, no parity, one stop bit
    outp(INFO_PORT + 2, 0xC7);    // Enable FIFO, clear them, with 14-byte threshold
-   //outp(INFO_PORT + 4, 0x0B);    // IRQs enabled, RTS/DSR set
+   outp(INFO_PORT + 4, 0x03);    // RTS+DSR set, needs for all real cables with more than 3 wires
 #endif
 }
 

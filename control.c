@@ -188,7 +188,7 @@ LONG WINAPI __loadds Control(LPVOID lpDevice, UINT function,
 {
   LONG rc = -1;
   
-  dbg_printf("Control (16bit): %d (0x%x)\n", function, function);
+  //dbg_printf("Control (16bit): %d (0x%x)\n", function, function);
   
   switch(function)
   {
@@ -508,7 +508,7 @@ LONG WINAPI __loadds Control(LPVOID lpDevice, UINT function,
 # if DBGPRINT
   if(rc < 0)
   {
-    dbg_printf("Control: unknown code: %d\n", function);
+    //dbg_printf("Control: unknown code: %d\n", function);
   }
 # endif
   /* JH: it's probably not good idea to pass unknown commands directly to DIB  */

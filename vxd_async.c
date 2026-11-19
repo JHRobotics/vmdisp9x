@@ -87,9 +87,12 @@ void __stdcall async_thread_main(DWORD dwStartParam)
 	for(;;)
 	{
 		DWORD wait_time = 0;
-		if((*curtime) > target_time)
+		DWORD act = *curtime;
+		
+		if(act >= target_time)
 		{
-			target_time = (*curtime) + screen_time;
+			DWORD draw_time;
+
 			if(draw_callback)
 			{
 				if(fb_lock_cnt == 0) /* FIXME: check if locking surface is visible surface */
@@ -98,12 +101,28 @@ void __stdcall async_thread_main(DWORD dwStartParam)
 					hda->onflip = 0;
 				}
 			}
+			
+			draw_time = *curtime - act;
+			
+			if(draw_time  > (screen_time/3))
+			{
+				DWORD act2 = *curtime;
+				
+				target_time = act2 - (act2%screen_time) + (screen_time*2);
+			}
+			else
+			{
+				target_time = act + screen_time;
+			}
+			
+			//dbg_printf("dt: %d\n", draw_time);
 		}
-		wait_time = target_time - (*curtime);
-		if(wait_time > screen_time) /* on overflow for example */
+		wait_time = *curtime - target_time;
+		if(wait_time > (screen_time*2)) /* on overflow for example */
 		{
 			wait_time = screen_time;
 		}
+		//dbg_printf("wt: %d\n", wait_time);
 
 		/* task switch */
 		Time_Slice_Sleep(wait_time);

@@ -315,7 +315,7 @@ void vert_refresh (int h_pixels, int v_lines, long freq,
      *  [H PERIOD] = [H PERIOD EST] / ([V FIELD RATE RQD] / [V FIELD RATE EST])
      */
 
-    h_period_k = (h_period_est_k*v_field_rate_est_k) / (v_field_rate_rqd*1000);
+    h_period_k = ((h_period_est_k/10)*(v_field_rate_est_k/10)) / (v_field_rate_rqd*10);
 
     print_value(12, "[H PERIOD]", h_period_k);
 
@@ -489,14 +489,25 @@ void gtf_calc(DWORD w, DWORD h, DWORD freq, vesa_crtc_info_t *crtc_info)
 	crtc_info->VerticalTotal       = m.vfl;
 	crtc_info->VerticalSyncStart   = m.vss;
 	crtc_info->VerticalSyncEnd     = m.vse;
-	crtc_info->PixelClock          = m.pclk;
-	crtc_info->RefreshRate         = m.v_freq*10;
+	crtc_info->RefreshRate         = m.v_freq*100;
 
+#if 0	
+	crtc_info->HorizontalSyncStart = w;
+	crtc_info->HorizontalSyncEnd   = crtc_info->HorizontalSyncStart + (m.hse -  m.hss);
+	crtc_info->HorizontalTotal     = crtc_info->HorizontalSyncEnd;
+	
+	crtc_info->VerticalSyncStart   = h;
+	crtc_info->VerticalSyncEnd     = crtc_info->VerticalSyncStart + (m.vse - m.vss);
+	crtc_info->VerticalTotal       = crtc_info->VerticalSyncEnd;
+#endif	
+	crtc_info->RefreshRate         = ((m.pclk*10) / (crtc_info->HorizontalTotal*crtc_info->VerticalTotal))*10; 
+
+	crtc_info->PixelClock          = m.pclk;
 	crtc_info->Flags               = VESA_CRTC_FLAG_HSYC_NEG | VESA_CRTC_FLAG_VSYC_POS; 
 }
 
 void gtf_update_pclk(vesa_crtc_info_t *crtc_info, long pclk)
 {
 	crtc_info->PixelClock  = pclk;
-	crtc_info->RefreshRate = (pclk*10) / (crtc_info->HorizontalTotal*crtc_info->VerticalTotal);
+	crtc_info->RefreshRate = ((pclk*10) / (crtc_info->HorizontalTotal*crtc_info->VerticalTotal))*10;
 }

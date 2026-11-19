@@ -209,6 +209,21 @@ typedef struct vesa_palette_entry
 #define VESA_PMTABLE_OFF_PALETTE_DATA 2
 #define VESA_PMTABLE_OFF_PORTS 3
 
+/* p.21 */
+typedef struct vesa_pm_infoblock
+{
+	uint8  signature[4];      /* = "PMID" ; PM Info Block Signature */
+	uint16 EntryPoint;        /* Offset of PM entry point within BIOS */
+	uint16 PMInitialize;      /* Offset of PM initialization entry point */
+	uint16 BIOSDataSel;       /* Selector to BIOS data area emulation block (0x600 bytes) */
+	uint16 A0000Sel;          /* = 0xA000 ; Selector to access A0000h physical mem (64K) */
+	uint16 B0000Sel;          /* = 0xB000 ; Selector to access B0000h physical mem (64K) */
+	uint16 B8000Sel;          /* = 0xB800 ; Selector to access B8000h physical mem (32K) */
+	uint16 CodeSegSel;        /* = 0xC000 ; Selector to access code segment as data (64K) */
+	uint8  inProtectMode;     /* Set to 1 when in protected mode */
+	uint8  checksum;          /* Checksum byte for structure */
+} vesa_pm_infoblock_t;
+
 #pragma pack(pop)
 
 #endif /* __VESA_H__INCLUDED__ */

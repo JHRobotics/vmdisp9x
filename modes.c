@@ -284,7 +284,7 @@ int PhysicalEnable( void )
 #endif
 
 #ifdef VESA
-    VESA_setmode(wScrX, wScrY, wBpp, 0, 0);
+    VESA_setmode(wScrX, wScrY, wBpp, wFreqMin, wFreqMax);
 #endif
 
     /* Let the VDD know that the mode changed. */
